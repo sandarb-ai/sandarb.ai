@@ -102,7 +102,7 @@ export function AgentDetailClient({ initialAgent }: AgentDetailClientProps) {
         <div className="flex items-center gap-2">
           {(agent.approvalStatus ?? 'draft') === 'pending_approval' && (
             <>
-              <Button size="sm" onClick={handleApprove}>
+              <Button size="sm" variant="approve" onClick={handleApprove}>
                 <Check className="h-4 w-4 mr-2" />
                 Approve
               </Button>

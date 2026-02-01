@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getRootOrganization, getOrganizationBySlug, createOrganization, getAllOrganizations } from '@/lib/organizations';
 import { createAgent, getAgentCount } from '@/lib/agents';
 import { createContext, getContextByName, getContextCount } from '@/lib/contexts';
+import { proposeRevision, approveRevision, getProposedRevisions, getRevisionsByContextId } from '@/lib/revisions';
 import { createTemplate, getTemplateByName } from '@/lib/templates';
 import { usePg } from '@/lib/pg';
 import { getPool } from '@/lib/pg';
@@ -12,6 +13,12 @@ const TARGET_ORGS = 30;
 const TARGET_AGENTS = 420;
 const TARGET_CONTEXTS = 3009;
 const AGENTS_PER_ORG = 14; // 30 * 14 = 420
+/** For each of first N contexts: History 2–26 (approved), Pending 1–5 (proposed). */
+const CONTEXTS_WITH_FULL_REVISIONS = 80;
+const HISTORY_MIN = 2;
+const HISTORY_MAX = 26;
+const PENDING_MIN = 1;
+const PENDING_MAX = 5;
 
 /**
  * POST /api/seed
@@ -102,6 +109,46 @@ export async function POST() {
           });
         } catch {
           // Duplicate; skip
+        }
+      }
+    }
+
+    // --- Seed History (2–26) and Pending (1–5) per context for first N contexts ---
+    const historyRange = HISTORY_MAX - HISTORY_MIN + 1;
+    const pendingRange = PENDING_MAX - PENDING_MIN + 1;
+    for (let i = 1; i <= CONTEXTS_WITH_FULL_REVISIONS; i++) {
+      const name = `context-${String(i).padStart(4, '0')}`;
+      const ctx = await getContextByName(name);
+      if (!ctx) continue;
+      const existing = await getRevisionsByContextId(ctx.id);
+      const approved = existing.filter((r) => r.status === 'approved');
+      const proposed = existing.filter((r) => r.status === 'proposed');
+      const historyCount = HISTORY_MIN + (i % historyRange);
+      const pendingCount = PENDING_MIN + (i % pendingRange);
+      if (approved.length >= historyCount && proposed.length >= pendingCount) continue;
+      const toApprove = historyCount - approved.length;
+      const toPropose = historyCount + pendingCount - existing.length;
+      if (toPropose <= 0) continue;
+      const createdRevisions: { id: string }[] = [];
+      for (let k = 0; k < toPropose; k++) {
+        try {
+          const rev = await proposeRevision({
+            contextId: ctx.id,
+            content: { index: i, policy: 'sample', version: `1.${k + 1}`, updated: 'seed' },
+            commitMessage: `Seed revision ${k + 1} for ${name}`,
+            createdBy: 'seed@example.com',
+          });
+          createdRevisions.push({ id: rev.id });
+        } catch {
+          break;
+        }
+      }
+      const toApproveNow = Math.min(toApprove, createdRevisions.length);
+      for (let k = 0; k < toApproveNow; k++) {
+        try {
+          await approveRevision(createdRevisions[k].id, 'compliance@example.com');
+        } catch {
+          break;
         }
       }
     }
@@ -205,7 +252,7 @@ export async function POST() {
 
     return NextResponse.json({
       success: true,
-      message: `Bootstrap seeded: ${TARGET_ORGS} orgs, ${TARGET_AGENTS} agents, ${TARGET_CONTEXTS} contexts. Plus templates, settings, scan targets, audit log. Visible after login.`,
+      message: `Bootstrap seeded: ${TARGET_ORGS} orgs, ${TARGET_AGENTS} agents, ${TARGET_CONTEXTS} contexts; ${CONTEXTS_WITH_FULL_REVISIONS} contexts with History(2–26) and Pending(1–5). Plus templates, settings, scan targets, audit log. Visible after login.`,
     });
   } catch (error) {
     console.error('Seed failed:', error);

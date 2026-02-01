@@ -262,21 +262,11 @@ export default function EditContextPage() {
             </TabsTrigger>
             <TabsTrigger value="history" className="gap-2">
               <History className="h-4 w-4" />
-              History
-              {revisions.length > 0 && (
-                <Badge variant="secondary" className="ml-1 text-xs">
-                  {revisions.length}
-                </Badge>
-              )}
+              History ({history.length})
             </TabsTrigger>
             <TabsTrigger value="pending" className="gap-2">
               <GitPullRequest className="h-4 w-4" />
-              Pending
-              {proposed.length > 0 && (
-                <Badge variant="default" className="ml-1 text-xs">
-                  {proposed.length}
-                </Badge>
-              )}
+              Pending ({proposed.length})
             </TabsTrigger>
           </TabsList>
 
@@ -459,7 +449,7 @@ export default function EditContextPage() {
                         <div className="flex gap-2 shrink-0">
                           <Button
                             size="sm"
-                            variant="default"
+                            variant="approve"
                             onClick={() => handleApproveRevision(rev.id)}
                           >
                             <Check className="h-4 w-4 mr-1" />
