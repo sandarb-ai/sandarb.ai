@@ -93,6 +93,8 @@ export GCP_PROJECT_ID=191433138534
 
 The script enables APIs, creates an Artifact Registry repo if needed, builds the image with Cloud Build, and deploys to Cloud Run. The service URL is printed at the end.
 
+**Demo data:** When `DATABASE_URL` is set, the container seeds sample data (orgs, agents, contexts, templates) on start. Sign in (Try the demo) to see it on the dashboard, agents, and contexts pages.
+
 ## Build and push the image
 
 ### Option A: Artifact Registry (recommended)

@@ -33,6 +33,10 @@ COPY --from=builder /app/.next/static ./.next/static
 # Optional: data dir for SQLite when DATABASE_URL is not set
 RUN mkdir -p /app/data && chown -R nextjs:nodejs /app/data
 
+# Entrypoint: start server, then seed demo data when DATABASE_URL is set (visible after login)
+COPY scripts/docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
+
 USER nextjs
 
 # GCP Cloud Run sets PORT (e.g. 8080); default 3000 for local/docker-compose
@@ -42,5 +46,5 @@ ENV DATABASE_PATH=/app/data/sandarb.db
 
 EXPOSE 3000
 
-# Use PORT from env so Cloud Run / GKE can override
-CMD ["node", "server.js"]
+# Start server and seed demo data on boot when DATABASE_URL is set
+CMD ["/app/docker-entrypoint.sh"]

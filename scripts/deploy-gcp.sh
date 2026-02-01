@@ -133,3 +133,4 @@ URL=$("$GCLOUD" run services describe "$SERVICE_NAME" --region="$REGION" --proje
 echo ""
 echo "Deployed. Sandarb is available at: $URL"
 echo "Health: $URL/api/health"
+echo "Demo data is seeded on container start (visible after you sign in)."
