@@ -1,7 +1,8 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { apiUrl } from '@/lib/api';
 import {
   LayoutDashboard,
@@ -16,6 +17,7 @@ import {
   Hash,
   FolderOpen,
   Activity,
+  LogOut,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
@@ -26,6 +28,9 @@ import {
   TooltipTrigger,
   TooltipProvider,
 } from '@/components/ui/tooltip';
+
+const DEMO_COOKIE_NAME = 'sandarb_demo';
+const DEMO_PROVIDER_COOKIE = 'sandarb_demo_provider';
 
 const workspaceNav = [
   { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -41,7 +46,23 @@ const contentNav = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { theme, setTheme } = useTheme();
+  const [isDemo, setIsDemo] = useState(false);
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      setIsDemo(document.cookie.includes(`${DEMO_COOKIE_NAME}=`));
+    }
+  }, []);
+
+  const handleSignOut = () => {
+    document.cookie = `${DEMO_COOKIE_NAME}=; path=/; max-age=0`;
+    document.cookie = `${DEMO_PROVIDER_COOKIE}=; path=/; max-age=0`;
+    setIsDemo(false);
+    router.push('/');
+    router.refresh();
+  };
 
   const isActive = (href: string) =>
     pathname === href || (href !== '/' && pathname.startsWith(href));
@@ -158,9 +179,29 @@ export function Sidebar() {
           </Section>
         </div>
 
-        {/* Bottom - Settings & theme - Slack-style footer */}
+        {/* Bottom - Settings, Sign out (when signed in), theme */}
         <div className="shrink-0 border-t border-border/80 py-2 px-2 dark:border-border/60">
           <NavItem href="/settings" icon={Settings} title="Settings" />
+          {isDemo && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  className={cn(
+                    'group flex w-full items-center gap-3 rounded-md px-2 py-2 text-[15px] font-medium transition-colors',
+                    'text-muted-foreground hover:bg-violet-100/80 hover:text-foreground dark:hover:bg-violet-900/20 dark:hover:text-foreground'
+                  )}
+                >
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground group-hover:text-foreground">
+                    <LogOut className="h-[18px] w-[18px]" />
+                  </span>
+                  <span className="min-w-0 truncate">Sign out</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">Sign out</TooltipContent>
+            </Tooltip>
+          )}
           <Tooltip>
             <TooltipTrigger asChild>
               <button
