@@ -46,15 +46,21 @@ function XIcon({ className }: { className?: string }) {
 function SubmitButton({
   children,
   icon: Icon,
+  name,
+  value,
 }: {
   children: React.ReactNode;
   icon: React.ComponentType<{ className?: string }>;
+  name?: string;
+  value?: string;
 }) {
   const { pending } = useFormStatus();
   return (
     <Button
       type="submit"
       variant="outline"
+      name={name}
+      value={value}
       className="w-full h-11 justify-center gap-3 border border-input bg-background hover:bg-muted/50 text-foreground font-medium"
       disabled={pending}
     >
@@ -67,9 +73,9 @@ function SubmitButton({
 export function SignupForm() {
   return (
     <form action={startDemo} className="space-y-3">
-      <SubmitButton icon={GoogleIcon}>Continue with Google</SubmitButton>
-      <SubmitButton icon={AppleIcon}>Continue with Apple</SubmitButton>
-      <SubmitButton icon={XIcon}>Continue with X</SubmitButton>
+      <SubmitButton icon={GoogleIcon} name="provider" value="Google">Continue with Google</SubmitButton>
+      <SubmitButton icon={AppleIcon} name="provider" value="Apple">Continue with Apple</SubmitButton>
+      <SubmitButton icon={XIcon} name="provider" value="X">Continue with X</SubmitButton>
       <PendingMessage />
     </form>
   );

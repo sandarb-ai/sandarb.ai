@@ -1,13 +1,18 @@
 import { notFound } from 'next/navigation';
 import { getAgentById } from '@/lib/agents';
-import { AgentDetailClient } from './agent-detail-client';
+import dynamic from 'next/dynamic';
+
+const AgentDetailClient = dynamic(
+  () => import('./agent-detail-client').then((m) => ({ default: m.AgentDetailClient })),
+  { ssr: true }
+);
 
 interface PageProps {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }
 
 export default async function AgentDetailPage({ params }: PageProps) {
-  const { id } = await params;
+  const { id } = params;
   const agent = await getAgentById(id);
 
   if (!agent) notFound();

@@ -12,10 +12,30 @@ export const metadata = {
 export default function MarketingPage() {
   return (
     <div className="flex flex-col min-h-full">
-      {/* Goal + Open source — at top */}
+      {/* AI Governance — at top */}
+      <section className="border-b border-border bg-muted/20 px-6 py-8">
+        <div className="max-w-4xl mx-auto text-center">
+          <h1 className="text-xl font-semibold text-foreground tracking-tight">
+            AI Governance to manage prompts and context for your AI Agents.
+          </h1>
+          <p className="text-sm text-muted-foreground mt-2 max-w-2xl mx-auto">
+            A2A, REST API and Git-like workflows. Every request logged; lineage and audit built in.
+          </p>
+          <div className="mt-6 flex justify-center">
+            <Link href="/signup">
+              <Button size="sm" className="gap-1.5 bg-violet-600 hover:bg-violet-700 text-white">
+                Try the demo
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Goal + Open source — in the middle */}
       <section className="px-6 py-6 border-b border-border bg-muted/10">
         <div className="max-w-4xl mx-auto flex flex-col sm:flex-row gap-6">
-          <div className="flex-1">
+          <div className="flex-1 rounded-lg border border-border bg-muted/20 p-4">
             <h2 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-2">
               <FileCheck className="h-4 w-4 text-violet-500" />
               Goal
@@ -32,26 +52,6 @@ export default function MarketingPage() {
             <p className="text-sm text-muted-foreground">
               Run it yourself, extend the API, or contribute. Low-key, practical, protocol-first.
             </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Hero — punch line + CTA in the middle */}
-      <section className="border-b border-border bg-muted/20 px-6 py-8">
-        <div className="max-w-4xl mx-auto text-center">
-          <h1 className="text-xl font-semibold text-foreground tracking-tight">
-            AI Governance to manage prompts and context for your AI Agents.
-          </h1>
-          <p className="text-sm text-muted-foreground mt-2 max-w-2xl mx-auto">
-            A2A, REST API and Git-like workflows. Every request logged; lineage and audit built in.
-          </p>
-          <div className="mt-6 flex justify-center">
-            <Link href="/signup">
-              <Button size="sm" className="gap-1.5 bg-violet-600 hover:bg-violet-700 text-white">
-                Try the demo
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </Link>
           </div>
         </div>
       </section>
@@ -135,18 +135,6 @@ export default function MarketingPage() {
             <li>Manifest-based agent registration; git-like versioning for prompts/context.</li>
             <li>Sandarb runs as an A2A agent so others call it for validation and approved context.</li>
           </ul>
-        </div>
-      </section>
-
-      {/* CTA — quick links */}
-      <section className="px-6 py-6 border-t border-border">
-        <div className="max-w-4xl mx-auto flex flex-wrap items-center gap-3">
-          <Link href="/contexts">
-            <Button variant="outline" size="sm">Contexts</Button>
-          </Link>
-          <Link href="/agents">
-            <Button variant="outline" size="sm">Agents</Button>
-          </Link>
         </div>
       </section>
     </div>
