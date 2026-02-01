@@ -81,12 +81,6 @@ For push-based controls, Sandarb uses a standardized A2A protocol (e.g. [Linux F
 - TTL/expiration support
 - JSON, YAML, or plain text output
 
-### Experiments (A/B Testing)
-- Create experiments with multiple variants
-- Traffic allocation control
-- Real-time metrics tracking
-- Statistical significance analysis
-
 ### Integration Options
 - **REST API** - Standard HTTP endpoints
 - **MCP Server** - For Claude, ChatGPT, and MCP-compatible clients
