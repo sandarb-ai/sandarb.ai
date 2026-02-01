@@ -26,7 +26,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ContextEditor } from '@/components/context-editor';
 import { ContextPreview } from '@/components/context-preview';
 import type { Context, ContextRevision, LineOfBusiness, DataClassification, RegulatoryHook } from '@/types';
-import { formatRelativeTime } from '@/lib/utils';
+import { formatDate } from '@/lib/utils';
 import { ComplianceMetadataFields } from '@/components/compliance-metadata-fields';
 import { ContentDiffView } from '@/components/content-diff-view';
 import {
@@ -279,7 +279,7 @@ export default function EditContextPage() {
                   Request Review (4-eyes principle)
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  In banks, context that changes model behavior often needs a second pair of eyes before going live. Add a commit message and request review; an approver can approve or reject.
+                  Context that changes model behavior often needs a second pair of eyes before going live. Add a commit message and request review; an approver can approve or reject.
                 </p>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -382,30 +382,46 @@ export default function EditContextPage() {
                     {history.map((rev) => (
                       <li
                         key={rev.id}
-                        className="flex items-center gap-4 rounded-lg border p-3 bg-muted/30"
+                        className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-lg border p-4 bg-muted/30"
                       >
                         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-background border">
                           <GitCommit className="h-4 w-4 text-muted-foreground" />
                         </div>
-                        <div className="min-w-0 flex-1">
+                        <div className="min-w-0 flex-1 space-y-2">
                           <p className="font-medium truncate">{rev.commitMessage || 'No message'}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {rev.createdBy || 'Unknown'} · {formatRelativeTime(rev.createdAt)}
-                            {rev.approvedAt && rev.status === 'approved' && ` · Approved by ${rev.approvedBy || '—'}`}
-                          </p>
+                          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                            <div>
+                              <dt className="font-medium text-foreground/80">Created by</dt>
+                              <dd>{rev.createdBy || '—'}</dd>
+                            </div>
+                            <div>
+                              <dt className="font-medium text-foreground/80">Created datetime</dt>
+                              <dd>{formatDate(rev.createdAt)}</dd>
+                            </div>
+                            <div>
+                              <dt className="font-medium text-foreground/80">Last edited by</dt>
+                              <dd>{rev.approvedBy ?? '—'}</dd>
+                            </div>
+                            <div>
+                              <dt className="font-medium text-foreground/80">Last edited datetime</dt>
+                              <dd>{rev.approvedAt ? formatDate(rev.approvedAt) : '—'}</dd>
+                            </div>
+                          </dl>
                         </div>
-                        <Badge variant={rev.status === 'approved' ? 'default' : 'secondary'}>
-                          {rev.status}
-                        </Badge>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="shrink-0 gap-1"
-                          onClick={() => setDiffRevision(rev)}
-                        >
-                          <GitCompare className="h-4 w-4" />
-                          View diff
-                        </Button>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Badge variant={rev.status === 'approved' ? 'default' : 'secondary'}>
+                            {rev.status}
+                          </Badge>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="gap-1"
+                            onClick={() => setDiffRevision(rev)}
+                          >
+                            <GitCompare className="h-4 w-4" />
+                            View diff
+                          </Button>
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -435,16 +451,31 @@ export default function EditContextPage() {
                     {proposed.map((rev) => (
                       <li
                         key={rev.id}
-                        className="flex items-center gap-4 rounded-lg border p-3 bg-muted/30"
+                        className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-lg border p-4 bg-muted/30"
                       >
                         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-background border">
                           <GitPullRequest className="h-4 w-4 text-muted-foreground" />
                         </div>
-                        <div className="min-w-0 flex-1">
+                        <div className="min-w-0 flex-1 space-y-2">
                           <p className="font-medium truncate">{rev.commitMessage || 'No message'}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {rev.createdBy || 'Unknown'} · {formatRelativeTime(rev.createdAt)}
-                          </p>
+                          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                            <div>
+                              <dt className="font-medium text-foreground/80">Created by</dt>
+                              <dd>{rev.createdBy || '—'}</dd>
+                            </div>
+                            <div>
+                              <dt className="font-medium text-foreground/80">Created datetime</dt>
+                              <dd>{formatDate(rev.createdAt)}</dd>
+                            </div>
+                            <div>
+                              <dt className="font-medium text-foreground/80">Last edited by</dt>
+                              <dd>—</dd>
+                            </div>
+                            <div>
+                              <dt className="font-medium text-foreground/80">Last edited datetime</dt>
+                              <dd>—</dd>
+                            </div>
+                          </dl>
                         </div>
                         <div className="flex gap-2 shrink-0">
                           <Button
