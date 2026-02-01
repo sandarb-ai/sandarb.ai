@@ -120,7 +120,7 @@ export DATABASE_URL=postgresql://postgres:sandarb@localhost:5432/sandarb-dev
 # Start (UI on 4000, API on 4001)
 ./scripts/start-sandarb.sh
 # Or: npm run dev`}</CodeBlock>
-          <P>Open the UI at <InlineCode>http://localhost:4000</InlineCode>. Use <strong className="text-foreground">Try the demo</strong> to sign in (demo session lasts 24 hours). After sign-in you see the dashboard, organizations, agents, and contexts.</P>
+          <P>Open the UI at <InlineCode>http://localhost:4000</InlineCode>. Sign in to see the dashboard, organizations, agents, and contexts.</P>
         </section>
 
         <section id="rest-api" className="scroll-mt-4">

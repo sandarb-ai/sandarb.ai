@@ -20,7 +20,7 @@ export DATABASE_URL=postgresql://postgres:sandarb@localhost:5432/sandarb-dev  # 
 ./scripts/start-sandarb.sh
 ```
 
-Open the UI at http://localhost:4000. Use **Try the demo** to sign in (24h session). Demo data is seeded on start when `DATABASE_URL` is set.
+Open the UI at http://localhost:4000. Sign in to see the dashboard. Demo data is seeded on start when `DATABASE_URL` is set.
 
 ## REST API (core)
 

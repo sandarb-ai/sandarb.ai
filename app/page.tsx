@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Shield, FileCheck, GitBranch, Code, Bot, GitMerge, ArrowRight, BookOpen } from 'lucide-react';
+import { FileCheck, GitBranch, Code, Bot, GitMerge, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 
@@ -22,12 +22,6 @@ export default function MarketingPage() {
             A2A, REST API and Git-like workflows. Every request logged; lineage and audit built in.
           </p>
           <div className="mt-6 flex flex-wrap justify-center items-center gap-3">
-            <Link href="/signup">
-              <Button size="sm" className="gap-1.5 bg-violet-600 hover:bg-violet-700 text-white">
-                Try the demo
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </Link>
             <Link href="/docs">
               <Button size="sm" variant="outline" className="gap-1.5">
                 <BookOpen className="h-4 w-4" />

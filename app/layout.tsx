@@ -6,7 +6,6 @@ import './globals.css';
 import { ThemeProvider } from '@/components/theme-provider';
 import { ThemeSync } from '@/components/theme-sync';
 import { AppShell } from '@/components/app-shell';
-import { UserMenu } from '@/components/user-menu';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
@@ -45,7 +44,6 @@ export default function RootLayout({
                   </div>
                   <span className="text-sm font-semibold text-foreground">Sandarb</span>
                 </Link>
-                <UserMenu />
               </header>
               <AppShell>{children}</AppShell>
             </div>

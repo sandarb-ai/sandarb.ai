@@ -9,7 +9,7 @@ const DEMO_COOKIE_NAME = 'sandarb_demo';
 
 export const metadata = {
   title: 'Try Sandarb',
-  description: 'Get started with Sandarb. Try the demo to see governance for AI agents in action.',
+  description: 'Get started with Sandarb. Sign in to see governance for AI agents in action.',
 };
 
 export default async function SignupPage() {

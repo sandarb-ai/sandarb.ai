@@ -103,12 +103,6 @@ export default function AboutPage() {
 
           {/* CTA */}
           <section className="flex flex-wrap items-center gap-3 pt-2">
-            <Link href="/signup">
-              <Button className="gap-2 bg-violet-600 hover:bg-violet-700 text-white">
-                Try the demo
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </Link>
             <Link href="/dashboard">
               <Button variant="outline" className="gap-2">
                 Open Dashboard
