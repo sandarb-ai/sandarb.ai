@@ -3,7 +3,7 @@
 <div align="center">
   <img src="public/logo.svg" alt="Sandarb" width="120" />
   <h3>Governance for AI agents while your teams build</h3>
-  <p><strong>Sandarb</strong> is the regulatory, controls, risk management, and compliance layer for AI agents in any tech org. Teams (data engineers, analysts, ops, marketing) focus on building agents; Sandarb provides approval workflows, validated context and prompts, audit logging, and pending-review visibility. Sandarb runs as <strong>both a UI/API and an A2A agent</strong>—other agents talk to Sandarb via A2A for validation, audit trail, and compliance checks.</p>
+  <p><strong>Sandarb</strong> is designed to provide a single place for your company to govern & manage AI Agents and its prompts and context. It is designed to be installed and operate in the control plane and is intended to play a role in regulatory and compliance layer for AI agents in any company. Tech teams focus on building Agents; Sandarb provides approval workflows, validated context and prompts, audit logging, and pending-review visibility. Sandarb runs as <strong> a UI/API and an AI Agent</strong>—other agents can talk to Sandarb via A2A for prompts, context , validation, audit trail, and compliance checks.</p>
 </div>
 
 <p align="center">
