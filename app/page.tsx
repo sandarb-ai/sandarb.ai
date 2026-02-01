@@ -50,7 +50,12 @@ export default function MarketingPage() {
               Governance that doesn't slow shipping. Protocol-first (A2A, MCP), versioned prompts/context, and a living agent registry.
             </p>
           </div>
-          <div className="flex-1 rounded-lg border border-border bg-muted/20 p-4">
+          <a
+            href="https://github.com/openint-ai/sandarb.ai"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-1 rounded-lg border border-border bg-muted/20 p-4 block hover:border-violet-200 dark:hover:border-violet-800/50 transition-colors"
+          >
             <h2 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-2">
               <GitBranch className="h-4 w-4 text-violet-500" />
               Open source
@@ -58,7 +63,7 @@ export default function MarketingPage() {
             <p className="text-sm text-muted-foreground">
               Run it yourself, extend the API, or contribute. Low-key, practical, protocol-first.
             </p>
-          </div>
+          </a>
         </div>
       </section>
 

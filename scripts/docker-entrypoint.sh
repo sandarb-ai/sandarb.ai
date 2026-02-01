@@ -41,6 +41,7 @@ if wait_for_health; then
       res.resume();
       if (res.statusCode === 200) process.stdout.write('Seeded demo data (visible after login).\n');
     });
+    req.setTimeout(60000);
     req.on('error', () => {});
     req.end();
   " 2>/dev/null || true

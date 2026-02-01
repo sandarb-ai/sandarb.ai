@@ -30,11 +30,18 @@ const Ul = ({ children }: { children: React.ReactNode }) => (
   <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1 mb-4">{children}</ul>
 );
 
+export const dynamic = 'force-dynamic';
+
 export default async function DocsPage() {
-  const headersList = headers();
-  const host = headersList.get('host') || '';
-  const protocol = headersList.get('x-forwarded-proto') || 'http';
-  const baseUrl = host ? `${protocol}://${host}` : 'https://your-sandarb.example.com';
+  let baseUrl = 'https://your-sandarb.example.com';
+  try {
+    const headersList = headers();
+    const host = headersList.get('host') || '';
+    const protocol = headersList.get('x-forwarded-proto') || 'http';
+    if (host) baseUrl = `${protocol}://${host}`;
+  } catch {
+    // Fallback when headers unavailable (e.g. some runtimes)
+  }
 
   const tocItems = [
     { id: 'overview', label: 'Overview' },
