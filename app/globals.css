@@ -1,0 +1,122 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Very light purple theme (logo: #8B5CF6 → #6366F1) */
+    --background: 260 20% 98%;
+    --foreground: 262 47% 11%;
+    --card: 260 25% 99%;
+    --card-foreground: 262 47% 11%;
+    --popover: 260 25% 99%;
+    --popover-foreground: 262 47% 11%;
+    --primary: 263 70% 58%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 260 30% 94%;
+    --secondary-foreground: 262 47% 11%;
+    --muted: 260 25% 95%;
+    --muted-foreground: 262 15% 45%;
+    --accent: 260 30% 94%;
+    --accent-foreground: 262 47% 11%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 260 20% 90%;
+    --input: 260 20% 90%;
+    --ring: 263 70% 58%;
+    --radius: 0.5rem;
+    /* Agent Pulse: chat area background only (log pane) */
+    --agent-pulse-chat-bg: hsl(220 13% 98%);
+  }
+
+  .dark {
+    --agent-pulse-chat-bg: hsl(220 14% 8%);
+    /* Dark: purple tint to match logo */
+    --background: 262 30% 8%;
+    --foreground: 260 20% 98%;
+    --card: 262 25% 11%;
+    --card-foreground: 260 20% 98%;
+    --popover: 262 25% 11%;
+    --popover-foreground: 260 20% 98%;
+    --primary: 263 70% 65%;
+    --primary-foreground: 262 47% 10%;
+    --secondary: 262 25% 18%;
+    --secondary-foreground: 260 20% 98%;
+    --muted: 262 25% 18%;
+    --muted-foreground: 260 15% 65%;
+    --accent: 262 25% 18%;
+    --accent-foreground: 260 20% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 262 20% 22%;
+    --input: 262 20% 22%;
+    --ring: 263 70% 65%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Agent Pulse: chat area (message list background) */
+.agent-pulse-chat-area {
+  background-color: var(--agent-pulse-chat-bg);
+}
+
+/* Agent Pulse: subtle animation for new A2A log entries */
+@keyframes a2a-log-entry-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.a2a-log-entry-new {
+  animation: a2a-log-entry-in 0.35s ease-out forwards;
+}
+
+/* Multi-agent A2A diagram — modern minimal */
+.a2a-diagram-svg {
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.04));
+}
+.a2a-dot {
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.08));
+}
+@keyframes a2a-center-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.92; }
+}
+.a2a-center-pulse {
+  animation: a2a-center-pulse 3s ease-in-out infinite;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-muted;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-muted-foreground/30 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-muted-foreground/50;
+}
+
+/* Code styling */
+pre, code {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+}

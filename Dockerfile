@@ -1,0 +1,46 @@
+# Build stage
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Install dependencies
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+# Copy source files
+COPY . .
+
+# Build the application
+RUN npm run build
+
+# Production stage (GCP Cloud Run, GKE, or any container runtime)
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Create non-root user
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+# Copy built files
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+
+# Optional: data dir for SQLite when DATABASE_URL is not set
+RUN mkdir -p /app/data && chown -R nextjs:nodejs /app/data
+
+USER nextjs
+
+# GCP Cloud Run sets PORT (e.g. 8080); default 3000 for local/docker-compose
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+ENV DATABASE_PATH=/app/data/sandarb.db
+
+EXPOSE 3000
+
+# Use PORT from env so Cloud Run / GKE can override
+CMD ["node", "server.js"]

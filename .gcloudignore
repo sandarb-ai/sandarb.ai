@@ -1,0 +1,20 @@
+# Mirrors .dockerignore so gcloud builds submit sends a minimal context.
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+node_modules
+.next
+out
+build
+dist
+data
+*.db
+*.log
+.DS_Store
+*.md
+!README.md
+docs/
+scripts/deploy-gcp.sh
+.gcloudignore
