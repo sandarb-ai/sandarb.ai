@@ -1,4 +1,4 @@
-# Sandarb
+# Sandarb - AI Governance for AI Agents
 
 <div align="center">
   <img src="public/logo.svg" alt="Sandarb" width="120" />
