@@ -1,5 +1,6 @@
 #!/bin/sh
-# Start Sandarb server and seed demo data when DATABASE_URL is set.
+# Start Sandarb server and seed demo data on every start (idempotent).
+# Works for both SQLite (e.g. GCP Cloud Run ephemeral) and Postgres (DATABASE_URL).
 # Demo data is visible only after login (dashboard, agents, contexts, etc.).
 
 set -e
@@ -26,24 +27,23 @@ wait_for_health() {
 }
 
 if wait_for_health; then
-  # When DATABASE_URL is set, seed demo data (idempotent; safe to run every start)
-  if [ -n "$DATABASE_URL" ]; then
-    node -e "
-      const http = require('http');
-      const port = process.env.PORT || 3000;
-      const req = http.request({
-        hostname: '127.0.0.1',
-        port,
-        path: '/api/seed',
-        method: 'POST'
-      }, (res) => {
-        res.resume();
-        if (res.statusCode === 200) process.stdout.write('Seeded demo data (visible after login).\n');
-      });
-      req.on('error', () => {});
-      req.end();
-    " 2>/dev/null || true
-  fi
+  # Seed demo data on every start (idempotent; works for both SQLite and Postgres).
+  # GCP Cloud Run uses ephemeral SQLite when DATABASE_URL is not set, so we always seed.
+  node -e "
+    const http = require('http');
+    const port = process.env.PORT || 3000;
+    const req = http.request({
+      hostname: '127.0.0.1',
+      port,
+      path: '/api/seed',
+      method: 'POST'
+    }, (res) => {
+      res.resume();
+      if (res.statusCode === 200) process.stdout.write('Seeded demo data (visible after login).\n');
+    });
+    req.on('error', () => {});
+    req.end();
+  " 2>/dev/null || true
 fi
 
 # Keep container running: wait for the server process
