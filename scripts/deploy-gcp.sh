@@ -13,12 +13,15 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 IMAGE_NAME="sandarb"
 SERVICE_NAME="sandarb"
 
-# Load .env so DATABASE_URL (and other vars) are available for deploy and post-deploy reseed
+# Load DATABASE_URL from .env (read-only, no sourcing) so deploy and post-deploy reseed see it
 if [[ -f "$REPO_ROOT/.env" ]]; then
-  set -a
-  # shellcheck source=/dev/null
-  source "$REPO_ROOT/.env"
-  set +a
+  while IFS= read -r line; do
+    [[ "$line" =~ ^#.*$ || -z "${line// /}" ]] && continue
+    if [[ "$line" == DATABASE_URL=* ]]; then
+      export DATABASE_URL="${line#DATABASE_URL=}"
+      break
+    fi
+  done < "$REPO_ROOT/.env"
 fi
 
 # Find gcloud (PATH or common install locations)
