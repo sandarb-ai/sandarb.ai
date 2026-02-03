@@ -46,3 +46,7 @@ next-env.d.ts
 
 # Logs
 logs/
+
+# OpenClaw (local models, cache)
+openclaw-models/
+.openclaw/models/
