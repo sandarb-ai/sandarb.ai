@@ -1,5 +1,5 @@
 # Sandarb.ai
-### The Governance & Control Plane for Agentic AI
+### AI Governance for your AI Agents
 
 > **Our Goal:** Governance that doesn't slow shipping AI Agents. Protocol-first (A2A, MCP), versioned prompts/context, and a living agent registry.
 
