@@ -25,11 +25,7 @@ if (fs.existsSync(envPath)) {
 
 const { Client } = require('pg');
 
-const DATABASE_URL = process.env.DATABASE_URL;
-if (!DATABASE_URL) {
-  console.error('Set DATABASE_URL in .env or in the environment (e.g. postgresql://postgres:sandarb@localhost:5432/sandarb-dev)');
-  process.exit(1);
-}
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:sandarb@localhost:5432/sandarb-dev';
 
 const DROP_ORDER = [
   'sandarb_access_logs',
