@@ -24,7 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ContextEditor } from '@/components/context-editor';
 import { ComplianceMetadataFields } from '@/components/compliance-metadata-fields';
 import type { Context, ContextRevision, LineOfBusiness, DataClassification, RegulatoryHook } from '@/types';
-import { formatDate } from '@/lib/utils';
+import { formatDate, formatApprovedBy } from '@/lib/utils';
 import { ContentDiffView } from '@/components/content-diff-view';
 import {
   Dialog,
@@ -108,8 +108,7 @@ export default function EditContextPage() {
         setDataClassification(ctx.dataClassification ?? null);
         setRegulatoryHooks(ctx.regulatoryHooks ?? []);
       }
-    } catch (error) {
-      console.error('Failed to fetch context:', error);
+    } catch {
     } finally {
       setLoading(false);
     }
@@ -120,8 +119,7 @@ export default function EditContextPage() {
       const res = await fetch(`/api/contexts/${id}/revisions`);
       const data = await res.json();
       if (data.success) setRevisions(data.data);
-    } catch (e) {
-      console.error('Failed to fetch revisions:', e);
+    } catch {
     }
   };
 
@@ -155,8 +153,7 @@ export default function EditContextPage() {
         const data = await res.json();
         alert(data.error || 'Failed to update context');
       }
-    } catch (error) {
-      console.error('Failed to update context:', error);
+    } catch {
       alert('Failed to update context');
     } finally {
       setSaving(false);
@@ -174,8 +171,7 @@ export default function EditContextPage() {
         fetchContext();
         fetchRevisions();
       }
-    } catch (e) {
-      console.error(e);
+    } catch {
     }
   };
 
@@ -187,8 +183,7 @@ export default function EditContextPage() {
         body: JSON.stringify({}),
       });
       if (res.ok) fetchRevisions();
-    } catch (e) {
-      console.error(e);
+    } catch {
     }
   };
 
@@ -198,8 +193,7 @@ export default function EditContextPage() {
       const res = await fetch(`/api/contexts/${id}`, { method: 'DELETE' });
       if (res.ok) router.push('/contexts');
       else alert('Failed to delete context');
-    } catch (error) {
-      console.error('Failed to delete context:', error);
+    } catch {
     }
   };
 
@@ -381,9 +375,12 @@ export default function EditContextPage() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-border bg-muted/50">
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Date / time</th>
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Created</th>
                           <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Created by</th>
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Submitted by</th>
                           <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Approved by</th>
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Modified</th>
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Modified by</th>
                           <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap w-40">Commit message</th>
                           <th className="text-left py-3 px-4 font-medium text-muted-foreground min-w-[320px] lg:min-w-[480px]">Changes (diff)</th>
                           <th className="text-right py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Actions</th>
@@ -392,14 +389,14 @@ export default function EditContextPage() {
                       <tbody>
                         {history.map((rev) => (
                           <tr key={rev.id} className="border-b border-border/80 hover:bg-muted/20 align-top">
+                            <td className="py-3 px-4 whitespace-nowrap text-muted-foreground">{formatDate(rev.createdAt)}</td>
+                            <td className="py-3 px-4 whitespace-nowrap">{formatApprovedBy(rev.createdBy)}</td>
+                            <td className="py-3 px-4 whitespace-nowrap">{formatApprovedBy(rev.submittedBy)}</td>
+                            <td className="py-3 px-4 whitespace-nowrap">{formatApprovedBy(rev.approvedBy)}</td>
                             <td className="py-3 px-4 whitespace-nowrap text-muted-foreground">
-                              <span className="block">{formatDate(rev.createdAt)}</span>
-                              {rev.approvedAt && (
-                                <span className="block text-xs mt-0.5">Approved: {formatDate(rev.approvedAt)}</span>
-                              )}
+                              {rev.updatedAt ? formatDate(rev.updatedAt) : '—'}
                             </td>
-                            <td className="py-3 px-4 whitespace-nowrap">{rev.createdBy || '—'}</td>
-                            <td className="py-3 px-4 whitespace-nowrap">{rev.approvedBy ?? '—'}</td>
+                            <td className="py-3 px-4 whitespace-nowrap">{formatApprovedBy(rev.updatedBy)}</td>
                             <td className="py-3 px-4 max-w-[12rem]">
                               <p className="truncate font-medium text-foreground" title={rev.commitMessage || undefined}>
                                 {rev.commitMessage || 'No message'}
@@ -458,9 +455,10 @@ export default function EditContextPage() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-border bg-muted/50">
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Date / time</th>
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Created</th>
                           <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Created by</th>
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap w-40">Commit message</th>
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Submitted by</th>
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground w-40">Commit message</th>
                           <th className="text-left py-3 px-4 font-medium text-muted-foreground min-w-[320px] lg:min-w-[480px]">Changes (diff)</th>
                           <th className="text-right py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Actions</th>
                         </tr>
@@ -468,10 +466,9 @@ export default function EditContextPage() {
                       <tbody>
                         {proposed.map((rev) => (
                           <tr key={rev.id} className="border-b border-border/80 hover:bg-muted/20 align-top">
-                            <td className="py-3 px-4 whitespace-nowrap text-muted-foreground">
-                              {formatDate(rev.createdAt)}
-                            </td>
-                            <td className="py-3 px-4 whitespace-nowrap">{rev.createdBy || '—'}</td>
+                            <td className="py-3 px-4 whitespace-nowrap text-muted-foreground">{formatDate(rev.createdAt)}</td>
+                            <td className="py-3 px-4 whitespace-nowrap">{formatApprovedBy(rev.createdBy)}</td>
+                            <td className="py-3 px-4 whitespace-nowrap">{formatApprovedBy(rev.submittedBy)}</td>
                             <td className="py-3 px-4 max-w-[12rem]">
                               <p className="truncate font-medium text-foreground" title={rev.commitMessage || undefined}>
                                 {rev.commitMessage || 'No message'}

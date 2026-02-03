@@ -30,7 +30,7 @@ By participating in this project, you agree to maintain a respectful and inclusi
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature/your-feature-name`
 3. Make your changes
-4. Run tests and linting: `npm run lint`
+4. Run tests and linting: `npm run test:run` and `npm run lint`
 5. Commit with clear messages
 6. Push and create a Pull Request
 
@@ -118,8 +118,11 @@ Before submitting a PR:
 
 1. Ensure the app builds: `npm run build`
 2. Check for lint errors: `npm run lint`
-3. Test new features manually
-4. Verify dark mode compatibility
+3. **Run the test suite:** `npm run test:run` (see [tests/README.md](tests/README.md) for commands and how to extend tests)
+4. Test new features manually
+5. Verify dark mode compatibility
+
+The project uses **Vitest** for unit and API route tests (no DB required). When you add or change lib code or API routes, add or extend tests as described in [tests/README.md](tests/README.md).
 
 ## Getting Help
 

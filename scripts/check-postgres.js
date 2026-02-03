@@ -32,15 +32,8 @@ client
   .connect()
   .then(() => client.end())
   .then(() => {
-    console.log('Postgres is running.');
     process.exit(0);
   })
-  .catch((err) => {
-    console.error('Postgres is not running or unreachable:', err.message);
-    console.error('');
-    console.error('Start Postgres (e.g. with Docker):');
-    console.error('  docker compose up -d postgres');
-    console.error('');
-    console.error('Or set DATABASE_URL in .env to your Postgres connection string.');
+  .catch(() => {
     process.exit(1);
   });

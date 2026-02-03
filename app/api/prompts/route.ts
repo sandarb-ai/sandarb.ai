@@ -5,36 +5,40 @@ import {
   getPromptByName,
   createPromptVersion,
 } from '@/lib/prompts';
+import { withSpan, logger } from '@/lib/otel';
 
 // GET /api/prompts - List all prompts
 export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const tags = searchParams.get('tags')?.split(',').filter(Boolean);
+  return withSpan('GET /api/prompts', async () => {
+    try {
+      const { searchParams } = new URL(request.url);
+      const tags = searchParams.get('tags')?.split(',').filter(Boolean);
 
-    let prompts = await getAllPrompts();
+      let prompts = await getAllPrompts();
 
-    if (tags && tags.length > 0) {
-      prompts = prompts.filter(p =>
-        tags.some(t => p.tags.includes(t))
+      if (tags && tags.length > 0) {
+        prompts = prompts.filter(p =>
+          tags.some(t => p.tags.includes(t))
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        data: prompts,
+      });
+    } catch (error) {
+      logger.error('Failed to fetch prompts', { route: 'GET /api/prompts', error: String(error) });
+      return NextResponse.json(
+        { success: false, error: 'Failed to fetch prompts' },
+        { status: 500 }
       );
     }
-
-    return NextResponse.json({
-      success: true,
-      data: prompts,
-    });
-  } catch (error) {
-    console.error('Failed to fetch prompts:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch prompts' },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 // POST /api/prompts - Create new prompt with initial version
 export async function POST(request: NextRequest) {
+  return withSpan('POST /api/prompts', async () => {
   try {
     const body = await request.json();
     const {
@@ -119,10 +123,11 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    console.error('Failed to create prompt:', error);
+    logger.error('Failed to create prompt', { route: 'POST /api/prompts', error: String(error) });
     return NextResponse.json(
       { success: false, error: 'Failed to create prompt' },
       { status: 500 }
     );
   }
+  });
 }

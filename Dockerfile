@@ -30,14 +30,11 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
-# Optional: data dir for SQLite when DATABASE_URL is not set
-RUN mkdir -p /app/data && chown -R nextjs:nodejs /app/data
-
 # Postgres full-reset + seed scripts (so GCP container can clean & reseed when DATABASE_URL is set)
 COPY --from=builder /app/scripts/full-reset-postgres.js /app/scripts/init-postgres.js /app/scripts/seed-postgres.js /app/scripts/
 RUN chown -R nextjs:nodejs /app/scripts
 
-# Entrypoint: when DATABASE_URL set run full-reset+seed; then start server and idempotent seed for SQLite
+# Entrypoint: when DATABASE_URL set run full-reset+seed; then start server
 COPY scripts/docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 
@@ -46,7 +43,6 @@ USER nextjs
 # GCP Cloud Run sets PORT (e.g. 8080); default 3000 for local/docker-compose
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
-ENV DATABASE_PATH=/app/data/sandarb.db
 
 EXPOSE 3000
 

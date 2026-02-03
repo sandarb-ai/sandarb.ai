@@ -4,7 +4,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { query, queryOne, getPool } from './pg';
-import type { Organization, OrganizationCreateInput, OrganizationUpdateInput } from '@/types';
+import type { Organization, OrganizationCreateInput, OrganizationUpdateInput, OrgRole } from '@/types';
 
 function rowToOrg(row: Record<string, unknown>): Organization {
   return {
@@ -105,4 +105,24 @@ export async function deleteOrganizationPg(id: string): Promise<boolean> {
   if (!pool) return false;
   await pool.query('DELETE FROM organizations WHERE id = $1', [id]);
   return true;
+}
+
+export async function addOrgMemberPg(orgId: string, userId: string, role: OrgRole = 'member'): Promise<void> {
+  const pool = await getPool();
+  if (!pool) throw new Error('Postgres not configured');
+  const id = uuidv4();
+  const now = new Date().toISOString();
+  await pool.query(
+    `INSERT INTO org_members (id, org_id, user_id, role, created_at) VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (org_id, user_id) DO UPDATE SET role = $4`,
+    [id, orgId, userId, role, now]
+  );
+}
+
+export async function getOrgMemberRolePg(orgId: string, userId: string): Promise<OrgRole | null> {
+  const row = await queryOne<{ role: OrgRole }>(
+    'SELECT role FROM org_members WHERE org_id = $1 AND user_id = $2',
+    [orgId, userId]
+  );
+  return row?.role ?? null;
 }

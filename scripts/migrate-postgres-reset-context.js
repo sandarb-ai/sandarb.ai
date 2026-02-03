@@ -10,7 +10,6 @@ const { Client } = require('pg');
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
-  console.error('Set DATABASE_URL');
   process.exit(1);
 }
 
@@ -22,13 +21,11 @@ async function main() {
     await client.query('DROP TABLE IF EXISTS sandarb_audit_log CASCADE');
     await client.query('DROP TABLE IF EXISTS context_versions CASCADE');
     await client.query('DROP TABLE IF EXISTS contexts CASCADE');
-    console.log('Dropped contexts, context_versions, sandarb_audit_log, sandarb_access_logs');
   } finally {
     await client.end();
   }
 }
 
-main().catch((err) => {
-  console.error(err);
+main().catch(() => {
   process.exit(1);
 });

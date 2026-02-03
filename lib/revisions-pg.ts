@@ -7,6 +7,7 @@ import { createHash } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { getPool, query, queryOne } from './pg';
 import { getContextByIdPg, updateContextPg } from './contexts-pg';
+import { normalizeApprovedBy } from './utils';
 import type { ContextRevision, ContextRevisionCreateInput } from '@/types';
 
 function mapStatus(s: string): 'proposed' | 'approved' | 'rejected' {
@@ -23,9 +24,12 @@ function rowToRevision(row: Record<string, unknown>): ContextRevision {
     commitMessage: row.commit_message != null ? String(row.commit_message) : null,
     createdBy: row.created_by != null ? String(row.created_by) : null,
     createdAt: String(row.created_at),
+    submittedBy: row.submitted_by != null ? String(row.submitted_by) : null,
     status: mapStatus(String(row.status ?? 'Draft')),
     approvedBy: row.approved_by != null ? String(row.approved_by) : null,
     approvedAt: row.approved_at != null ? String(row.approved_at) : null,
+    updatedAt: row.updated_at != null ? String(row.updated_at) : null,
+    updatedBy: row.updated_by != null ? String(row.updated_by) : null,
     parentRevisionId: null,
   };
 }
@@ -76,10 +80,11 @@ export async function proposeRevisionPg(input: ContextRevisionCreateInput): Prom
   const nextNum = parseInt(countResult?.cnt ?? '0', 10) + 1;
   const versionLabel = `v1.0.${nextNum}`;
 
+  const createdByNorm = input.createdBy ? (input.createdBy.startsWith('@') ? input.createdBy : `@${input.createdBy}`) : '@system';
   await pool.query(
-    `INSERT INTO context_versions (id, context_id, version_label, content, sha256_hash, created_by, created_at, status, commit_message, is_active)
-     VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, 'Pending', $8, false)`,
-    [id, input.contextId, versionLabel, JSON.stringify(content), sha256Hash, input.createdBy ?? 'system', now, input.commitMessage ?? null]
+    `INSERT INTO context_versions (id, context_id, version_label, content, sha256_hash, created_by, created_at, submitted_by, status, commit_message, is_active)
+     VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $6, 'Pending', $8, false)`,
+    [id, input.contextId, versionLabel, JSON.stringify(content), sha256Hash, createdByNorm, now, input.commitMessage ?? null]
   );
 
   const activityId = uuidv4();
@@ -103,18 +108,19 @@ export async function approveRevisionPg(revisionId: string, approvedBy?: string)
   if (!pool) return null;
 
   const now = new Date().toISOString();
+  const normalized = normalizeApprovedBy(approvedBy);
   await pool.query(
-    `UPDATE context_versions SET status = 'Approved', approved_by = $1, approved_at = $2, is_active = true WHERE id = $3`,
-    [approvedBy ?? null, now, revisionId]
+    `UPDATE context_versions SET status = 'Approved', approved_by = $1, approved_at = $2, updated_at = $2, updated_by = $1, is_active = true WHERE id = $3`,
+    [normalized, now, revisionId]
   );
 
-  await updateContextPg(revision.contextId, { content: revision.content });
+  await updateContextPg(revision.contextId, { content: revision.content, updatedBy: normalized });
 
   const activityId = uuidv4();
   await pool.query(
     `INSERT INTO activity_log (id, type, resource_type, resource_id, resource_name, details, created_by, created_at)
      VALUES ($1, 'revision_approved', 'context', $2, $3, $4, $5, $6)`,
-    [activityId, revision.contextId, context.name, JSON.stringify({ revisionId }), approvedBy ?? null, now]
+    [activityId, revision.contextId, context.name, JSON.stringify({ revisionId }), normalized, now]
   );
 
   return getRevisionByIdPg(revisionId);
@@ -131,16 +137,17 @@ export async function rejectRevisionPg(revisionId: string, rejectedBy?: string):
   if (!pool) return null;
 
   const now = new Date().toISOString();
+  const normalized = normalizeApprovedBy(rejectedBy);
   await pool.query(
-    `UPDATE context_versions SET status = 'Archived', approved_by = $1, approved_at = $2 WHERE id = $3`,
-    [rejectedBy ?? null, now, revisionId]
+    `UPDATE context_versions SET status = 'Archived', approved_by = $1, approved_at = $2, updated_at = $2, updated_by = $1 WHERE id = $3`,
+    [normalized, now, revisionId]
   );
 
   const activityId = uuidv4();
   await pool.query(
     `INSERT INTO activity_log (id, type, resource_type, resource_id, resource_name, details, created_by, created_at)
      VALUES ($1, 'revision_rejected', 'context', $2, $3, $4, $5, $6)`,
-    [activityId, revision.contextId, context.name, JSON.stringify({ revisionId }), rejectedBy ?? null, now]
+    [activityId, revision.contextId, context.name, JSON.stringify({ revisionId }), normalized, now]
   );
 
   return getRevisionByIdPg(revisionId);

@@ -783,7 +783,7 @@ export const executeSkill = async (
     }
 
     case 'audit_log': {
-      logAuditEvent({
+      await logAuditEvent({
         eventType: input.eventType as string,
         resourceType: input.resourceType as string | undefined,
         resourceId: input.resourceId as string | undefined,
@@ -816,7 +816,7 @@ export const executeSkill = async (
     }
 
     case 'report_incident': {
-      logAuditEvent({
+      await logAuditEvent({
         eventType: (input.eventType as string) || 'incident',
         resourceType: (input.resourceType as string) || 'incident',
         resourceId: input.resourceId as string | undefined,

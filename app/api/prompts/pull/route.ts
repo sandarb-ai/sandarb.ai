@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPromptByName, getCurrentPromptVersion, interpolatePrompt } from '@/lib/prompts';
 import { logPromptUsage } from '@/lib/audit';
+import { withSpan, logger } from '@/lib/otel';
 
 const AGENT_ID_HEADER = 'x-sandarb-agent-id';
 const TRACE_ID_HEADER = 'x-sandarb-trace-id';
@@ -44,6 +45,7 @@ function requireAuditIds(agentId: string | null, traceId: string | null): NextRe
 }
 
 export async function GET(request: NextRequest) {
+  return withSpan('GET /api/prompts/pull', async () => {
   try {
     const { searchParams } = new URL(request.url);
     const name = searchParams.get('name');
@@ -110,10 +112,11 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Prompts pull error:', error);
+    logger.error('Prompts pull error', { route: 'GET /api/prompts/pull', error: String(error) });
     return NextResponse.json(
       { success: false, error: error instanceof Error ? error.message : 'Internal error' },
       { status: 500 }
     );
   }
+  });
 }

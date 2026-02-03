@@ -35,9 +35,11 @@ function rowToAgent(row: Record<string, unknown>): RegisteredAgent {
     approvalStatus: ((row.approval_status as string) || 'draft') as RegisteredAgent['approvalStatus'],
     approvedBy: row.approved_by != null ? String(row.approved_by) : null,
     approvedAt: row.approved_at != null ? String(row.approved_at) : null,
+    submittedBy: row.submitted_by != null ? String(row.submitted_by) : null,
     createdBy: row.created_by != null ? String(row.created_by) : null,
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at ?? row.created_at),
+    updatedBy: row.updated_by != null ? String(row.updated_by) : null,
     ownerTeam: row.owner_team != null ? String(row.owner_team) : null,
     toolsUsed: parseJsonArray(row.tools_used),
     allowedDataScopes: parseJsonArray(row.allowed_data_scopes),
@@ -48,8 +50,8 @@ function rowToAgent(row: Record<string, unknown>): RegisteredAgent {
 
 export async function getAllAgentsPg(orgId?: string): Promise<RegisteredAgent[]> {
   const rows = orgId
-    ? await query<Record<string, unknown>>('SELECT * FROM agents WHERE org_id = $1 ORDER BY name ASC', [orgId])
-    : await query<Record<string, unknown>>('SELECT * FROM agents ORDER BY name ASC');
+    ? await query<Record<string, unknown>>('SELECT * FROM agents WHERE org_id = $1 ORDER BY updated_at DESC NULLS LAST, name ASC', [orgId])
+    : await query<Record<string, unknown>>('SELECT * FROM agents ORDER BY updated_at DESC NULLS LAST, name ASC');
   return rows.map(rowToAgent);
 }
 
@@ -150,6 +152,22 @@ export async function updateAgentPg(id: string, input: RegisteredAgentUpdateInpu
   if (input.approvalStatus !== undefined) {
     updates.push(`approval_status = $${i++}`);
     values.push(input.approvalStatus);
+  }
+  if (input.approvedBy !== undefined) {
+    updates.push(`approved_by = $${i++}`);
+    values.push(input.approvedBy);
+  }
+  if (input.approvedAt !== undefined) {
+    updates.push(`approved_at = $${i++}`);
+    values.push(input.approvedAt);
+  }
+  if (input.submittedBy !== undefined) {
+    updates.push(`submitted_by = $${i++}`);
+    values.push(input.submittedBy);
+  }
+  if (input.updatedBy !== undefined) {
+    updates.push(`updated_by = $${i++}`);
+    values.push(input.updatedBy);
   }
   if (updates.length === 0) return existing;
   updates.push(`updated_at = $${i++}`);

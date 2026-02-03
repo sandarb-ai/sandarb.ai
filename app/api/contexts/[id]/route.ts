@@ -1,34 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getContextById, updateContext, deleteContext } from '@/lib/contexts';
 import type { ContextUpdateInput } from '@/types';
+import { withSpan, logger } from '@/lib/otel';
 
 // GET /api/contexts/:id - Get single context
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const { id } = await params;
-    const context = await getContextById(id);
+  return withSpan('GET /api/contexts/[id]', async () => {
+    try {
+      const { id } = await params;
+      const context = await getContextById(id);
 
-    if (!context) {
+      if (!context) {
+        return NextResponse.json(
+          { success: false, error: 'Context not found' },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json({ success: true, data: context });
+    } catch (error) {
+      logger.error('Failed to fetch context', { route: 'GET /api/contexts/[id]', error: String(error) });
       return NextResponse.json(
-        { success: false, error: 'Context not found' },
-        { status: 404 }
+        { success: false, error: 'Failed to fetch context' },
+        { status: 500 }
       );
     }
-
-    return NextResponse.json({ success: true, data: context });
-  } catch (error) {
-    console.error('Failed to fetch context:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch context' },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 // PUT /api/contexts/:id - Update context
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const { id } = await params;
+  return withSpan('PUT /api/contexts/[id]', async () => {
+    try {
+      const { id } = await params;
     const body = await request.json();
     const {
       name,
@@ -82,8 +86,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     return NextResponse.json({ success: true, data: context });
   } catch (error) {
-    console.error('Failed to update context:', error);
-
+    logger.error('Failed to update context', { route: 'PUT /api/contexts/[id]', error: String(error) });
     // Handle unique constraint violation
     if (error instanceof Error && error.message.includes('UNIQUE constraint')) {
       return NextResponse.json(
@@ -97,30 +100,33 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       { status: 500 }
     );
   }
+  });
 }
 
 // DELETE /api/contexts/:id - Delete context
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const { id } = await params;
-    const deleted = await deleteContext(id);
+  return withSpan('DELETE /api/contexts/[id]', async () => {
+    try {
+      const { id } = await params;
+      const deleted = await deleteContext(id);
 
-    if (!deleted) {
+      if (!deleted) {
+        return NextResponse.json(
+          { success: false, error: 'Context not found' },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: 'Context deleted successfully',
+      });
+    } catch (error) {
+      logger.error('Failed to delete context', { route: 'DELETE /api/contexts/[id]', error: String(error) });
       return NextResponse.json(
-        { success: false, error: 'Context not found' },
-        { status: 404 }
+        { success: false, error: 'Failed to delete context' },
+        { status: 500 }
       );
     }
-
-    return NextResponse.json({
-      success: true,
-      message: 'Context deleted successfully',
-    });
-  } catch (error) {
-    console.error('Failed to delete context:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to delete context' },
-      { status: 500 }
-    );
-  }
+  });
 }

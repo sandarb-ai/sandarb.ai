@@ -51,8 +51,7 @@ export function ContextsListClient({ initialContexts, total, page, pageSize }: C
       if (res.ok) {
         window.location.reload();
       }
-    } catch (error) {
-      console.error('Failed to delete context:', error);
+    } catch {
     }
   };
 

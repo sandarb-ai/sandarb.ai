@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { createHash } from 'crypto';
-import db from './db';
-import { usePg, getPool, query } from './pg';
+import { getPool, query } from './pg';
+import { normalizeApprovedBy } from './utils';
 import type { Prompt, PromptVersion, PromptVariable, PromptVersionStatus, PromptVersionCreateInput } from '@/types';
 
 // ============================================================================
@@ -19,36 +19,20 @@ export const hashPromptContent = (content: string, systemPrompt?: string | null)
 // ============================================================================
 
 export const getAllPrompts = async (): Promise<Prompt[]> => {
-  if (usePg()) {
-    const rows = await query<Record<string, unknown>>(`
-      SELECT * FROM prompts ORDER BY updated_at DESC
-    `);
-    return rows.map(rowToPrompt);
-  }
-  const rows = db.prepare(`
-    SELECT * FROM prompts
-    ORDER BY updated_at DESC
-  `).all();
-
-  return (rows as Record<string, unknown>[]).map(rowToPrompt);
+  const rows = await query<Record<string, unknown>>(`
+    SELECT * FROM prompts ORDER BY updated_at DESC
+  `);
+  return rows.map(rowToPrompt);
 };
 
 export const getPromptById = async (id: string): Promise<Prompt | null> => {
-  if (usePg()) {
-    const rows = await query<Record<string, unknown>>(`SELECT * FROM prompts WHERE id = $1`, [id]);
-    return rows.length > 0 ? rowToPrompt(rows[0]) : null;
-  }
-  const row = db.prepare(`SELECT * FROM prompts WHERE id = ?`).get(id);
-  return row ? rowToPrompt(row as Record<string, unknown>) : null;
+  const rows = await query<Record<string, unknown>>(`SELECT * FROM prompts WHERE id = $1`, [id]);
+  return rows.length > 0 ? rowToPrompt(rows[0]) : null;
 };
 
 export const getPromptByName = async (name: string): Promise<Prompt | null> => {
-  if (usePg()) {
-    const rows = await query<Record<string, unknown>>(`SELECT * FROM prompts WHERE name = $1`, [name]);
-    return rows.length > 0 ? rowToPrompt(rows[0]) : null;
-  }
-  const row = db.prepare(`SELECT * FROM prompts WHERE name = ?`).get(name);
-  return row ? rowToPrompt(row as Record<string, unknown>) : null;
+  const rows = await query<Record<string, unknown>>(`SELECT * FROM prompts WHERE name = $1`, [name]);
+  return rows.length > 0 ? rowToPrompt(rows[0]) : null;
 };
 
 export const createPrompt = async (input: {
@@ -60,28 +44,11 @@ export const createPrompt = async (input: {
   const id = uuidv4();
   const now = new Date().toISOString();
 
-  if (usePg()) {
-    await query(
-      `INSERT INTO prompts (id, name, description, tags, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $5)`,
-      [id, input.name, input.description || null, JSON.stringify(input.tags || []), now]
-    );
-    return (await getPromptById(id))!;
-  }
-
-  db.prepare(`
-    INSERT INTO prompts (id, name, description, project_id, tags, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    id,
-    input.name,
-    input.description || null,
-    input.projectId || null,
-    JSON.stringify(input.tags || []),
-    now,
-    now
+  await query(
+    `INSERT INTO prompts (id, name, description, tags, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $5)`,
+    [id, input.name, input.description || null, JSON.stringify(input.tags || []), now]
   );
-
   return (await getPromptById(id))!;
 };
 
@@ -95,84 +62,41 @@ export const updatePrompt = async (id: string, input: {
   const existing = await getPromptById(id);
   if (!existing) return null;
 
-  if (usePg()) {
-    const updates: string[] = [];
-    const values: unknown[] = [];
-    let paramIndex = 1;
-
-    if (input.name !== undefined) {
-      updates.push(`name = $${paramIndex++}`);
-      values.push(input.name);
-    }
-    if (input.description !== undefined) {
-      updates.push(`description = $${paramIndex++}`);
-      values.push(input.description);
-    }
-    if (input.currentVersionId !== undefined) {
-      updates.push(`current_version_id = $${paramIndex++}`);
-      values.push(input.currentVersionId);
-    }
-    if (input.tags !== undefined) {
-      updates.push(`tags = $${paramIndex++}`);
-      values.push(JSON.stringify(input.tags));
-    }
-    if (updates.length === 0) return existing;
-
-    updates.push(`updated_at = $${paramIndex++}`);
-    values.push(new Date().toISOString());
-    values.push(id);
-
-    await query(`UPDATE prompts SET ${updates.join(', ')} WHERE id = $${paramIndex}`, values);
-    return getPromptById(id);
-  }
-
   const updates: string[] = [];
   const values: unknown[] = [];
+  let paramIndex = 1;
 
   if (input.name !== undefined) {
-    updates.push('name = ?');
+    updates.push(`name = $${paramIndex++}`);
     values.push(input.name);
   }
   if (input.description !== undefined) {
-    updates.push('description = ?');
+    updates.push(`description = $${paramIndex++}`);
     values.push(input.description);
   }
   if (input.currentVersionId !== undefined) {
-    updates.push('current_version_id = ?');
+    updates.push(`current_version_id = $${paramIndex++}`);
     values.push(input.currentVersionId);
   }
-  if (input.projectId !== undefined) {
-    updates.push('project_id = ?');
-    values.push(input.projectId);
-  }
   if (input.tags !== undefined) {
-    updates.push('tags = ?');
+    updates.push(`tags = $${paramIndex++}`);
     values.push(JSON.stringify(input.tags));
   }
-
   if (updates.length === 0) return existing;
 
-  updates.push('updated_at = ?');
+  updates.push(`updated_at = $${paramIndex++}`);
   values.push(new Date().toISOString());
   values.push(id);
 
-  db.prepare(`
-    UPDATE prompts SET ${updates.join(', ')} WHERE id = ?
-  `).run(...values);
-
+  await query(`UPDATE prompts SET ${updates.join(', ')} WHERE id = $${paramIndex}`, values);
   return getPromptById(id);
 };
 
 export const deletePrompt = async (id: string): Promise<boolean> => {
-  if (usePg()) {
-    // CASCADE handles versions
-    const result = await query(`DELETE FROM prompts WHERE id = $1`, [id]);
-    return (result as unknown as { rowCount: number }).rowCount > 0;
-  }
-  // Delete all versions first
-  db.prepare(`DELETE FROM prompt_versions WHERE prompt_id = ?`).run(id);
-  const result = db.prepare(`DELETE FROM prompts WHERE id = ?`).run(id);
-  return result.changes > 0;
+  const pool = await getPool();
+  if (!pool) return false;
+  const result = await pool.query(`DELETE FROM prompts WHERE id = $1`, [id]);
+  return (result.rowCount ?? 0) > 0;
 };
 
 // ============================================================================
@@ -180,47 +104,24 @@ export const deletePrompt = async (id: string): Promise<boolean> => {
 // ============================================================================
 
 export const getPromptVersions = async (promptId: string): Promise<PromptVersion[]> => {
-  if (usePg()) {
-    const rows = await query<Record<string, unknown>>(
-      `SELECT * FROM prompt_versions WHERE prompt_id = $1 ORDER BY version DESC`,
-      [promptId]
-    );
-    return rows.map(rowToPromptVersion);
-  }
-  const rows = db.prepare(`
-    SELECT * FROM prompt_versions
-    WHERE prompt_id = ?
-    ORDER BY version DESC
-  `).all(promptId);
-
-  return (rows as Record<string, unknown>[]).map(rowToPromptVersion);
+  const rows = await query<Record<string, unknown>>(
+    `SELECT * FROM prompt_versions WHERE prompt_id = $1 ORDER BY version DESC`,
+    [promptId]
+  );
+  return rows.map(rowToPromptVersion);
 };
 
 export const getPromptVersionById = async (id: string): Promise<PromptVersion | null> => {
-  if (usePg()) {
-    const rows = await query<Record<string, unknown>>(`SELECT * FROM prompt_versions WHERE id = $1`, [id]);
-    return rows.length > 0 ? rowToPromptVersion(rows[0]) : null;
-  }
-  const row = db.prepare(`SELECT * FROM prompt_versions WHERE id = ?`).get(id);
-  return row ? rowToPromptVersion(row as Record<string, unknown>) : null;
+  const rows = await query<Record<string, unknown>>(`SELECT * FROM prompt_versions WHERE id = $1`, [id]);
+  return rows.length > 0 ? rowToPromptVersion(rows[0]) : null;
 };
 
 export const getLatestPromptVersion = async (promptId: string): Promise<PromptVersion | null> => {
-  if (usePg()) {
-    const rows = await query<Record<string, unknown>>(
-      `SELECT * FROM prompt_versions WHERE prompt_id = $1 ORDER BY version DESC LIMIT 1`,
-      [promptId]
-    );
-    return rows.length > 0 ? rowToPromptVersion(rows[0]) : null;
-  }
-  const row = db.prepare(`
-    SELECT * FROM prompt_versions
-    WHERE prompt_id = ?
-    ORDER BY version DESC
-    LIMIT 1
-  `).get(promptId);
-
-  return row ? rowToPromptVersion(row as Record<string, unknown>) : null;
+  const rows = await query<Record<string, unknown>>(
+    `SELECT * FROM prompt_versions WHERE prompt_id = $1 ORDER BY version DESC LIMIT 1`,
+    [promptId]
+  );
+  return rows.length > 0 ? rowToPromptVersion(rows[0]) : null;
 };
 
 /** Get the current (approved) version of a prompt. */
@@ -234,21 +135,11 @@ export const getCurrentPromptVersion = async (promptId: string): Promise<PromptV
     }
   }
   // Fallback: find the latest approved version
-  if (usePg()) {
-    const rows = await query<Record<string, unknown>>(
-      `SELECT * FROM prompt_versions WHERE prompt_id = $1 AND status = 'approved' ORDER BY version DESC LIMIT 1`,
-      [promptId]
-    );
-    return rows.length > 0 ? rowToPromptVersion(rows[0]) : null;
-  }
-  const row = db.prepare(`
-    SELECT * FROM prompt_versions
-    WHERE prompt_id = ? AND status = 'approved'
-    ORDER BY version DESC
-    LIMIT 1
-  `).get(promptId);
-
-  return row ? rowToPromptVersion(row as Record<string, unknown>) : null;
+  const rows = await query<Record<string, unknown>>(
+    `SELECT * FROM prompt_versions WHERE prompt_id = $1 AND status = 'approved' ORDER BY version DESC LIMIT 1`,
+    [promptId]
+  );
+  return rows.length > 0 ? rowToPromptVersion(rows[0]) : null;
 };
 
 /**
@@ -270,90 +161,47 @@ export const createPromptVersion = async (input: PromptVersionCreateInput): Prom
 
   // Determine initial status (proposed by default, approved if autoApprove)
   const status: PromptVersionStatus = input.autoApprove ? 'approved' : 'proposed';
-  const approvedBy = input.autoApprove ? (input.createdBy ?? 'system') : null;
+  const createdByNorm = normalizeApprovedBy(input.createdBy ?? 'system');
+  const approvedBy = input.autoApprove ? createdByNorm : null;
   const approvedAt = input.autoApprove ? now : null;
+  const submittedBy = status === 'proposed' ? createdByNorm : null;
+  const updatedAt = input.autoApprove ? now : null;
+  const updatedBy = input.autoApprove ? approvedBy : null;
 
-  if (usePg()) {
-    await query(
-      `INSERT INTO prompt_versions (
-        id, prompt_id, version, content, system_prompt, model,
-        commit_message, created_at, status, approved_by, approved_at, parent_version_id, sha256_hash
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-      [
-        id,
-        input.promptId,
-        nextVersion,
-        input.content,
-        input.systemPrompt || null,
-        input.model || 'gpt-4',
-        input.commitMessage || null,
-        now,
-        status,
-        approvedBy,
-        approvedAt,
-        parentVersionId,
-        sha256Hash
-      ]
-    );
-
-    // Only update prompt's current version if auto-approved
-    if (input.autoApprove) {
-      await query(
-        `UPDATE prompts SET current_version_id = $1, updated_at = $2 WHERE id = $3`,
-        [id, now, input.promptId]
-      );
-    }
-
-    // Log activity
-    const prompt = await getPromptById(input.promptId);
-    await logPromptVersionActivity(
-      input.autoApprove ? 'version_approved' : 'version_proposed',
-      input.promptId,
-      prompt?.name ?? 'unknown',
-      id,
-      input.createdBy
-    );
-
-    return (await getPromptVersionById(id))!;
-  }
-
-  db.prepare(`
-    INSERT INTO prompt_versions (
-      id, prompt_id, version, content, variables, model, temperature,
-      max_tokens, system_prompt, metadata, commit_message, created_by, created_at,
-      status, approved_by, approved_at, parent_version_id, sha256_hash
+  await query(
+    `INSERT INTO prompt_versions (
+      id, prompt_id, version, content, system_prompt, model,
+      commit_message, created_by, created_at, submitted_by, status, approved_by, approved_at, updated_at, updated_by, parent_version_id, sha256_hash
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    id,
-    input.promptId,
-    nextVersion,
-    input.content,
-    JSON.stringify(input.variables || []),
-    input.model || null,
-    input.temperature || null,
-    input.maxTokens || null,
-    input.systemPrompt || null,
-    JSON.stringify(input.metadata || {}),
-    input.commitMessage || null,
-    input.createdBy || null,
-    now,
-    status,
-    approvedBy,
-    approvedAt,
-    parentVersionId,
-    sha256Hash
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
+    [
+      id,
+      input.promptId,
+      nextVersion,
+      input.content,
+      input.systemPrompt || null,
+      input.model || 'gpt-4',
+      input.commitMessage || null,
+      createdByNorm,
+      now,
+      submittedBy,
+      status,
+      approvedBy,
+      approvedAt,
+      updatedAt,
+      updatedBy,
+      parentVersionId,
+      sha256Hash
+    ]
   );
 
-  // Only update prompt's current version if auto-approved
   if (input.autoApprove) {
-    db.prepare(`
-      UPDATE prompts SET current_version_id = ?, updated_at = ? WHERE id = ?
-    `).run(id, now, input.promptId);
+    await query(
+      `UPDATE prompts SET current_version_id = $1, updated_at = $2 WHERE id = $3`,
+      [id, now, input.promptId]
+    );
   }
 
-  // Log activity
   const prompt = await getPromptById(input.promptId);
   await logPromptVersionActivity(
     input.autoApprove ? 'version_approved' : 'version_proposed',
@@ -372,37 +220,19 @@ export const createPromptVersion = async (input: PromptVersionCreateInput): Prom
 
 /** Get all proposed (pending approval) versions for a prompt. */
 export const getProposedPromptVersions = async (promptId: string): Promise<PromptVersion[]> => {
-  if (usePg()) {
-    const rows = await query<Record<string, unknown>>(
-      `SELECT * FROM prompt_versions WHERE prompt_id = $1 AND status = 'proposed' ORDER BY version DESC`,
-      [promptId]
-    );
-    return rows.map(rowToPromptVersion);
-  }
-  const rows = db.prepare(`
-    SELECT * FROM prompt_versions
-    WHERE prompt_id = ? AND status = 'proposed'
-    ORDER BY version DESC
-  `).all(promptId);
-
-  return (rows as Record<string, unknown>[]).map(rowToPromptVersion);
+  const rows = await query<Record<string, unknown>>(
+    `SELECT * FROM prompt_versions WHERE prompt_id = $1 AND status = 'proposed' ORDER BY version DESC`,
+    [promptId]
+  );
+  return rows.map(rowToPromptVersion);
 };
 
 /** Get all proposed versions across all prompts (for governance dashboard). */
 export const getAllProposedPromptVersions = async (): Promise<PromptVersion[]> => {
-  if (usePg()) {
-    const rows = await query<Record<string, unknown>>(
-      `SELECT * FROM prompt_versions WHERE status = 'proposed' ORDER BY created_at DESC`
-    );
-    return rows.map(rowToPromptVersion);
-  }
-  const rows = db.prepare(`
-    SELECT * FROM prompt_versions
-    WHERE status = 'proposed'
-    ORDER BY created_at DESC
-  `).all();
-
-  return (rows as Record<string, unknown>[]).map(rowToPromptVersion);
+  const rows = await query<Record<string, unknown>>(
+    `SELECT * FROM prompt_versions WHERE status = 'proposed' ORDER BY created_at DESC`
+  );
+  return rows.map(rowToPromptVersion);
 };
 
 /** Approve a prompt version: sets status to 'approved' and makes it the current version. */
@@ -418,42 +248,20 @@ export const approvePromptVersion = async (
   }
 
   const now = new Date().toISOString();
+  const normalized = normalizeApprovedBy(approvedBy);
 
-  if (usePg()) {
-    // Update version status
-    await query(
-      `UPDATE prompt_versions SET status = 'approved', approved_by = $1, approved_at = $2 WHERE id = $3`,
-      [approvedBy ?? null, now, versionId]
-    );
+  await query(
+    `UPDATE prompt_versions SET status = 'approved', approved_by = $1, approved_at = $2, updated_at = $2, updated_by = $1 WHERE id = $3`,
+    [normalized, now, versionId]
+  );
 
-    // Set as current version on the prompt
-    await query(
-      `UPDATE prompts SET current_version_id = $1, updated_at = $2 WHERE id = $3`,
-      [versionId, now, version.promptId]
-    );
+  await query(
+    `UPDATE prompts SET current_version_id = $1, updated_at = $2, updated_by = $3 WHERE id = $4`,
+    [versionId, now, normalized, version.promptId]
+  );
 
-    // Log activity
-    const prompt = await getPromptById(version.promptId);
-    await logPromptVersionActivity('version_approved', version.promptId, prompt?.name ?? 'unknown', versionId, approvedBy);
-
-    return getPromptVersionById(versionId);
-  }
-
-  // Update version status
-  db.prepare(`
-    UPDATE prompt_versions
-    SET status = 'approved', approved_by = ?, approved_at = ?
-    WHERE id = ?
-  `).run(approvedBy ?? null, now, versionId);
-
-  // Set as current version on the prompt
-  db.prepare(`
-    UPDATE prompts SET current_version_id = ?, updated_at = ? WHERE id = ?
-  `).run(versionId, now, version.promptId);
-
-  // Log activity
   const prompt = await getPromptById(version.promptId);
-  await logPromptVersionActivity('version_approved', version.promptId, prompt?.name ?? 'unknown', versionId, approvedBy);
+  await logPromptVersionActivity('version_approved', version.promptId, prompt?.name != null ? prompt.name : 'unknown', versionId, normalized ?? undefined);
 
   return getPromptVersionById(versionId);
 };
@@ -471,30 +279,15 @@ export const rejectPromptVersion = async (
   }
 
   const now = new Date().toISOString();
+  const normalized = normalizeApprovedBy(rejectedBy);
 
-  if (usePg()) {
-    await query(
-      `UPDATE prompt_versions SET status = 'rejected', approved_by = $1, approved_at = $2 WHERE id = $3`,
-      [rejectedBy ?? null, now, versionId]
-    );
+  await query(
+    `UPDATE prompt_versions SET status = 'rejected', approved_by = $1, approved_at = $2, updated_at = $2, updated_by = $1 WHERE id = $3`,
+    [normalized, now, versionId]
+  );
 
-    // Log activity
-    const prompt = await getPromptById(version.promptId);
-    await logPromptVersionActivity('version_rejected', version.promptId, prompt?.name ?? 'unknown', versionId, rejectedBy);
-
-    return getPromptVersionById(versionId);
-  }
-
-  // Update version status (reuse approved_by/approved_at for rejection tracking)
-  db.prepare(`
-    UPDATE prompt_versions
-    SET status = 'rejected', approved_by = ?, approved_at = ?
-    WHERE id = ?
-  `).run(rejectedBy ?? null, now, versionId);
-
-  // Log activity
   const prompt = await getPromptById(version.promptId);
-  await logPromptVersionActivity('version_rejected', version.promptId, prompt?.name ?? 'unknown', versionId, rejectedBy);
+  await logPromptVersionActivity('version_rejected', version.promptId, prompt?.name != null ? prompt.name : 'unknown', versionId, rejectedBy ?? undefined);
 
   return getPromptVersionById(versionId);
 };
@@ -509,54 +302,26 @@ export const archivePromptVersion = async (
   if (version.status === 'archived') return version;
 
   const now = new Date().toISOString();
+  const normalized = normalizeApprovedBy(archivedBy);
 
-  if (usePg()) {
-    await query(
-      `UPDATE prompt_versions SET status = 'archived', approved_by = $1, approved_at = $2 WHERE id = $3`,
-      [archivedBy ?? null, now, versionId]
-    );
+  await query(
+    `UPDATE prompt_versions SET status = 'archived', approved_by = $1, approved_at = $2, updated_at = $2, updated_by = $1 WHERE id = $3`,
+    [normalized, now, versionId]
+  );
 
-    // If this was the current version, clear it
-    const prompt = await getPromptById(version.promptId);
-    if (prompt?.currentVersionId === versionId) {
-      const rows = await query<{ id: string }>(
-        `SELECT id FROM prompt_versions WHERE prompt_id = $1 AND status = 'approved' AND id != $2 ORDER BY version DESC LIMIT 1`,
-        [version.promptId, versionId]
-      );
-      await query(
-        `UPDATE prompts SET current_version_id = $1, updated_at = $2 WHERE id = $3`,
-        [rows[0]?.id ?? null, now, version.promptId]
-      );
-    }
-
-    await logPromptVersionActivity('version_archived', version.promptId, prompt?.name ?? 'unknown', versionId, archivedBy);
-    return getPromptVersionById(versionId);
-  }
-
-  db.prepare(`
-    UPDATE prompt_versions
-    SET status = 'archived', approved_by = ?, approved_at = ?
-    WHERE id = ?
-  `).run(archivedBy ?? null, now, versionId);
-
-  // If this was the current version, clear it
   const prompt = await getPromptById(version.promptId);
   if (prompt?.currentVersionId === versionId) {
-    // Find the most recent approved version to set as current
-    const approvedVersions = db.prepare(`
-      SELECT id FROM prompt_versions
-      WHERE prompt_id = ? AND status = 'approved' AND id != ?
-      ORDER BY version DESC
-      LIMIT 1
-    `).get(version.promptId, versionId) as { id: string } | undefined;
-
-    db.prepare(`
-      UPDATE prompts SET current_version_id = ?, updated_at = ? WHERE id = ?
-    `).run(approvedVersions?.id ?? null, now, version.promptId);
+    const rows = await query<{ id: string }>(
+      `SELECT id FROM prompt_versions WHERE prompt_id = $1 AND status = 'approved' AND id != $2 ORDER BY version DESC LIMIT 1`,
+      [version.promptId, versionId]
+    );
+    await query(
+      `UPDATE prompts SET current_version_id = $1, updated_at = $2 WHERE id = $3`,
+      [rows[0]?.id ?? null, now, version.promptId]
+    );
   }
 
-  await logPromptVersionActivity('version_archived', version.promptId, prompt?.name ?? 'unknown', versionId, archivedBy);
-
+  await logPromptVersionActivity('version_archived', version.promptId, prompt?.name != null ? prompt.name : 'unknown', versionId, archivedBy ?? undefined);
   return getPromptVersionById(versionId);
 };
 
@@ -584,31 +349,15 @@ async function logPromptVersionActivity(
   const id = uuidv4();
   const now = new Date().toISOString();
 
-  if (usePg()) {
-    try {
-      await query(
-        `INSERT INTO activity_log (id, type, resource_type, resource_id, resource_name, details, created_by, created_at)
-         VALUES ($1, $2, 'prompt', $3, $4, $5, $6, $7)`,
-        [id, type, promptId, promptName, JSON.stringify({ versionId }), userId ?? null, now]
-      );
-    } catch {
-      // Activity log may not exist in Postgres, ignore
-    }
-    return;
+  try {
+    await query(
+      `INSERT INTO activity_log (id, type, resource_type, resource_id, resource_name, details, created_by, created_at)
+       VALUES ($1, $2, 'prompt', $3, $4, $5, $6, $7)`,
+      [id, type, promptId, promptName, JSON.stringify({ versionId }), userId ?? null, now]
+    );
+  } catch {
+    // Activity log may not exist, ignore
   }
-
-  db.prepare(`
-    INSERT INTO activity_log (id, type, resource_type, resource_id, resource_name, details, created_by, created_at)
-    VALUES (?, ?, 'prompt', ?, ?, ?, ?, ?)
-  `).run(
-    id,
-    type,
-    promptId,
-    promptName,
-    JSON.stringify({ versionId }),
-    userId ?? null,
-    now
-  );
 }
 
 // ============================================================================
@@ -670,8 +419,10 @@ const rowToPrompt = (row: Record<string, unknown>): Prompt => ({
   currentVersionId: row.current_version_id as string | null,
   projectId: row.project_id as string | null,
   tags: parseTags(row.tags),
+  createdBy: row.created_by as string | null,
   createdAt: row.created_at as string,
   updatedAt: row.updated_at as string,
+  updatedBy: row.updated_by as string | null,
 });
 
 const parseJson = <T>(val: unknown, fallback: T): T => {
@@ -701,6 +452,9 @@ const rowToPromptVersion = (row: Record<string, unknown>): PromptVersion => ({
   commitMessage: row.commit_message as string | null,
   createdBy: row.created_by as string | null,
   createdAt: row.created_at as string,
+  submittedBy: row.submitted_by as string | null,
+  updatedAt: row.updated_at != null ? String(row.updated_at) : null,
+  updatedBy: row.updated_by as string | null,
   // Governance fields
   status: (row.status as PromptVersionStatus) ?? 'approved',
   approvedBy: row.approved_by as string | null,
@@ -714,48 +468,27 @@ const rowToPromptVersion = (row: Record<string, unknown>): PromptVersion => ({
 // ============================================================================
 
 export const getPromptCount = async (): Promise<number> => {
-  if (usePg()) {
-    const rows = await query<{ count: string }>(`SELECT COUNT(*)::text as count FROM prompts`);
-    return parseInt(rows[0]?.count || '0', 10);
-  }
-  const result = db.prepare(`SELECT COUNT(*) as count FROM prompts`).get() as { count: number };
-  return result.count;
+  const rows = await query<{ count: string }>(`SELECT COUNT(*)::text as count FROM prompts`);
+  return parseInt(rows[0]?.count || '0', 10);
 };
 
 export const getPromptStats = async (): Promise<{ total: number; active: number }> => {
-  if (usePg()) {
-    const rows = await query<{ total: string; active: string }>(`
-      SELECT 
-        COUNT(*)::text as total,
-        COUNT(CASE WHEN current_version_id IS NOT NULL THEN 1 END)::text as active
-      FROM prompts
-    `);
-    return {
-      total: parseInt(rows[0]?.total || '0', 10),
-      active: parseInt(rows[0]?.active || '0', 10),
-    };
-  }
-  const result = db.prepare(`
+  const rows = await query<{ total: string; active: string }>(`
     SELECT 
-      COUNT(*) as total,
-      SUM(CASE WHEN current_version_id IS NOT NULL THEN 1 ELSE 0 END) as active
+      COUNT(*)::text as total,
+      COUNT(CASE WHEN current_version_id IS NOT NULL THEN 1 END)::text as active
     FROM prompts
-  `).get() as { total: number; active: number };
-  return { total: result.total, active: result.active || 0 };
+  `);
+  return {
+    total: parseInt(rows[0]?.total || '0', 10),
+    active: parseInt(rows[0]?.active || '0', 10),
+  };
 };
 
 export const getRecentPrompts = async (limit: number = 6): Promise<Prompt[]> => {
-  if (usePg()) {
-    const rows = await query<Record<string, unknown>>(
-      `SELECT * FROM prompts ORDER BY created_at DESC LIMIT $1`,
-      [limit]
-    );
-    return rows.map(rowToPrompt);
-  }
-  const rows = db.prepare(`
-    SELECT * FROM prompts
-    ORDER BY created_at DESC
-    LIMIT ?
-  `).all(limit) as Record<string, unknown>[];
+  const rows = await query<Record<string, unknown>>(
+    `SELECT * FROM prompts ORDER BY created_at DESC LIMIT $1`,
+    [limit]
+  );
   return rows.map(rowToPrompt);
 };

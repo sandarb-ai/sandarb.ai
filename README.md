@@ -31,7 +31,7 @@ In most production AI systems, prompts are "magic strings" buried in code, and c
 2.  **Context Contamination:** Agents access irrelevant or sensitive documents because the retrieval scope wasn't locked.
 3.  **Compliance Risks:** No audit trail of *why* an agent gave a specific answer or what instructions it was following.
 
-**Sandarb solves this by acting as the Compliance Layer between your Agents and their LLM providers.**
+Sandarb addresses this through **AI Governance in the control plane**—governing all AI agents running across your company, without sitting in the middle of every agent–LLM call.
 
 ---
 
@@ -77,6 +77,20 @@ Sandarb fits into your architecture however you need it to.
 
 ---
 
+## Testing
+
+Sandarb ships with a **Vitest** test suite (unit + API route tests; no database required). Run:
+
+```bash
+npm run test        # watch mode
+npm run test:run    # single run (CI)
+npm run test:coverage  # with coverage
+```
+
+See **[tests/README.md](tests/README.md)** for what’s covered, how to run tests, and how to **extend the suite** (adding lib tests, API route tests, and mocking patterns).
+
+---
+
 ## 💻 Developer Experience
 
 Your agents don't guess what to say; they ask Sandarb.
@@ -102,10 +116,7 @@ async function runAgentTask(input: string) {
     input_variables: { query: input }
   });
 
-  // 2. Sandarb logs this request for compliance lineage
-  console.log(`Using Prompt Version: ${governanceData.meta.versionId}`);
-
-  // 3. Execute inference using ONLY the governed data
+  // 2. Execute inference using ONLY the governed data
   return llm.generate({
     system: governanceData.prompt.system,
     context: governanceData.context.chunks,

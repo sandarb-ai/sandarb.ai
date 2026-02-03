@@ -17,8 +17,10 @@ export interface Prompt {
   currentVersionId: string | null;       // Active (approved) version
   projectId: string | null;              // Group prompts by project
   tags: string[];
+  createdBy: string | null;
   createdAt: string;
   updatedAt: string;
+  updatedBy: string | null;
 }
 
 export interface PromptVersion {
@@ -35,6 +37,9 @@ export interface PromptVersion {
   commitMessage: string | null;          // Version description
   createdBy: string | null;
   createdAt: string;
+  submittedBy: string | null;            // Who submitted for approval
+  updatedAt: string | null;              // Last modified (e.g. on approve/reject)
+  updatedBy: string | null;               // Who last modified
   // Governance fields (parity with context revisions)
   status: PromptVersionStatus;           // Approval workflow status
   approvedBy: string | null;             // Who approved this version
@@ -94,8 +99,10 @@ export interface Context {
   isActive: boolean;
   priority: number;                      // For context composition order
   expiresAt: string | null;              // Optional TTL
+  createdBy: string | null;
   createdAt: string;
   updatedAt: string;
+  updatedBy: string | null;
   /** Compliance: Line of Business (Retail, Investment Banking, Wealth Management). */
   lineOfBusiness: LineOfBusiness | null;
   /** Compliance: Data classification (Public, Internal, Confidential, Restricted). */
@@ -128,6 +135,7 @@ export interface ContextUpdateInput {
   isActive?: boolean;
   priority?: number;
   expiresAt?: string;
+  updatedBy?: string | null;
   lineOfBusiness?: LineOfBusiness | null;
   dataClassification?: DataClassification | null;
   regulatoryHooks?: RegulatoryHook[] | null;
@@ -143,9 +151,12 @@ export interface ContextRevision {
   commitMessage: string | null;
   createdBy: string | null;
   createdAt: string;
+  submittedBy: string | null;            // Who submitted for approval
   status: RevisionStatus;
   approvedBy: string | null;
   approvedAt: string | null;
+  updatedAt: string | null;
+  updatedBy: string | null;
   parentRevisionId: string | null;
 }
 
@@ -571,9 +582,11 @@ export interface RegisteredAgent {
   approvalStatus: AgentApprovalStatus;
   approvedBy: string | null;
   approvedAt: string | null;
+  submittedBy: string | null;            // Who submitted for approval
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;
+  updatedBy: string | null;
   /** Owner team from manifest (e.g. "platform", "fraud"). */
   ownerTeam: string | null;
   /** Tools this agent uses (from manifest). */
@@ -609,6 +622,8 @@ export interface RegisteredAgentUpdateInput {
   approvalStatus?: AgentApprovalStatus;
   approvedBy?: string | null;
   approvedAt?: string | null;
+  submittedBy?: string | null;
+  updatedBy?: string | null;
   ownerTeam?: string | null;
   toolsUsed?: string[];
   allowedDataScopes?: string[];

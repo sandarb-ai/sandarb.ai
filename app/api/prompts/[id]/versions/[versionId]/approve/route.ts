@@ -4,10 +4,12 @@ import {
   getPromptVersionById,
   approvePromptVersion,
 } from '@/lib/prompts';
+import { withSpan, logger } from '@/lib/otel';
 
 // POST /api/prompts/:id/versions/:versionId/approve
 // Governance: Approve a proposed prompt version, making it the current active version.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string; versionId: string }> }) {
+  return withSpan('POST /api/prompts/[id]/versions/[versionId]/approve', async () => {
   try {
     const { id, versionId } = await params;
     const prompt = await getPromptById(id);
@@ -62,10 +64,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       message: `Version ${approvedVersion.version} approved and set as current version for prompt '${prompt.name}'`,
     });
   } catch (error) {
-    console.error('Failed to approve prompt version:', error);
+    logger.error('Failed to approve prompt version', { route: 'POST /api/prompts/[id]/versions/[versionId]/approve', error: String(error) });
     return NextResponse.json(
       { success: false, error: 'Failed to approve prompt version' },
       { status: 500 }
     );
   }
+  });
 }

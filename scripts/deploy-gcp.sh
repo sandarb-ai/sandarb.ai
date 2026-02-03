@@ -38,19 +38,26 @@ if [[ -z "$GCLOUD" ]]; then
   exit 1
 fi
 
-# Parse args (only positional; ignore flags like --help for PROJECT_ID/REGION)
+# Parse args (only positional; ignore flags like --help/--no-cache for PROJECT_ID/REGION)
 PROJECT_ID=""
 REGION=""
+NO_CACHE=""
 for arg in "$@"; do
   if [[ "$arg" == "--help" || "$arg" == "-h" ]]; then
-    echo "Usage: $0 PROJECT_ID [REGION]"
-    echo "  or set GCP_PROJECT_ID and run: $0 [REGION]"
+    echo "Usage: $0 PROJECT_ID [REGION] [--no-cache]"
+    echo "  or set GCP_PROJECT_ID and run: $0 [REGION] [--no-cache]"
+    echo "  --no-cache: disable Docker layer cache (use if deploy shows old code; may fail if Kaniko is enabled)."
     echo "Example: $0 191433138534 us-central1"
     exit 0
   fi
-  if [[ -z "$PROJECT_ID" ]]; then
+  if [[ "$arg" == "--no-cache" ]]; then
+    NO_CACHE="--no-cache"
+    continue
+  fi
+  # Only use non-flag args as PROJECT_ID / REGION (so --no-cache can appear anywhere)
+  if [[ "$arg" != -* && -z "$PROJECT_ID" ]]; then
     PROJECT_ID="$arg"
-  elif [[ -z "$REGION" ]]; then
+  elif [[ "$arg" != -* && -n "$PROJECT_ID" && -z "$REGION" ]]; then
     REGION="$arg"
   fi
 done
@@ -64,8 +71,8 @@ if [[ -z "$PROJECT_ID" ]]; then
 fi
 
 if [[ -z "$PROJECT_ID" ]]; then
-  echo "Usage: $0 PROJECT_ID [REGION]"
-  echo "  or set GCP_PROJECT_ID and run: $0 [REGION]"
+  echo "Usage: $0 PROJECT_ID [REGION] [--no-cache]"
+  echo "  or set GCP_PROJECT_ID and run: $0 [REGION] [--no-cache]"
   echo "Example: $0 191433138534 us-central1"
   exit 1
 fi
@@ -102,31 +109,54 @@ fi
 # Configure Docker for Artifact Registry
 "$GCLOUD" auth configure-docker "${REGION}-docker.pkg.dev" --quiet
 
+# Unique image tag so Cloud Run always deploys the image we just built (avoids :latest cache issues).
+BUILD_TAG="$(date +%Y%m%d-%H%M%S)"
+if (cd "$REPO_ROOT" && git rev-parse --short HEAD &>/dev/null); then
+  BUILD_TAG="${BUILD_TAG}-$(cd "$REPO_ROOT" && git rev-parse --short HEAD)"
+fi
+
 # Build and push using Cloud Build (no local Docker required)
-echo "Building and pushing image..."
+echo "Building and pushing image (tag: ${BUILD_TAG})..."
 cd "$REPO_ROOT"
-if ! "$GCLOUD" builds submit --tag "${REPO}/${IMAGE_NAME}:latest" --project="$PROJECT_ID" . ; then
+BUILD_CMD=("$GCLOUD" builds submit --tag "${REPO}/${IMAGE_NAME}:${BUILD_TAG}" --project="$PROJECT_ID")
+[[ -n "$NO_CACHE" ]] && BUILD_CMD+=(--no-cache)
+if ! "${BUILD_CMD[@]}" . ; then
   echo ""
   echo "Build failed."
   echo "  - PERMISSION_DENIED: see docs/deploy-gcp.md (grant your user cloudbuild.builds.editor + storage.objectAdmin)."
   echo "  - 403 ...-compute@developer.gserviceaccount.com storage.objects.get: grant the default Compute SA access to the bucket:"
   echo "    PROJECT_NUMBER=\$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')"
   echo "    gcloud storage buckets add-iam-policy-binding gs://${PROJECT_ID}_cloudbuild --member=\"serviceAccount:\${PROJECT_NUMBER}-compute@developer.gserviceaccount.com\" --role=\"roles/storage.objectViewer\""
+  echo "  - If --no-cache fails with 'Invalid value for [no-cache]', remove it (Kaniko may be enabled)."
   exit 1
 fi
 
-# Deploy to Cloud Run (ephemeral SQLite; set DATABASE_URL for Cloud SQL later)
-echo "Deploying to Cloud Run..."
-"$GCLOUD" run deploy "$SERVICE_NAME" \
-  --image "${REPO}/${IMAGE_NAME}:latest" \
-  --platform managed \
-  --region "$REGION" \
-  --project "$PROJECT_ID" \
-  --allow-unauthenticated \
-  --set-env-vars "NODE_ENV=production" \
-  --memory 512Mi \
-  --min-instances 0 \
+# Deploy to Cloud Run using the image we just built (by tag, not :latest), so the latest code is always used.
+echo "Deploying to Cloud Run (image: ${BUILD_TAG})..."
+DEPLOY_ARGS=(
+  --image "${REPO}/${IMAGE_NAME}:${BUILD_TAG}"
+  --platform managed
+  --region "$REGION"
+  --project "$PROJECT_ID"
+  --allow-unauthenticated
+  --memory 512Mi
+  --min-instances 0
   --max-instances 10
+)
+if [ -n "$DATABASE_URL" ]; then
+  echo "Using Postgres (DATABASE_URL set). All demo data will be driven from the DB."
+  DEPLOY_ARGS+=(--set-env-vars "NODE_ENV=production,DATABASE_URL=$DATABASE_URL")
+  # If URL uses Cloud SQL Unix socket, attach the instance so the container can connect.
+  if [[ "$DATABASE_URL" == *"/cloudsql/"* ]]; then
+    CLOUDSQL_INSTANCE=$(echo "$DATABASE_URL" | sed -n 's|.*/cloudsql/\([^/?]*\).*|\1|p')
+    if [ -n "$CLOUDSQL_INSTANCE" ]; then
+      DEPLOY_ARGS+=(--add-cloudsql-instances "$CLOUDSQL_INSTANCE")
+    fi
+  fi
+else
+  DEPLOY_ARGS+=(--set-env-vars "NODE_ENV=production")
+fi
+"$GCLOUD" run deploy "$SERVICE_NAME" "${DEPLOY_ARGS[@]}"
 
 # Output URL
 URL=$("$GCLOUD" run services describe "$SERVICE_NAME" --region="$REGION" --project="$PROJECT_ID" --format='value(status.url)' 2>/dev/null || true)
@@ -135,18 +165,19 @@ echo "Deployed. Sandarb is available at: $URL"
 echo "Health: $URL/api/health"
 
 # Post-deploy: clean and reseed GCP Postgres so it has the same real-world data as localhost.
+# Seed scale: 30 orgs, 500+ agents, 3000+ contexts, 2000+ prompts (see docs/deploy-gcp.md).
 # Set DATABASE_URL to your Cloud SQL connection string (e.g. via Cloud SQL Proxy or public IP).
 if [ -n "$DATABASE_URL" ]; then
   echo ""
   echo "Post-deploy: cleaning and reseeding Postgres (DATABASE_URL is set)..."
   if (cd "$REPO_ROOT" && node scripts/full-reset-postgres.js); then
-    echo "Postgres cleaned and reseeded. GCP DB now has the same sample data as local."
+    echo "Postgres cleaned and reseeded. GCP DB now has: 30 orgs, 500+ agents, 3000+ contexts, 2000+ prompts (same as local)."
   else
     echo "Warning: post-deploy reseed failed. Run manually: DATABASE_URL=<your-gcp-pg-url> npm run db:full-reset-pg"
     exit 1
   fi
 else
-  echo "Tip: To reseed GCP Postgres with real-world data after deploy, run:"
+  echo "Tip: To reseed GCP Postgres with real-world data (500+ agents, 3000+ contexts, 2000+ prompts), run:"
   echo "  DATABASE_URL=<your-cloud-sql-url> ./scripts/deploy-gcp.sh $PROJECT_ID ${REGION}"
   echo "  or: DATABASE_URL=<your-cloud-sql-url> npm run db:full-reset-pg"
 fi

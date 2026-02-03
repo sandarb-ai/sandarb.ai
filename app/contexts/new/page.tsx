@@ -77,8 +77,7 @@ export default function NewContextPage() {
         const data = await res.json();
         alert(data.error || 'Failed to create context');
       }
-    } catch (error) {
-      console.error('Failed to create context:', error);
+    } catch {
       alert('Failed to create context');
     } finally {
       setLoading(false);

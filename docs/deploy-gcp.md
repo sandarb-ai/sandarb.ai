@@ -91,21 +91,38 @@ export GCP_PROJECT_ID=191433138534
 ./scripts/deploy-gcp.sh
 ```
 
-The script enables APIs, creates an Artifact Registry repo if needed, builds the image with Cloud Build, and deploys to Cloud Run. The service URL is printed at the end.
+The script enables APIs, creates an Artifact Registry repo if needed, builds the image with Cloud Build (using a unique tag per build so the latest code is always deployed), and deploys to Cloud Run. The service URL is printed at the end.
 
-**Demo data:** When `DATABASE_URL` is set, the container seeds sample data (orgs, agents, contexts, templates) on start. Sign in to see it on the dashboard, agents, and contexts pages.
+**Deployment not showing latest code?** The script now builds and deploys using a unique image tag (timestamp + optional git SHA) instead of `:latest`, so Cloud Run always uses the image you just built. If you still see stale code (e.g. due to Docker layer caching in Cloud Build), run with `--no-cache`:  
+`./scripts/deploy-gcp.sh PROJECT_ID [REGION] --no-cache`  
+(If `--no-cache` fails with an error about Kaniko, omit it—your project may use Kaniko for builds.)
+
+**GCP demo: use Postgres and drive all demo from the DB.**  
+For the live app to use PostgreSQL and show real-world demo data (dashboard, Agent Registry, contexts, prompts), set `DATABASE_URL` to your Cloud SQL connection string **before** running the deploy script. The script will:
+
+1. **Pass `DATABASE_URL` to Cloud Run** so the service uses Postgres (required).
+2. **Attach the Cloud SQL instance** to the service when the URL uses the Unix socket (`host=/cloudsql/PROJECT:REGION:INSTANCE`).
+3. **Reseed the DB** after deploy (full reset + seed) so the GCP DB has the same data as local.
+
+Then on container start, the entrypoint runs a full reset and seed when `DATABASE_URL` is set, so all demo data is driven from the database (500+ agents, 3000+ contexts, 2000+ prompts). Sign in to see it on the dashboard, Agent Registry, and contexts pages.
 
 ### Post-deploy: clean and reseed GCP Postgres (real-world data like localhost)
 
-After deployment, the GCP Postgres database may not have the same real-world sample data as localhost (orgs, agents, contexts, prompts) unless you run a full reset and seed.
+After deployment, the GCP Postgres database may not have the same real-world sample data as localhost unless you run a full reset and seed. **When you reseed (Option 1 or 2 below), you get the same scale as local:**
 
-**Option 1 – Reseed as part of deploy (recommended)**  
-Set `DATABASE_URL` to your Cloud SQL connection string and run the deploy script. After deploy, it will run `scripts/full-reset-postgres.js` (drop tables, reapply schema, seed) so the GCP DB matches local:
+- **30 orgs** (child orgs + root)
+- **500+ agents** (Agent Registry)
+- **3000+ contexts** (policies, products, risk rules, FAQs)
+- **2000+ prompts** (real-world AI agent prompts)
+- Templates, settings, scan targets, audit samples
+
+**Option 1 – Use Postgres and reseed as part of deploy (recommended)**  
+Set `DATABASE_URL` to your Cloud SQL connection string and run the deploy script. The script will configure Cloud Run to use Postgres (so all demo is driven from the DB), then run `scripts/full-reset-postgres.js` so the GCP DB has the same real-world data as local:
 
 ```bash
-# Use Cloud SQL Proxy or your Cloud SQL connection string
+# Cloud SQL Unix socket (script will add --add-cloudsql-instances automatically)
 export DATABASE_URL="postgresql://USER:PASS@/DB?host=/cloudsql/PROJECT:REGION:INSTANCE"
-# Or public IP (ensure DB allows your IP):
+# Or public IP (ensure DB allows Cloud Run egress / your IP):
 # export DATABASE_URL="postgresql://USER:PASS@PUBLIC_IP:5432/DB"
 
 ./scripts/deploy-gcp.sh PROJECT_ID [REGION]
@@ -119,7 +136,7 @@ export DATABASE_URL="postgresql://..."   # your Cloud SQL URL
 npm run db:full-reset-pg
 ```
 
-This drops all Sandarb tables, reapplies the schema, and seeds the same sample data as local (30 orgs, 420 agents, 500+ contexts, prompts, templates).
+This drops all Sandarb tables, reapplies the schema, and seeds the same sample data as local: 30 orgs, 500+ agents, 3000+ contexts, 2000+ prompts, templates, settings.
 
 ## Build and push the image
 
@@ -150,29 +167,18 @@ docker push gcr.io/PROJECT_ID/sandarb:latest
 
 Cloud Run sets `PORT` (usually 8080) automatically; the app uses it.
 
-### With SQLite (ephemeral storage)
+**For GCP demo we use Postgres (Cloud SQL) so all demo data is driven from the DB.** Use the one-command deploy with `DATABASE_URL` set (see “Post-deploy: clean and reseed” above), or deploy manually as below with Cloud SQL.
 
-Good for trials; data is lost when the revision is replaced.
-
-```bash
-gcloud run deploy sandarb \
-  --image REGION-docker.pkg.dev/PROJECT_ID/sandarb/sandarb:latest \
-  --platform managed \
-  --region REGION \
-  --allow-unauthenticated \
-  --set-env-vars "NODE_ENV=production"
-```
-
-### With Cloud SQL (PostgreSQL)
+### With Cloud SQL (PostgreSQL) — required
 
 1. Create a Cloud SQL instance and database (e.g. `sandarb`).
-2. Run schema init once (from your machine or a one-off job):
-   - Set `DATABASE_URL` to your Cloud SQL connection (use [Cloud SQL Auth Proxy](https://cloud.google.com/sql/docs/mysql/connect-auth-proxy) for local, or the instance connection name for Cloud Run).
-   - Run: `npm run db:init-pg` (and optionally `npm run db:seed-pg`).
-3. Deploy with Cloud SQL connection:
+2. Set `DATABASE_URL` and run the deploy script (it will pass `DATABASE_URL` to Cloud Run and reseed), or deploy manually:
+   - Set `DATABASE_URL` to your Cloud SQL connection (Unix socket for Cloud Run: `?host=/cloudsql/PROJECT_ID:REGION:INSTANCE_NAME`; see [Cloud SQL connection](https://cloud.google.com/sql/docs/postgres/connect-run)).
+   - Run: `npm run db:init-pg` (and optionally `npm run db:full-reset-pg`) from your machine if you want to seed before first deploy.
+3. Deploy with Cloud SQL connection (all demo data is then driven from the DB):
 
 ```bash
-# If using the Cloud SQL connector (same VPC / connector)
+# Unix socket (attach Cloud SQL instance)
 gcloud run deploy sandarb \
   --image REGION-docker.pkg.dev/PROJECT_ID/sandarb/sandarb:latest \
   --platform managed \
@@ -235,8 +241,7 @@ spec:
 | Variable | Description |
 |----------|-------------|
 | `PORT` | Set by Cloud Run (e.g. 8080). Default in image: 3000. |
-| `DATABASE_URL` | PostgreSQL URL. When set, Sandarb uses Postgres; otherwise SQLite under `/app/data`. |
-| `DATABASE_PATH` | Used only when `DATABASE_URL` is not set (SQLite path). |
+| `DATABASE_URL` | PostgreSQL URL (required). Set to your Cloud SQL URL for GCP; all demo data is driven from the DB. |
 | `NODE_ENV` | Set to `production` in the image. |
 
 ## Health check

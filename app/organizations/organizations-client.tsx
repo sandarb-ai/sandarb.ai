@@ -32,8 +32,7 @@ export function OrganizationsPageClient({ initialOrgs }: OrganizationsPageClient
     try {
       const res = await fetch(apiUrl(`/api/organizations/${id}`), { method: 'DELETE' });
       if (res.ok) setOrgs(orgs.filter((o) => o.id !== id));
-    } catch (error) {
-      console.error('Failed to delete organization:', error);
+    } catch {
     }
   };
 

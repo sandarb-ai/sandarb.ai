@@ -119,7 +119,7 @@ function RegisterAgentForm() {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Register agent</h1>
             <p className="text-sm text-muted-foreground">
-              Add an A2A agent by URL (we fetch the Agent Card) or add manually.
+              Add an agent by service URL (we fetch the Agent Card) or add manually. A2A-compatible.
             </p>
           </div>
         </div>
@@ -129,7 +129,7 @@ function RegisterAgentForm() {
         <div className="max-w-xl">
           <Tabs value={tab} onValueChange={(v) => { setTab(v as 'url' | 'manual'); setError(''); }}>
             <TabsList>
-              <TabsTrigger value="url">By A2A URL</TabsTrigger>
+              <TabsTrigger value="url">By service URL</TabsTrigger>
               <TabsTrigger value="manual">Manual</TabsTrigger>
             </TabsList>
 
@@ -141,13 +141,13 @@ function RegisterAgentForm() {
                     Register by URL
                   </CardTitle>
                   <CardDescription>
-                    Enter the agent&apos;s A2A endpoint. We will try the URL and /.well-known/agent.json to fetch the Agent Card.
+                    Enter the agent&apos;s service endpoint URL. We will try the URL and /.well-known/agent-card.json to fetch the Agent Card (A2A).
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <form onSubmit={handleRegisterByUrl} className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="a2aUrl">A2A endpoint URL *</Label>
+                      <Label htmlFor="a2aUrl">Service URL *</Label>
                       <Input
                         id="a2aUrl"
                         value={a2aUrl}
@@ -169,7 +169,7 @@ function RegisterAgentForm() {
                       </select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="nameOverride">Name override (optional)</Label>
+                      <Label htmlFor="nameOverride">Name override</Label>
                       <Input
                         id="nameOverride"
                         value={nameOverride}
@@ -178,7 +178,7 @@ function RegisterAgentForm() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="descOverride">Description override (optional)</Label>
+                      <Label htmlFor="descOverride">Description override</Label>
                       <Input
                         id="descOverride"
                         value={descOverride}
@@ -219,7 +219,7 @@ function RegisterAgentForm() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="descriptionManual">Description (optional)</Label>
+                      <Label htmlFor="descriptionManual">Description</Label>
                       <Input
                         id="descriptionManual"
                         value={descriptionManual}
@@ -228,7 +228,7 @@ function RegisterAgentForm() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="a2aUrlManual">A2A endpoint URL *</Label>
+                      <Label htmlFor="a2aUrlManual">Service URL *</Label>
                       <Input
                         id="a2aUrlManual"
                         value={a2aUrlManual}

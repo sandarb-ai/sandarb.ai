@@ -507,7 +507,7 @@ GET /api/inject?name=my-context&vars={"user_id":"123"}`}</CodeBlock>
 
         <section id="environment" className="scroll-mt-24">
           <H2>Environment variables</H2>
-          <CodeBlock label=".env">{`# Database (optional; default: SQLite at ./data/sandarb.db)
+          <CodeBlock label=".env">{`# Database (PostgreSQL, required)
 DATABASE_URL=postgresql://user:pass@host:5432/sandarb-dev
 
 # When UI and API run on different ports (e.g. 4000 and 4001)

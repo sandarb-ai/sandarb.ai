@@ -47,8 +47,7 @@ export default function NewOrganizationPage() {
         return;
       }
       alert(data.error || 'Failed to create organization');
-    } catch (err) {
-      console.error(err);
+    } catch {
       alert('Failed to create organization');
     } finally {
       setLoading(false);

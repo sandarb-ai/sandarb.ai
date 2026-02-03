@@ -4,10 +4,12 @@ import {
   getPromptVersionById,
   rejectPromptVersion,
 } from '@/lib/prompts';
+import { withSpan, logger } from '@/lib/otel';
 
 // POST /api/prompts/:id/versions/:versionId/reject
 // Governance: Reject a proposed prompt version.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string; versionId: string }> }) {
+  return withSpan('POST /api/prompts/[id]/versions/[versionId]/reject', async () => {
   try {
     const { id, versionId } = await params;
     const prompt = await getPromptById(id);
@@ -63,10 +65,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       message: `Version ${rejectedVersion.version} rejected for prompt '${prompt.name}'${reason ? `: ${reason}` : ''}`,
     });
   } catch (error) {
-    console.error('Failed to reject prompt version:', error);
+    logger.error('Failed to reject prompt version', { route: 'POST /api/prompts/[id]/versions/[versionId]/reject', error: String(error) });
     return NextResponse.json(
       { success: false, error: 'Failed to reject prompt version' },
       { status: 500 }
     );
   }
+  });
 }

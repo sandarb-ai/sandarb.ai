@@ -38,6 +38,8 @@ const DROP_ORDER = [
   'org_members',
   'contexts',
   'organizations',
+  'prompt_versions',
+  'prompts',
   'templates',
   'settings',
 ];
@@ -49,21 +51,16 @@ async function main() {
     for (const table of DROP_ORDER) {
       await client.query(`DROP TABLE IF EXISTS ${table} CASCADE`);
     }
-    console.log('Dropped all Sandarb tables');
   } finally {
     await client.end();
   }
 
   const { execSync } = require('child_process');
   const env = { ...process.env, DATABASE_URL };
-  console.log('Applying schema...');
   execSync('node scripts/init-postgres.js', { stdio: 'inherit', env, cwd: require('path').resolve(__dirname, '..') });
-  console.log('Seeding sample data...');
   execSync('node scripts/seed-postgres.js', { stdio: 'inherit', env, cwd: require('path').resolve(__dirname, '..') });
-  console.log('Full reset complete. Sample data is ready.');
 }
 
-main().catch((err) => {
-  console.error(err);
+main().catch(() => {
   process.exit(1);
 });

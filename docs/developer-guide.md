@@ -149,14 +149,36 @@ Spec: [a2a.dev](https://a2a.dev), [a2a-protocol.org](https://a2a-protocol.org).
 - `X-Sandarb-Agent-ID` – Calling agent identifier
 - `X-Sandarb-Trace-ID` – Request/correlation ID
 
+## Testing
+
+The project includes a **Vitest** test suite under `tests/` (unit tests for `lib/` and API route tests for `app/api/`). No database is required; lib and DB are mocked.
+
+- **Run:** `npm run test` (watch), `npm run test:run` (single run), `npm run test:coverage` (coverage).
+- **Docs:** [tests/README.md](../tests/README.md) — full list of test files, what’s covered, and **how to extend** (adding new lib tests, API route tests, and mocking patterns).
+
+Use the test suite to validate changes and to add coverage when you add or change routes or lib code.
+
+## Observability (OpenTelemetry)
+
+Sandarb uses **OpenTelemetry** for tracing and logging when enabled. All API routes are wrapped in spans and errors are logged via the OTel Logs API. Traces and logs are exported to an OTLP endpoint (e.g. OpenTelemetry Collector, Jaeger, or a cloud observability backend).
+
+**Enable OTel:** Set `OTEL_ENABLED=true` and `OTEL_EXPORTER_OTLP_ENDPOINT` (e.g. `http://localhost:4318`) in `.env`. The Next.js instrumentation (`instrumentation.ts`) registers the Node SDK on server start; `lib/otel.ts` provides `withSpan`, `logger` (info/warn/error), and `getTracer`/`getOtelLogger` for use in routes and lib.
+
+When OTel is disabled (default), the tracer and logger are no-ops.
+
 ## Environment variables
 
 | Variable | Description |
 |----------|-------------|
-| DATABASE_URL | PostgreSQL URL (optional; default SQLite) |
+| DATABASE_URL | PostgreSQL URL (required) |
 | NEXT_PUBLIC_API_URL | API base URL when UI and API run on different ports |
 | PORT | Server port (default 3000) |
 | NODE_ENV | production / development |
+| OTEL_ENABLED | Set to `true` to enable OpenTelemetry |
+| OTEL_SERVICE_NAME | Service name for traces/logs (default: sandarb) |
+| OTEL_EXPORTER_OTLP_ENDPOINT | OTLP endpoint (e.g. http://localhost:4318) for traces and logs |
+| OTEL_TRACES_EXPORTER | Trace exporter: `otlp` or `none` (default: otlp when endpoint set) |
+| OTEL_LOGS_EXPORTER | Log exporter: `otlp` or `none` (default: otlp when endpoint set) |
 
 ## Deployment
 

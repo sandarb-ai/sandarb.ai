@@ -6,9 +6,11 @@ import {
   getPromptVersions,
   getCurrentPromptVersion,
 } from '@/lib/prompts';
+import { withSpan, logger } from '@/lib/otel';
 
 // GET /api/prompts/:id - Get prompt with versions
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  return withSpan('GET /api/prompts/[id]', async () => {
   try {
     const { id } = await params;
     const prompt = await getPromptById(id);
@@ -32,16 +34,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       },
     });
   } catch (error) {
-    console.error('Failed to fetch prompt:', error);
+    logger.error('Failed to fetch prompt', { route: 'GET /api/prompts/[id]', error: String(error) });
     return NextResponse.json(
       { success: false, error: 'Failed to fetch prompt' },
       { status: 500 }
     );
   }
+  });
 }
 
 // PUT /api/prompts/:id - Update prompt metadata
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  return withSpan('PUT /api/prompts/[id]', async () => {
   try {
     const { id } = await params;
     const body = await request.json();
@@ -75,8 +79,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     return NextResponse.json({ success: true, data: prompt });
   } catch (error) {
-    console.error('Failed to update prompt:', error);
-
+    logger.error('Failed to update prompt', { route: 'PUT /api/prompts/[id]', error: String(error) });
     // Handle unique constraint violation
     if (error instanceof Error && error.message.includes('UNIQUE constraint')) {
       return NextResponse.json(
@@ -90,10 +93,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       { status: 500 }
     );
   }
+  });
 }
 
 // DELETE /api/prompts/:id - Delete prompt and all versions
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  return withSpan('DELETE /api/prompts/[id]', async () => {
   try {
     const { id } = await params;
     const deleted = await deletePrompt(id);
@@ -110,10 +115,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       message: 'Prompt deleted successfully',
     });
   } catch (error) {
-    console.error('Failed to delete prompt:', error);
+    logger.error('Failed to delete prompt', { route: 'DELETE /api/prompts/[id]', error: String(error) });
     return NextResponse.json(
       { success: false, error: 'Failed to delete prompt' },
       { status: 500 }
     );
   }
+  });
 }

@@ -35,7 +35,7 @@ import {
 } from '@/components/ui/dialog';
 import { TextDiffView } from '@/components/text-diff-view';
 import type { Prompt, PromptVersion, PromptVersionStatus } from '@/types';
-import { formatDate } from '@/lib/utils';
+import { formatDate, formatApprovedBy } from '@/lib/utils';
 
 const STATUS_COLORS: Record<PromptVersionStatus, 'default' | 'success' | 'destructive' | 'secondary' | 'outline'> = {
   draft: 'secondary',
@@ -134,8 +134,7 @@ export default function PromptDetailPage() {
           setNewContent(p.currentVersion.content || '');
         }
       }
-    } catch (error) {
-      console.error('Failed to fetch prompt:', error);
+    } catch {
     } finally {
       setLoading(false);
     }
@@ -172,8 +171,7 @@ export default function PromptDetailPage() {
         const data = await res.json();
         alert(data.error || 'Failed to create version');
       }
-    } catch (error) {
-      console.error('Failed to create version:', error);
+    } catch {
       alert('Failed to create version');
     } finally {
       setCreatingVersion(false);
@@ -190,8 +188,7 @@ export default function PromptDetailPage() {
       if (res.ok) {
         fetchPrompt();
       }
-    } catch (e) {
-      console.error(e);
+    } catch {
     }
   };
 
@@ -205,8 +202,7 @@ export default function PromptDetailPage() {
       if (res.ok) {
         fetchPrompt();
       }
-    } catch (e) {
-      console.error(e);
+    } catch {
     }
   };
 
@@ -216,8 +212,7 @@ export default function PromptDetailPage() {
       const res = await fetch(`/api/prompts/${id}`, { method: 'DELETE' });
       if (res.ok) router.push('/prompts');
       else alert('Failed to delete prompt');
-    } catch (error) {
-      console.error('Failed to delete prompt:', error);
+    } catch {
     }
   };
 
@@ -383,7 +378,7 @@ export default function PromptDetailPage() {
                             )}
                           </div>
                           {currentVersion.approvedBy && (
-                            <p className="text-xs text-muted-foreground">Approved by {currentVersion.approvedBy}</p>
+                            <p className="text-xs text-muted-foreground">Approved by {formatApprovedBy(currentVersion.approvedBy)}</p>
                           )}
                           {currentVersion.approvedAt && (
                             <p className="text-xs text-muted-foreground">{formatDate(currentVersion.approvedAt)}</p>
@@ -439,7 +434,11 @@ export default function PromptDetailPage() {
                           <th className="text-left py-3 px-4 font-medium text-muted-foreground">Version</th>
                           <th className="text-left py-3 px-4 font-medium text-muted-foreground">Status</th>
                           <th className="text-left py-3 px-4 font-medium text-muted-foreground">Created</th>
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">Approved By</th>
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">Created by</th>
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">Submitted by</th>
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">Approved by</th>
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">Modified</th>
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">Modified by</th>
                           <th className="text-left py-3 px-4 font-medium text-muted-foreground">Commit Message</th>
                           <th className="text-left py-3 px-4 font-medium text-muted-foreground max-w-md">Content Preview</th>
                           <th className="text-right py-3 px-4 font-medium text-muted-foreground">Actions</th>
@@ -456,12 +455,17 @@ export default function PromptDetailPage() {
                             </td>
                             <td className="py-3 px-4 whitespace-nowrap text-muted-foreground">
                               {formatDate(v.createdAt)}
-                              {v.createdBy && <span className="block text-xs">by {v.createdBy}</span>}
                             </td>
+                            <td className="py-3 px-4 whitespace-nowrap">{formatApprovedBy(v.createdBy)}</td>
+                            <td className="py-3 px-4 whitespace-nowrap">{formatApprovedBy(v.submittedBy)}</td>
                             <td className="py-3 px-4 whitespace-nowrap">
-                              {v.approvedBy || '—'}
+                              {formatApprovedBy(v.approvedBy)}
                               {v.approvedAt && <span className="block text-xs text-muted-foreground">{formatDate(v.approvedAt)}</span>}
                             </td>
+                            <td className="py-3 px-4 whitespace-nowrap text-muted-foreground">
+                              {v.updatedAt ? formatDate(v.updatedAt) : '—'}
+                            </td>
+                            <td className="py-3 px-4 whitespace-nowrap">{formatApprovedBy(v.updatedBy)}</td>
                             <td className="py-3 px-4 max-w-[12rem]">
                               <p className="truncate" title={v.commitMessage || undefined}>
                                 {v.commitMessage || 'No message'}

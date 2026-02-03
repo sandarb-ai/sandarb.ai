@@ -3,8 +3,41 @@
  * Enables full governance intersection tracking: "Agent X used Prompt v4.2 and accessed Context Chunk #992"
  */
 
+import { v4 as uuidv4 } from 'uuid';
 import { getPool, query } from './pg';
 import type { BlockedInjectionEntry, LineageEntry } from './audit';
+
+export interface AuditEventInputPg {
+  eventType: string;
+  resourceType?: string;
+  resourceId?: string;
+  resourceName?: string;
+  sourceAgent?: string;
+  details?: Record<string, unknown>;
+}
+
+export async function logAuditEventPg(input: AuditEventInputPg): Promise<void> {
+  const pool = await getPool();
+  if (!pool) return;
+  const id = uuidv4();
+  const details = JSON.stringify({
+    eventType: input.eventType,
+    sourceAgent: input.sourceAgent,
+    ...input.details,
+  });
+  await pool.query(
+    `INSERT INTO activity_log (id, type, resource_type, resource_id, resource_name, details, created_by, created_at)
+     VALUES ($1, 'audit', $2, $3, $4, $5, $6, NOW())`,
+    [
+      id,
+      input.resourceType ?? 'event',
+      input.resourceId ?? null,
+      input.resourceName ?? input.eventType,
+      details,
+      input.sourceAgent ?? null,
+    ]
+  );
+}
 
 interface ContextDeliveryInputPg {
   sourceAgent: string | null;

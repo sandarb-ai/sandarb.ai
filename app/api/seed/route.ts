@@ -5,9 +5,9 @@ import { createContext, getContextByName, getContextCount, getAllContexts } from
 import { proposeRevision, approveRevision, getProposedRevisions, getRevisionsByContextId } from '@/lib/revisions';
 import { createTemplate, getTemplateByName } from '@/lib/templates';
 import { createPrompt, getPromptByName, createPromptVersion, approvePromptVersion } from '@/lib/prompts';
-import { usePg } from '@/lib/pg';
 import { getPool } from '@/lib/pg';
 import type { LineOfBusiness, DataClassification, TemplateSchema } from '@/types';
+import { withSpan, logger } from '@/lib/otel';
 
 /** Bootstrap targets: 30 orgs, 420 agents (14 per org), 5000 contexts. Used on GCP deploy and local. */
 const TARGET_ORGS = 30;
@@ -336,14 +336,24 @@ export const maxDuration = 120;
 const LOB_OPTIONS: LineOfBusiness[] = ['retail', 'investment_banking', 'wealth_management'];
 const DATA_CLASS_OPTIONS: DataClassification[] = ['public', 'internal', 'confidential', 'restricted'];
 
-export async function POST() {
+export async function POST(request: Request) {
+  return withSpan('POST /api/seed', async () => {
   try {
+    const url = new URL(request.url);
+    const reseedAgents = url.searchParams.get('reseed_agents') === '1' || url.searchParams.get('reseed_agents') === 'true';
+
     const root = await getRootOrganization();
     if (!root) {
       return NextResponse.json(
         { success: false, error: 'Root organization not found. Start the app once to init DB.' },
         { status: 400 }
       );
+    }
+
+    // --- Optional: reseed Agent Registry (delete all agents, then bootstrap with unique names) ---
+    if (reseedAgents) {
+      const pool = await getPool();
+      await pool.query('DELETE FROM agents');
     }
 
     // --- Bootstrap: 30 orgs (1 root + 29 divisions) ---
@@ -369,13 +379,14 @@ export async function POST() {
       orgs = await getAllOrganizations();
     }
 
-    // --- Bootstrap: 420 agents (14 per org) ---
+    // --- Bootstrap: 420 agents (14 per org). All agent names must be globally unique (org + role). ---
     const totalAgentCount = await getAgentCount();
     if (totalAgentCount < TARGET_AGENTS) {
       let globalAgentIndex = 0;
       for (let o = 0; o < orgs.length && (await getAgentCount()) < TARGET_AGENTS; o++) {
         const orgId = orgs[o].id;
         const orgSlug = (orgs[o] as { slug?: string }).slug ?? `org-${o + 1}`;
+        const orgName = (orgs[o] as { name?: string }).name ?? orgSlug;
         const currentInOrg = await getAgentCount(orgId);
         const toAdd = Math.min(AGENTS_PER_ORG - currentInOrg, TARGET_AGENTS - (await getAgentCount()));
         for (let a = 0; a < toAdd; a++) {
@@ -386,7 +397,7 @@ export async function POST() {
           try {
             await createAgent({
               orgId,
-              name: agentEntry.name,
+              name: `${orgName} ${agentEntry.name}`,
               description: agentEntry.description,
               a2aUrl,
             });
@@ -396,6 +407,18 @@ export async function POST() {
         }
       }
     }
+
+    // --- Backfill agent dates: random created_at/updated_at in last 6 months (updated_at >= created_at) ---
+    const poolForDates = await getPool();
+    await poolForDates.query(`
+      UPDATE agents a SET
+        created_at = sub.created,
+        updated_at = LEAST(sub.created + (random() * interval '90 days'), NOW())
+      FROM (
+        SELECT id, NOW() - (random() * interval '180 days') AS created FROM agents
+      ) sub
+      WHERE a.id = sub.id
+    `);
 
     // --- Bootstrap: 3009 contexts ---
     const { total: contextTotal } = await getContextCount();
@@ -452,7 +475,7 @@ export async function POST() {
       const toApprove = Math.min(needHistory, createdRevisions.length);
       for (let k = 0; k < toApprove; k++) {
         try {
-          await approveRevision(createdRevisions[k].id, 'compliance@example.com');
+          await approveRevision(createdRevisions[k].id, ['@alice', '@bob', '@carol'][k % 3]);
         } catch {
           break;
         }
@@ -578,86 +601,43 @@ export async function POST() {
       }
     }
 
-    // Settings (theme)
-    try {
-      const db = (await import('@/lib/db')).default;
-      db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('theme', '\"system\"')").run();
-    } catch {
-      // SQLite only; Postgres may not have same API here
-    }
-    if (usePg()) {
-      const pool = await getPool();
-      if (pool) {
-        await pool.query("INSERT INTO settings (key, value) VALUES ('theme', '\"system\"') ON CONFLICT (key) DO NOTHING");
-      }
+    // Settings (theme), scan targets, access log, unauthenticated detections
+    const pool = await getPool();
+    await pool.query("INSERT INTO settings (key, value) VALUES ('theme', '\"system\"') ON CONFLICT (key) DO NOTHING");
+
+    const existing = await pool.query('SELECT id FROM scan_targets LIMIT 1');
+    if (existing.rows.length === 0) {
+      await pool.query(
+        `INSERT INTO scan_targets (id, url, description) VALUES (gen_random_uuid(), 'https://agents.example.com/ib/trading', 'IB Trade Desk agent'), (gen_random_uuid(), 'https://agents.example.com/wm/portfolio', 'WM Portfolio Agent')`
+      );
     }
 
-    // Scan targets for governance (shadow AI discovery)
-    if (usePg()) {
-      const pool = await getPool();
-      if (pool) {
-        const existing = await pool.query('SELECT id FROM scan_targets LIMIT 1');
-        if (existing.rows.length === 0) {
-          await pool.query(
-            `INSERT INTO scan_targets (id, url, description) VALUES (gen_random_uuid(), 'https://agents.example.com/ib/trading', 'IB Trade Desk agent'), (gen_random_uuid(), 'https://agents.example.com/wm/portfolio', 'WM Portfolio Agent')`
-          );
-        }
-      }
-    } else {
-      const db = (await import('@/lib/db')).default;
-      const { v4: uuidv4 } = await import('uuid');
-      const scanExists = db.prepare('SELECT id FROM scan_targets LIMIT 1').get();
-      if (!scanExists) {
-        db.prepare('INSERT INTO scan_targets (id, url, description) VALUES (?, ?, ?)').run(uuidv4(), 'https://agents.example.com/ib/trading', 'IB Trade Desk agent');
-        db.prepare('INSERT INTO scan_targets (id, url, description) VALUES (?, ?, ?)').run(uuidv4(), 'https://agents.example.com/wm/portfolio', 'WM Portfolio Agent');
-      }
-      const udExists = db.prepare('SELECT id FROM unauthenticated_detections LIMIT 1').get();
-      if (!udExists) {
-        const details = (o: Record<string, unknown>) => JSON.stringify(o);
-        db.prepare('INSERT INTO unauthenticated_detections (id, source_url, detected_agent_id, details) VALUES (?, ?, ?, ?)').run(uuidv4(), 'https://agents.example.com/ib/trading', 'trade-desk-agent', details({ method: 'discovery_scan', risk: 'medium' }));
-        db.prepare('INSERT INTO unauthenticated_detections (id, source_url, detected_agent_id, details) VALUES (?, ?, ?, ?)').run(uuidv4(), 'https://internal-tools.corp/chat', 'internal-chat-agent', details({ method: 'discovery_scan', risk: 'low' }));
-        db.prepare('INSERT INTO unauthenticated_detections (id, source_url, detected_agent_id, details) VALUES (?, ?, ?, ?)').run(uuidv4(), 'https://shadow.example.com/assistant', null, details({ method: 'discovery_scan', risk: 'high', note: 'unregistered endpoint' }));
-      }
+    const count = await pool.query('SELECT COUNT(*)::int AS c FROM sandarb_access_logs');
+    if ((count.rows[0] as { c: number })?.c === 0) {
+      await pool.query(
+        `INSERT INTO sandarb_access_logs (agent_id, trace_id, metadata) 
+         SELECT 'trade-desk-agent', 'trace-seed-1', jsonb_build_object('action_type', 'INJECT_SUCCESS', 'context_id', id, 'contextName', 'context-0001') 
+         FROM contexts WHERE name = 'context-0001' LIMIT 1`
+      );
+      await pool.query(
+        `INSERT INTO sandarb_access_logs (agent_id, trace_id, metadata) 
+         SELECT 'portfolio-advisor-agent', 'trace-seed-2', jsonb_build_object('action_type', 'INJECT_SUCCESS', 'context_id', id, 'contextName', 'context-0002') 
+         FROM contexts WHERE name = 'context-0002' LIMIT 1`
+      );
+      await pool.query(
+        `INSERT INTO sandarb_access_logs (agent_id, trace_id, metadata) 
+         VALUES ('unknown-shadow-agent', 'trace-seed-3', '{"action_type":"INJECT_DENIED","reason":"unauthenticated_agent","contextRequested":"context-0001"}'::jsonb)`
+      );
     }
 
-    // Sample access log entries (sandarb_access_logs: metadata holds action_type, context_id, contextName)
-    if (usePg()) {
-      const pool = await getPool();
-      if (pool) {
-        const count = await pool.query('SELECT COUNT(*)::int AS c FROM sandarb_access_logs');
-        if ((count.rows[0] as { c: number })?.c === 0) {
-          await pool.query(
-            `INSERT INTO sandarb_access_logs (agent_id, trace_id, metadata) 
-             SELECT 'trade-desk-agent', 'trace-seed-1', jsonb_build_object('action_type', 'INJECT_SUCCESS', 'context_id', id, 'contextName', 'context-0001') 
-             FROM contexts WHERE name = 'context-0001' LIMIT 1`
-          );
-          await pool.query(
-            `INSERT INTO sandarb_access_logs (agent_id, trace_id, metadata) 
-             SELECT 'portfolio-advisor-agent', 'trace-seed-2', jsonb_build_object('action_type', 'INJECT_SUCCESS', 'context_id', id, 'contextName', 'context-0002') 
-             FROM contexts WHERE name = 'context-0002' LIMIT 1`
-          );
-          await pool.query(
-            `INSERT INTO sandarb_access_logs (agent_id, trace_id, metadata) 
-             VALUES ('unknown-shadow-agent', 'trace-seed-3', '{"action_type":"INJECT_DENIED","reason":"unauthenticated_agent","contextRequested":"context-0001"}'::jsonb)`
-          );
-        }
-      }
-    }
-
-    // Sample unauthenticated detections (shadow AI discovery for Agent Pulse)
-    if (usePg()) {
-      const pool = await getPool();
-      if (pool) {
-        const udCount = await pool.query('SELECT COUNT(*)::int AS c FROM unauthenticated_detections');
-        if ((udCount.rows[0] as { c: number })?.c === 0) {
-          await pool.query(
-            `INSERT INTO unauthenticated_detections (source_url, detected_agent_id, details) VALUES
-             ('https://agents.example.com/ib/trading', 'trade-desk-agent', '{"method":"discovery_scan","risk":"medium"}'::jsonb),
-             ('https://internal-tools.corp/chat', 'internal-chat-agent', '{"method":"discovery_scan","risk":"low"}'::jsonb),
-             ('https://shadow.example.com/assistant', NULL, '{"method":"discovery_scan","risk":"high","note":"unregistered endpoint"}'::jsonb)`
-          );
-        }
-      }
+    const udCount = await pool.query('SELECT COUNT(*)::int AS c FROM unauthenticated_detections');
+    if ((udCount.rows[0] as { c: number })?.c === 0) {
+      await pool.query(
+        `INSERT INTO unauthenticated_detections (source_url, detected_agent_id, details) VALUES
+         ('https://agents.example.com/ib/trading', 'trade-desk-agent', '{"method":"discovery_scan","risk":"medium"}'::jsonb),
+         ('https://internal-tools.corp/chat', 'internal-chat-agent', '{"method":"discovery_scan","risk":"low"}'::jsonb),
+         ('https://shadow.example.com/assistant', NULL, '{"method":"discovery_scan","risk":"high","note":"unregistered endpoint"}'::jsonb)`
+      );
     }
 
     return NextResponse.json({
@@ -665,10 +645,11 @@ export async function POST() {
       message: `Bootstrap seeded: ${TARGET_ORGS} orgs, ${TARGET_AGENTS} agents, ${TARGET_CONTEXTS.toLocaleString()} contexts, ${promptsSeeded} agent prompts; ${contextsWithRevisionsSeeded} contexts with History + Pending revisions. Plus templates, settings, scan targets, audit log. Visible after login.`,
     });
   } catch (error) {
-    console.error('Seed failed:', error);
+    logger.error('Seed failed', { route: 'POST /api/seed', error: String(error) });
     return NextResponse.json(
       { success: false, error: error instanceof Error ? error.message : 'Seed failed' },
       { status: 500 }
     );
   }
+  });
 }

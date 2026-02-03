@@ -142,12 +142,12 @@ fetch(apiUrl('/api/settings'), {
               <Card>
                 <CardHeader>
                   <CardTitle>Database</CardTitle>
-                  <CardDescription>SQLite database information</CardDescription>
+                  <CardDescription>PostgreSQL connection</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label>Database Path</Label>
-                    <Input value="./data/openint.db" disabled />
+                    <Label>Database</Label>
+                    <Input value="PostgreSQL (DATABASE_URL)" disabled />
                   </div>
                   <div className="flex gap-2">
                     <Button variant="outline">Export Data</Button>
@@ -281,7 +281,7 @@ fetch(apiUrl('/api/settings'), {
                   <p className="text-sm text-muted-foreground">
                     Sandarb is the governance layer for AI agents: approval workflows, audit logging,
                     and A2A so other agents call Sandarb for validation and compliance. Built with Next.js,
-                    TypeScript, and SQLite. All UI actions are exposed via API.
+                    TypeScript, and PostgreSQL. All UI actions are exposed via API.
                   </p>
                 </CardContent>
               </Card>

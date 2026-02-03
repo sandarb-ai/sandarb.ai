@@ -57,7 +57,6 @@ async function createDbIfNotExists() {
     );
     if (res.rows.length === 0) {
       await client.query(`CREATE DATABASE "${dbName.replace(/"/g, '""')}"`);
-      console.log(`Created database: ${dbName}`);
     }
   } finally {
     await client.end();
@@ -73,9 +72,11 @@ CREATE TABLE IF NOT EXISTS contexts (
   lob_tag TEXT NOT NULL CHECK (lob_tag IN ('Wealth-Management', 'Investment-Banking', 'Retail-Banking', 'Legal-Compliance')),
   data_classification TEXT DEFAULT 'Internal' CHECK (data_classification IN ('Public', 'Internal', 'Confidential', 'Restricted', 'MNPI')),
   owner_team TEXT NOT NULL,
+  created_by TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   is_active BOOLEAN DEFAULT true,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_by TEXT,
   tags TEXT DEFAULT '[]',
   regulatory_hooks TEXT DEFAULT '[]'
 );
@@ -90,8 +91,11 @@ CREATE TABLE IF NOT EXISTS context_versions (
   status TEXT DEFAULT 'Pending' CHECK (status IN ('Draft', 'Pending', 'Approved', 'Archived')),
   created_by TEXT NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  submitted_by TEXT,
   approved_by TEXT,
   approved_at TIMESTAMP WITH TIME ZONE,
+  updated_at TIMESTAMP WITH TIME ZONE,
+  updated_by TEXT,
   is_active BOOLEAN DEFAULT FALSE,
   commit_message TEXT,
   UNIQUE(context_id, version_label)
@@ -161,9 +165,11 @@ CREATE TABLE IF NOT EXISTS agents (
   approval_status TEXT DEFAULT 'draft',
   approved_by TEXT,
   approved_at TIMESTAMP WITH TIME ZONE,
+  submitted_by TEXT,
   created_by TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_by TEXT,
   owner_team TEXT,
   tools_used JSONB DEFAULT '[]',
   allowed_data_scopes JSONB DEFAULT '[]',
@@ -217,8 +223,10 @@ CREATE TABLE IF NOT EXISTS prompts (
   description TEXT,
   tags TEXT DEFAULT '[]',
   current_version_id UUID,
+  created_by TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_by TEXT
 );
 
 -- Prompt Versions (versioned history with approval workflow)
@@ -235,7 +243,11 @@ CREATE TABLE IF NOT EXISTS prompt_versions (
   parent_version_id UUID REFERENCES prompt_versions(id),
   sha256_hash TEXT NOT NULL,
   commit_message TEXT,
+  created_by TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  submitted_by TEXT,
+  updated_at TIMESTAMP WITH TIME ZONE,
+  updated_by TEXT,
   UNIQUE(prompt_id, version)
 );
 
@@ -251,8 +263,26 @@ EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 `;
 
+const MIGRATIONS = [
+  'DO $$ BEGIN ALTER TABLE agents ADD COLUMN submitted_by TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$',
+  'DO $$ BEGIN ALTER TABLE agents ADD COLUMN updated_by TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$',
+  'DO $$ BEGIN ALTER TABLE prompts ADD COLUMN created_by TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$',
+  'DO $$ BEGIN ALTER TABLE prompts ADD COLUMN updated_by TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$',
+  'DO $$ BEGIN ALTER TABLE prompt_versions ADD COLUMN submitted_by TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$',
+  'DO $$ BEGIN ALTER TABLE prompt_versions ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE; EXCEPTION WHEN duplicate_column THEN NULL; END $$',
+  'DO $$ BEGIN ALTER TABLE prompt_versions ADD COLUMN updated_by TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$',
+  'DO $$ BEGIN ALTER TABLE contexts ADD COLUMN created_by TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$',
+  'DO $$ BEGIN ALTER TABLE contexts ADD COLUMN updated_by TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$',
+  'DO $$ BEGIN ALTER TABLE context_versions ADD COLUMN submitted_by TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$',
+  'DO $$ BEGIN ALTER TABLE context_versions ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE; EXCEPTION WHEN duplicate_column THEN NULL; END $$',
+  'DO $$ BEGIN ALTER TABLE context_versions ADD COLUMN updated_by TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$',
+];
+
 async function runSchema(client) {
   await client.query(SCHEMA);
+  for (const sql of MIGRATIONS) {
+    await client.query(sql);
+  }
   // Seed root org if missing
   const r = await client.query(
     "SELECT id FROM organizations WHERE is_root = true OR slug = 'root' LIMIT 1"
@@ -265,7 +295,6 @@ async function runSchema(client) {
        ON CONFLICT (slug) DO NOTHING`,
       [uuidv4()]
     );
-    console.log('Seeded root organization');
   }
 }
 
@@ -276,9 +305,7 @@ async function main() {
     await client.connect();
     await runSchema(client);
     await client.end();
-    console.log('Postgres schema ready.');
   } catch (err) {
-    console.error('Init Postgres failed:', err.message);
     process.exit(1);
   }
 }

@@ -19,6 +19,7 @@ import {
   listMCPPrompts,
   getMCPPrompt,
 } from '@/lib/mcp-server';
+import { withSpan, logger } from '@/lib/otel';
 
 interface JsonRpcRequest {
   jsonrpc: '2.0';
@@ -46,23 +47,25 @@ export async function GET() {
 
 // POST - Handle JSON-RPC requests
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json() as JsonRpcRequest;
+  return withSpan('POST /api/mcp', async () => {
+    try {
+      const body = await request.json() as JsonRpcRequest;
 
-    if (body.jsonrpc !== '2.0') {
-      return jsonRpcError(body.id, -32600, 'Invalid Request: jsonrpc must be "2.0"');
+      if (body.jsonrpc !== '2.0') {
+        return jsonRpcError(body.id, -32600, 'Invalid Request: jsonrpc must be "2.0"');
+      }
+
+      const result = await handleMethod(body.method, body.params || {});
+      return jsonRpcSuccess(body.id, result);
+    } catch (error) {
+      logger.error('MCP error', { route: 'POST /api/mcp', error: String(error) });
+      return jsonRpcError(
+        0,
+        -32603,
+        error instanceof Error ? error.message : 'Internal error'
+      );
     }
-
-    const result = await handleMethod(body.method, body.params || {});
-    return jsonRpcSuccess(body.id, result);
-  } catch (error) {
-    console.error('MCP error:', error);
-    return jsonRpcError(
-      0,
-      -32603,
-      error instanceof Error ? error.message : 'Internal error'
-    );
-  }
+  });
 }
 
 async function handleMethod(

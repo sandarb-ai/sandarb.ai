@@ -5,6 +5,7 @@ import { getAgentByIdentifier } from '@/lib/agents';
 import { checkInjectPolicy } from '@/lib/policy';
 import { formatContent, substituteVariables } from '@/lib/utils';
 import type { InjectionFormat } from '@/types';
+import { withSpan, logger } from '@/lib/otel';
 
 const VARIABLES_HEADER = 'x-sandarb-variables';
 
@@ -92,6 +93,7 @@ function requireAuditIds(agentId: string | null, traceId: string | null): NextRe
 
 // GET /api/inject - Get context for injection (bank-grade: requires Agent-ID + Trace-ID for lineage)
 export async function GET(request: NextRequest) {
+  return withSpan('GET /api/inject', async () => {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
@@ -225,16 +227,18 @@ export async function GET(request: NextRequest) {
       headers: responseHeaders,
     });
   } catch (error) {
-    console.error('Failed to inject context:', error);
+    logger.error('Failed to inject context', { route: 'GET /api/inject', error: String(error) });
     return NextResponse.json(
       { success: false, error: 'Failed to inject context' },
       { status: 500 }
     );
   }
+  });
 }
 
 // POST /api/inject - Get context with custom overrides (bank-grade: requires Agent-ID + Trace-ID)
 export async function POST(request: NextRequest) {
+  return withSpan('POST /api/inject', async () => {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
@@ -371,10 +375,11 @@ export async function POST(request: NextRequest) {
       headers: responseHeadersPost,
     });
   } catch (error) {
-    console.error('Failed to inject context:', error);
+    logger.error('Failed to inject context', { route: 'POST /api/inject', error: String(error) });
     return NextResponse.json(
       { success: false, error: 'Failed to inject context' },
       { status: 500 }
     );
   }
+  });
 }

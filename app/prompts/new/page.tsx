@@ -74,8 +74,7 @@ export default function NewPromptPage() {
       } else {
         alert(data.error || 'Failed to create prompt');
       }
-    } catch (error) {
-      console.error('Failed to create prompt:', error);
+    } catch {
       alert('Failed to create prompt');
     } finally {
       setCreating(false);

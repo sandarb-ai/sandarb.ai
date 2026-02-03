@@ -133,6 +133,18 @@ export function formatDateTime(dateString: string): string {
   });
 }
 
+/** Format approved-by for display: must show as @username (prepend @ if missing). */
+export function formatApprovedBy(approvedBy: string | null | undefined): string {
+  if (!approvedBy) return '—';
+  return approvedBy.startsWith('@') ? approvedBy : `@${approvedBy}`;
+}
+
+/** Normalize approved-by for storage: must be @username. */
+export function normalizeApprovedBy(approvedBy: string | null | undefined): string | null {
+  if (approvedBy == null || approvedBy === '') return null;
+  return approvedBy.startsWith('@') ? approvedBy : `@${approvedBy}`;
+}
+
 // Format relative time
 export function formatRelativeTime(dateString: string): string {
   const date = new Date(dateString);

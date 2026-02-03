@@ -13,7 +13,6 @@ const ROOT = path.resolve(__dirname, '..');
 function checkNode() {
   const v = process.version.slice(1).split('.').map(Number);
   if (v[0] < 18) {
-    console.error('Sandarb requires Node.js 18+. Current:', process.version);
     process.exit(1);
   }
 }
@@ -23,14 +22,12 @@ function ensureEnv() {
   const examplePath = path.join(ROOT, '.env.example');
   if (!fs.existsSync(envPath) && fs.existsSync(examplePath)) {
     fs.copyFileSync(examplePath, envPath);
-    console.log('Created .env from .env.example');
   }
 }
 
 function ensureDeps() {
   const nodeModules = path.join(ROOT, 'node_modules');
   if (!fs.existsSync(nodeModules)) {
-    console.log('Installing dependencies...');
     const r = require('child_process').spawnSync('npm', ['install'], {
       cwd: ROOT,
       stdio: 'inherit',
@@ -45,23 +42,13 @@ function main() {
   ensureEnv();
   ensureDeps();
 
-  console.log('');
-  console.log('  Sandarb - Governance for AI agents');
-  console.log('  ---------------------------------');
-  console.log('  UI:  http://localhost:4000');
-  console.log('  API: http://localhost:4001');
-  console.log('  ---------------------------------');
-  console.log('  Press Ctrl+C to stop.');
-  console.log('');
-
   const child = spawn('npm', ['run', 'dev'], {
     cwd: ROOT,
     stdio: 'inherit',
     shell: true,
   });
 
-  child.on('error', (err) => {
-    console.error('Failed to start:', err.message);
+  child.on('error', () => {
     process.exit(1);
   });
 

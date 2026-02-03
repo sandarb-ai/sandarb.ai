@@ -1,0 +1,26 @@
+---
+description: Agent registry UI and reseed conventions — no parenthetical labels
+globs: app/agents/**/*.tsx, app/api/seed/route.ts
+alwaysApply: false
+---
+
+# Agent Registry & Reseed Conventions
+
+## Labels in Agent UI
+
+Do **not** use parenthetical text in labels for agent-related forms (e.g. `(optional)`, `(A2A)` in field labels).
+
+- **Prefer:** Plain labels — e.g. "Name override", "Description", "Description override"
+- **Avoid:** "Name override (optional)", "Description (optional)"
+
+Use placeholders or helper text to indicate optionality instead of `(optional)` in the label.
+
+## Reseed / Agent Bootstrap
+
+When adding or changing agent seed data, forms, or agent list UI:
+
+- Keep agent form labels free of parentheticals
+- **Agent names in seed data**: Do not use parentheticals in agent names (e.g. no "(Resolution)", "(Lead)").
+  Use plain suffixes: " Lead", " Support", " Resolution" etc. so names read like "Strategy Data Quality Resolution Agent".
+- Use A2A-aligned naming (e.g. "Service URL" not "A2A URL") per project convention
+- **Full reseed (db:full-reset-pg / seed-postgres.js)**: After inserting agents, backfill `created_at` and `updated_at` with random dates in the last 6 months so the Registered column and "last updated" sort show varied dates.

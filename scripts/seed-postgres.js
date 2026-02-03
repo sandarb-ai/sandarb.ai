@@ -36,6 +36,12 @@ function sha256Hash(content) {
   return crypto.createHash('sha256').update(JSON.stringify(content)).digest('hex');
 }
 
+// Varied @usernames for approved_by (no single "compliance" everywhere)
+const SEED_APPROVERS = ['@alice', '@bob', '@carol', '@dave', '@erin', '@maya', '@jordan', '@sam', '@reese', '@compliance', '@kai', '@skyler'];
+function seedApprover(index) {
+  return SEED_APPROVERS[index % SEED_APPROVERS.length];
+}
+
 const LOB_TO_DB = { retail: 'Retail-Banking', investment_banking: 'Investment-Banking', wealth_management: 'Wealth-Management', legal_compliance: 'Legal-Compliance' };
 const DATA_CLASS_TO_DB = { public: 'Public', internal: 'Internal', confidential: 'Confidential', restricted: 'Restricted' };
 function lobDb(lob) {
@@ -80,15 +86,15 @@ const ORGS = [
 
 // A2A Agent Card: name + description per https://google.github.io/A2A/specification/ §5.5 AgentCard.
 // IMPORTANT: Every agent name must be globally unique — no repetition across or within orgs.
-// We build 420 unique role suffixes (14 base roles × 30 variants), then assign one per (org, slot).
-const AGENTS_PER_ORG = 14;
-const TOTAL_AGENTS = ORGS.length * AGENTS_PER_ORG; // 30 * 14 = 420
+// We build 510 unique role suffixes (17 base roles × 30 variants), then assign one per (org, slot).
+const AGENTS_PER_ORG = 17;
+const TOTAL_AGENTS = ORGS.length * AGENTS_PER_ORG; // 30 * 17 = 510
 
 const ROLE_NAMES = [
   'Portfolio Analyst', 'KYC Verification', 'Loan Origination', 'Trade Surveillance',
   'Customer Onboarding', 'Compliance Check', 'Fraud Detection', 'Document Extraction',
   'Credit Scoring', 'AML Alert Triage', 'Client Reporting', 'Research Summarizer',
-  'Suitability Advisor', 'Settlement Reconciliation',
+  'Suitability Advisor', 'Settlement Reconciliation', 'Regulatory Filing', 'Risk Reporting', 'Data Quality',
 ];
 const ROLE_DESCRIPTIONS = [
   'Provides portfolio analysis and performance attribution for this line of business.',
@@ -105,15 +111,18 @@ const ROLE_DESCRIPTIONS = [
   'Summarizes research and market commentary for analysts and decision makers.',
   'Assesses product suitability and risk appetite for advisory and distribution.',
   'Automates settlement and reconciliation for trades and positions.',
+  'Prepares and files regulatory reports and disclosures per jurisdiction.',
+  'Produces risk and control reports for management and regulators.',
+  'Validates and monitors data quality for downstream analytics and reporting.',
 ];
 
-// 30 variants so 14 * 30 = 420 unique role suffixes (no repeated role text across agents).
+// 30 variants so 17 * 30 = 510 unique role suffixes (no parentheses in names; A2A-friendly).
 const ROLE_VARIANTS = [
-  '', ' (Lead)', ' (Support)', ' (Primary)', ' (Analytics)', ' (Operations)', ' (Compliance)',
-  ' (Risk)', ' (Client-Facing)', ' (Back-Office)', ' (Advisory)', ' (Execution)', ' (Review)',
-  ' (Monitoring)', ' (Reporting)', ' (Triage)', ' (Onboarding)', ' (Wealth)', ' (Retail)',
-  ' (IB)', ' (Legal)', ' (Treasury)', ' (Tech)', ' (Data)', ' (Regional)', ' (Global)',
-  ' (Tier 1)', ' (Tier 2)', ' (Escalation)', ' (Resolution)',
+  '', ' Lead', ' Support', ' Primary', ' Analytics', ' Operations', ' Compliance',
+  ' Risk', ' Client-Facing', ' Back-Office', ' Advisory', ' Execution', ' Review',
+  ' Monitoring', ' Reporting', ' Triage', ' Onboarding', ' Wealth', ' Retail',
+  ' IB', ' Legal', ' Treasury', ' Tech', ' Data', ' Regional', ' Global',
+  ' Tier 1', ' Tier 2', ' Escalation', ' Resolution',
 ];
 
 function buildUniqueRoleSuffixes() {
@@ -138,11 +147,12 @@ function buildAgentsBySlug() {
       const roleSuffix = UNIQUE_ROLE_SUFFIXES[globalIndex];
       const description = ROLE_DESCRIPTIONS[(globalIndex % ROLE_NAMES.length)];
       globalIndex += 1;
+      const baseUrl = 'https://agents.sandarb-demo.com';
       out[o.slug].push({
         agentId: `${o.slug}-agent-${num}`,
         name: `${o.name} ${roleSuffix} Agent`,
         description: description,
-        url: `https://agents.example.com/${o.slug.replace(/-/g, '/')}/agent-${num}`,
+        url: `${baseUrl}/${o.slug.replace(/-/g, '/')}/agent-${num}`,
       });
     }
   }
@@ -1473,6 +1483,41 @@ ADDITIONAL_PROMPTS.forEach(p => {
 // These are the actual instructions given to LLMs to act as AI agents
 // ============================================================================
 
+function getRealWorldVariantNote(variant) {
+  const notes = {
+    us: 'US deployment. Follow federal regulations (BSA, Reg E, TILA, Reg Z). Use USD and US date format.',
+    emea: 'EMEA deployment. Follow GDPR, PSD2, MiFID II. Use local currency and date format per jurisdiction.',
+    apac: 'APAC deployment. Follow MAS, PDPA, and local regulations. Use local currency and date format.',
+    latam: 'LATAM deployment. Follow local AML and consumer protection rules. Use local currency.',
+    web: 'Web channel. Support rich formatting, links, and accessibility (WCAG).',
+    mobile: 'Mobile channel. Keep responses concise; support tap-to-call and deep links.',
+    voice: 'Voice channel. Use natural language; spell out numbers; keep responses under 30 seconds.',
+    chat: 'Chat channel. Use quick replies and suggested actions; support handoff to human agents.',
+    api: 'API consumption. Return structured JSON; include pagination and error codes.',
+    retail: 'Retail banking scope. Consumer products and services only.',
+    wealth: 'Wealth management scope. Advisory and investment products.',
+    ib: 'Investment banking scope. Institutional and capital markets.',
+    compliance: 'Compliance-facing. Emphasize audit trail and regulatory alignment.',
+    v2: 'Version 2. Deploy after validation in staging.',
+    v3: 'Version 3. Includes latest model and safety updates.',
+    qa: 'QA environment. For testing and validation only.',
+    prod: 'Production deployment. Approved for live traffic.',
+    tier1: 'Tier 1 support. High-priority and high-value customers.',
+    tier2: 'Tier 2 support. Standard escalation path.',
+    primary: 'Primary instance. Active traffic.',
+    backup: 'Backup instance. Failover only.',
+    regional: 'Regional deployment. Follow local regulations and language.',
+    global: 'Global deployment. Multi-region; follow strictest applicable rules.',
+    standard: 'Standard tier. Default configuration.',
+    premium: 'Premium tier. Enhanced features and SLAs.',
+    internal: 'Internal use only. Not for customer-facing channels.',
+    'client-facing': 'Client-facing. Customer communication standards apply.',
+    audit: 'Audit trail required. Log all decisions and rationale.',
+    regulatory: 'Regulatory reporting scope. Include required disclosures.',
+  };
+  return notes[variant] || `Deployment variant: ${variant}. Follow applicable policies and procedures.`;
+}
+
 const AI_AGENT_TEMPLATES = [
   // Customer-Facing AI Agents
   {
@@ -2003,12 +2048,56 @@ ${channelGuidelines[channel]}
     }
   }
 
+  // Bulk fill to 2000+ total prompts (50 base + 1950+ generated). Names: lowercase, hyphen-separated, real-world descriptive (no "realworld-prompt-N").
+  const TARGET_ADDITIONAL_PROMPTS = 1950;
+  const PROMPT_NAME_STEMS = [
+    'kyc-document-verification', 'aml-transaction-monitoring', 'loan-application-intake', 'trade-surveillance-alert',
+    'fraud-alert-callback', 'client-onboarding-checklist', 'credit-card-dispute-handler', 'mortgage-status-inquiry',
+    'wire-transfer-tracking', 'bill-pay-troubleshooting', 'mobile-deposit-support', 'branch-appointment-booking',
+    'trade-break-resolution', 'corporate-actions-processing', 'reconciliation-discrepancy-review', 'settlement-exception-handler',
+    'collateral-margin-calculation', 'payment-routing-decision', 'cash-position-monitoring', 'fx-exposure-hedging',
+    'nostro-reconciliation', 'trade-confirmation-matching', 'kyc-sanctions-screening', 'aml-sar-filing-assistant',
+    'fair-lending-review', 'complaint-resolution-handler', 'regulatory-filing-deadline', 'trade-reporting-mifid',
+    'research-summary-generator', 'portfolio-rebalancing-suggestion', 'client-report-generation', 'suitability-assessment',
+    'credit-memo-drafting', 'pitch-book-section-writer', 'due-diligence-summary', 'earnings-call-summary',
+    'contract-clause-extraction', 'legal-document-review', 'disclosure-drafting', 'policy-exception-request',
+    'incident-triage-handler', 'outage-communication-draft', 'change-request-review', 'capacity-forecast-input',
+    'data-quality-validation', 'etl-failure-triage', 'bi-report-refresh-check', 'ml-model-drift-alert',
+    'expense-report-audit', 'vendor-invoice-matching', 'budget-variance-commentary', 'tax-document-classification',
+    'recruiting-screening-score', 'hr-policy-qa', 'performance-review-draft', 'training-module-summary',
+    'lead-scoring-input', 'rfp-section-draft', 'customer-health-score', 'product-feedback-triage',
+    'requirements-traceability', 'test-case-suggestion', 'code-review-checklist', 'release-note-draft',
+    'esg-metric-collection', 'sustainability-report-section', 'market-research-synthesis', 'ma-synergy-estimate',
+    'real-estate-valuation-input', 'facility-request-triaging',
+  ];
+  const PROMPT_NAME_VARIANTS = [
+    'us', 'emea', 'apac', 'latam', 'web', 'mobile', 'voice', 'chat', 'api', 'retail', 'wealth', 'ib', 'compliance',
+    'v2', 'v3', 'qa', 'prod', 'tier1', 'tier2', 'primary', 'backup', 'regional', 'global', 'standard', 'premium',
+    'internal', 'client-facing', 'audit', 'regulatory',
+  ];
+  while (generated.length < TARGET_ADDITIONAL_PROMPTS) {
+    counter++;
+    const template = AI_AGENT_TEMPLATES[counter % AI_AGENT_TEMPLATES.length];
+    const agent = template.agents[counter % template.agents.length];
+    const stem = PROMPT_NAME_STEMS[counter % PROMPT_NAME_STEMS.length];
+    const variant = PROMPT_NAME_VARIANTS[Math.floor(counter / PROMPT_NAME_STEMS.length) % PROMPT_NAME_VARIANTS.length];
+    const name = `${stem}-${variant}`;
+    const variantNote = getRealWorldVariantNote(variant);
+    generated.push({
+      name,
+      description: `${stem.replace(/-/g, ' ')} (${variant}): ${agent.desc}`,
+      tags: [...agent.tags, variant],
+      content: template.promptTemplate(agent) + `\n\n## Deployment\n${variantNote}`,
+      systemPrompt: `You are an AI agent: ${agent.desc}`,
+      model: MODELS[counter % MODELS.length],
+    });
+  }
+
   return generated;
 }
 
 // Generate and merge programmatic prompts
 const GENERATED_PROMPTS = generatePrompts();
-console.log(`Generated ${GENERATED_PROMPTS.length} additional prompts`);
 
 GENERATED_PROMPTS.forEach(p => {
   PROMPTS_WITH_VERSIONS[p.name] = {
@@ -2023,8 +2112,6 @@ GENERATED_PROMPTS.forEach(p => {
     }]
   };
 });
-
-console.log(`Total prompts to seed: ${Object.keys(PROMPTS_WITH_VERSIONS).length}`);
 
 // ============================================================================
 // REALISTIC AI AGENT CONTEXT DATA
@@ -2211,6 +2298,51 @@ const CONTEXTS_WITH_VERSIONS = {
         },
         documentation_required: ['risk_tolerance_questionnaire', 'investment_objectives', 'time_horizon', 'net_worth']
       }, commitMessage: 'Suitability matrix per FINRA 2111 and Reg BI' },
+    ],
+  },
+  'ib-trading-limits': {
+    name: 'ib-trading-limits',
+    description: 'Investment banking trading desk limits and pre-trade controls',
+    slug: 'investment-banking',
+    lob: 'investment_banking',
+    dataClass: 'confidential',
+    regulatoryHooks: ['SEC', 'FINRA', 'Volcker Rule'],
+    versions: [
+      { content: {
+        policy: 'Trading Desk Limits',
+        effectiveDate: '2024-01-01',
+        desk_limits: {
+          equities: { daily_var_99: 15000000, single_name_max_pct: 0.05, sector_max_pct: 0.25 },
+          fixed_income: { dv01_limit: 500000, single_issuer_max: 25000000 },
+          fx: { notional_limit: 500000000, overnight_limit: 100000000 },
+          commodities: { notional_limit: 100000000 }
+        },
+        pre_trade_checks: ['var_breach', 'concentration', 'counterparty_limit', 'restricted_list', 'watch_list'],
+        approval_required_above: { equities: 1000000, fixed_income: 5000000, fx: 10000000 },
+        restricted_securities: ['insider_restricted', 'blackout_period', 'ipo_lockup']
+      }, commitMessage: 'IB trading limits per Volcker and desk risk framework' },
+    ],
+  },
+  'wm-suitability-policy': {
+    name: 'wm-suitability-policy',
+    description: 'Wealth management suitability and best interest policy',
+    slug: 'wealth-management',
+    lob: 'wealth_management',
+    dataClass: 'confidential',
+    regulatoryHooks: ['FINRA 2111', 'Reg BI', 'MiFID II'],
+    versions: [
+      { content: {
+        policy: 'Wealth Management Suitability',
+        effectiveDate: '2024-01-01',
+        customer_duty: 'best_interest',
+        suitability_requirements: {
+          reasonable_basis: 'All recommendations must be suitable for at least some investors',
+          customer_specific: 'Recommendation must be suitable for this customer based on profile',
+          quantitative_suitability: 'No series of recommendations that are excessive'
+        },
+        documentation: ['customer_profile', 'investment_objectives', 'risk_tolerance', 'time_horizon', 'recommendation_rationale'],
+        prohibited_practices: ['sales_contests', 'conflicted_compensation_on_retail_recs', 'recommendations_without_profile']
+      }, commitMessage: 'WM suitability policy per Reg BI' },
     ],
   },
 };
@@ -2609,12 +2741,32 @@ function generateContexts() {
       }
     }
   }
-  
+
+  // Bulk fill to 3000+ real-world contexts: org-scoped policy/product names (no generic "realworld-context-N")
+  const TARGET_BULK_CONTEXTS = 3000;
+  const flatCtxTemplates = CONTEXT_TEMPLATES.flatMap(c => c.templates.map(t => ({ category: c.category, template: t })));
+  let bulkCtxCounter = 0;
+  while (generated.length < TARGET_BULK_CONTEXTS) {
+    bulkCtxCounter++;
+    const org = ORGS[bulkCtxCounter % ORGS.length];
+    const { category, template } = flatCtxTemplates[bulkCtxCounter % flatCtxTemplates.length];
+    counter++;
+    const suffix = String(bulkCtxCounter).padStart(4, '0');
+    generated.push({
+      name: `${org.slug}-${template.name}-${suffix}`,
+      description: `${org.name}: ${template.desc} (policy ref ${suffix})`,
+      slug: org.slug,
+      lob: category === 'compliance' ? 'legal_compliance' : category === 'products' ? 'retail' : category === 'risk' ? 'investment_banking' : 'retail',
+      dataClass: template.dataClass,
+      regulatoryHooks: template.hooks,
+      content: { ...template.content(counter), org: org.name, policy_reference: suffix, effective_date: '2024-01-01' },
+    });
+  }
+
   return generated;
 }
 
 const CONTEXTS_BULK = generateContexts();
-console.log(`Generated ${CONTEXTS_BULK.length} realistic AI agent contexts`);
 
 async function main() {
   const client = new Client({ connectionString: DATABASE_URL });
@@ -2630,7 +2782,6 @@ async function main() {
         [rootId]
       );
       root = { rows: [{ id: rootId }] };
-      console.log('Created root organization');
     }
     const rootId = root.rows[0].id;
 
@@ -2649,25 +2800,66 @@ async function main() {
       );
       orgIds[o.slug] = id;
     }
-    console.log('Created orgs:', Object.keys(orgIds).length, '(30 child orgs + root)');
 
-    // 3. Agents: 14 per org × 30 orgs = 420. Every agent name is globally unique (A2A; no repetition).
+    const now = new Date().toISOString();
+
+    // 3. Agents: 17 per org × 30 orgs = 510. Every agent name is globally unique. Approval mix: 65% approved, 20% draft, 10% in review, 5% rejected.
     let agentsCreated = 0;
+    let globalAgentIndex = 0;
     for (const [slug, agents] of Object.entries(AGENTS_BY_SLUG)) {
       const orgId = orgIds[slug];
       if (!orgId) continue;
       for (const a of agents) {
+        const bucket = globalAgentIndex % 100;
+        const approvalStatus = bucket < 65 ? 'approved' : bucket < 85 ? 'draft' : bucket < 95 ? 'pending_approval' : 'rejected';
+        const isApproved = approvalStatus === 'approved';
+        const subBy = approvalStatus === 'pending_approval' || isApproved ? seedApprover(globalAgentIndex) : null;
+        const appBy = isApproved ? seedApprover(globalAgentIndex) : null;
+        const isComplianceOrLegal = slug === 'legal-compliance' || slug === 'risk-management' || slug === 'regulatory-affairs';
+        const isRetailOrWealth = slug === 'retail-banking' || slug === 'wealth-management' || slug === 'customer-experience';
+        const toolsUsed = JSON.stringify(isComplianceOrLegal ? ['llm', 'api', 'db'] : isRetailOrWealth ? ['llm', 'api'] : ['llm', 'api', 'db']);
+        const allowedDataScopes = JSON.stringify(isRetailOrWealth ? ['accounts', 'transactions', 'customers'] : isComplianceOrLegal ? ['transactions', 'kyc', 'alerts'] : ['positions', 'trades', 'counterparties']);
+        const piiHandling = isRetailOrWealth || isComplianceOrLegal;
+        const regulatoryScope = JSON.stringify(isComplianceOrLegal ? ['BSA', 'FinCEN', 'GDPR', 'SOX'] : isRetailOrWealth ? ['Reg E', 'Reg Z', 'TILA'] : ['FINRA', 'SEC', 'Volcker']);
         const r = await client.query(
-          `INSERT INTO agents (id, org_id, name, description, a2a_url, agent_id) VALUES ($1, $2, $3, $4, $5, $6)
+          `INSERT INTO agents (id, org_id, name, description, a2a_url, agent_id, approval_status, approved_by, approved_at, created_by, submitted_by, updated_by, tools_used, allowed_data_scopes, pii_handling, regulatory_scope)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14::jsonb, $15, $16::jsonb)
            ON CONFLICT (org_id, agent_id) DO NOTHING`,
-          [uuidv4(), orgId, a.name, a.description, a.url, a.agentId]
+          [
+            uuidv4(),
+            orgId,
+            a.name,
+            a.description,
+            a.url,
+            a.agentId,
+            approvalStatus,
+            appBy,
+            isApproved ? now : null,
+            seedApprover(globalAgentIndex + 1),
+            subBy,
+            appBy ?? null,
+            toolsUsed,
+            allowedDataScopes,
+            piiHandling,
+            regulatoryScope,
+          ]
         );
         if (r.rowCount > 0) agentsCreated++;
+        globalAgentIndex++;
       }
     }
-    console.log('Created agents:', agentsCreated, '(420 total across 30 orgs)');
 
-    const now = new Date().toISOString();
+    // Backfill agent dates: random created_at/updated_at in last 6 months (sorted by last updated in UI).
+    await client.query(`
+      UPDATE agents a SET
+        created_at = sub.created,
+        updated_at = LEAST(sub.created + (random() * interval '90 days'), NOW())
+      FROM (
+        SELECT id, NOW() - (random() * interval '180 days') AS created FROM agents
+      ) sub
+      WHERE a.id = sub.id
+    `);
+
     const ownerTeam = 'system';
 
     // 4. Contexts with multiple versions
@@ -2691,20 +2883,20 @@ async function main() {
         const hash = sha256Hash(v.content);
         const versionLabel = `v1.0.${vn}`;
         await client.query(
-          `INSERT INTO context_versions (id, context_id, version_label, content, sha256_hash, created_by, created_at, status, commit_message, approved_by, approved_at, is_active)
-           VALUES (gen_random_uuid(), $1, $2, $3::jsonb, $4, $5, $6, 'Approved', $7, $8, $9, true)`,
-          [ctxId, versionLabel, contentJson, hash, 'seed@example.com', now, v.commitMessage, 'compliance@example.com', now]
+          `INSERT INTO context_versions (id, context_id, version_label, content, sha256_hash, created_by, created_at, submitted_by, status, commit_message, approved_by, approved_at, updated_at, updated_by, is_active)
+           VALUES (gen_random_uuid(), $1, $2, $3::jsonb, $4, $5, $6, $5, 'Approved', $7, $8, $9, $9, $8, true)`,
+          [ctxId, versionLabel, contentJson, hash, seedApprover(vn), now, v.commitMessage, seedApprover(vn), now]
         );
       }
       await client.query(
         `INSERT INTO activity_log (id, type, resource_type, resource_id, resource_name, created_at) VALUES ($1, 'create', 'context', $2, $3, $4)`,
         [uuidv4(), ctxId, spec.name, now]
       );
-      console.log('Created context with versions:', spec.name);
     }
 
     // 5. Simple contexts (single version)
-    for (const c of CONTEXTS_SIMPLE) {
+    for (let si = 0; si < CONTEXTS_SIMPLE.length; si++) {
+      const c = CONTEXTS_SIMPLE[si];
       const exists = await client.query('SELECT id FROM contexts WHERE name = $1', [c.name]);
       if (exists.rows.length > 0) continue;
 
@@ -2719,15 +2911,14 @@ async function main() {
       const contentJson = JSON.stringify(c.content);
       const hash = sha256Hash(c.content);
       await client.query(
-        `INSERT INTO context_versions (id, context_id, version_label, content, sha256_hash, created_by, created_at, status, commit_message, approved_by, approved_at, is_active)
-         VALUES (gen_random_uuid(), $1, 'v1.0.0', $2::jsonb, $3, $4, $5, 'Approved', 'Initial version', $4, $5, true)`,
-        [ctxId, contentJson, hash, ownerTeam, now]
+        `INSERT INTO context_versions (id, context_id, version_label, content, sha256_hash, created_by, created_at, submitted_by, status, commit_message, approved_by, approved_at, updated_at, updated_by, is_active)
+         VALUES (gen_random_uuid(), $1, 'v1.0.0', $2::jsonb, $3, $4, $5, $4, 'Approved', 'Initial version', $6, $5, $5, $6, true)`,
+        [ctxId, contentJson, hash, seedApprover(si), now, seedApprover(si)]
       );
       await client.query(
         `INSERT INTO activity_log (id, type, resource_type, resource_id, resource_name, created_at) VALUES ($1, 'create', 'context', $2, $3, $4)`,
         [uuidv4(), ctxId, c.name, now]
       );
-      console.log('Created context:', c.name);
     }
 
     // 5b. Bulk contexts (3000): batch insert for speed
@@ -2750,11 +2941,11 @@ async function main() {
       for (const c of toInsert) {
         const ctxId = uuidv4();
         ctxIds.push({ id: ctxId, name: c.name, content: c.content, slug: c.slug, regulatoryHooks: c.regulatoryHooks, lob: c.lob, dataClass: c.dataClass, description: c.description });
-        valueParts.push(`($${p}, $${p + 1}, $${p + 2}, $${p + 3}, $${p + 4}, $${p + 5}, $${p + 6}, $${p + 7}, $${p + 8}, $${p + 8})`);
+        valueParts.push(`($${p}, $${p + 1}, $${p + 2}, $${p + 3}, $${p + 4}, $${p + 5}, $${p + 6}, $${p + 7}, $${p + 8}, $${p + 9})`);
         const tags = JSON.stringify([c.slug]);
         const regHooks = JSON.stringify(c.regulatoryHooks);
-        values.push(ctxId, c.name, c.description, lobDb(c.lob), dataClassDb(c.dataClass), ownerTeam, tags, regHooks, now);
-        p += 9;
+        values.push(ctxId, c.name, c.description, lobDb(c.lob), dataClassDb(c.dataClass), ownerTeam, tags, regHooks, now, now);
+        p += 10;
       }
       await client.query(
         `INSERT INTO contexts (id, name, description, lob_tag, data_classification, owner_team, tags, regulatory_hooks, created_at, updated_at)
@@ -2773,16 +2964,17 @@ async function main() {
         if (!c) continue;
         const contentJson = JSON.stringify(c.content);
         const hash = sha256Hash(c.content);
-        versionParts.push(`(gen_random_uuid(), $${vp}, 'v1.0.0', $${vp + 1}::jsonb, $${vp + 2}, $${vp + 3}, $${vp + 4}, 'Approved', 'Initial version', $${vp + 3}, $${vp + 4}, true)`);
-        versionParams.push(row.id, contentJson, hash, ownerTeam, now);
-        vp += 5;
+        const approver = seedApprover(ctxIds.indexOf(row));
+        versionParts.push(`(gen_random_uuid(), $${vp}, 'v1.0.0', $${vp + 1}::jsonb, $${vp + 2}, $${vp + 3}, $${vp + 4}, $${vp + 3}, 'Approved', 'Initial version', $${vp + 5}, $${vp + 4}, $${vp + 4}, $${vp + 5}, true)`);
+        versionParams.push(row.id, contentJson, hash, approver, now, approver);
+        vp += 6;
         activityParts.push(`(gen_random_uuid(), 'create', 'context', $${ap}, $${ap + 1}, $${ap + 2})`);
         activityParams.push(row.id, row.name, now);
         ap += 3;
       }
       if (versionParts.length > 0) {
         await client.query(
-          `INSERT INTO context_versions (id, context_id, version_label, content, sha256_hash, created_by, created_at, status, commit_message, approved_by, approved_at, is_active)
+          `INSERT INTO context_versions (id, context_id, version_label, content, sha256_hash, created_by, created_at, submitted_by, status, commit_message, approved_by, approved_at, updated_at, updated_by, is_active)
            VALUES ${versionParts.join(', ')}`,
           versionParams
         );
@@ -2794,22 +2986,21 @@ async function main() {
       bulkCreated += toInsert.length;
       if (start + BATCH_SIZE < CONTEXTS_BULK.length) process.stdout.write(`\r  Bulk contexts: ${bulkCreated}/${CONTEXTS_BULK.length}...`);
     }
-    if (CONTEXTS_BULK.length > 0) console.log(`\rCreated bulk contexts: ${bulkCreated}`);
 
     // 6. Prompts with versions (the "Employee Handbook" for AI agents)
     for (const [key, spec] of Object.entries(PROMPTS_WITH_VERSIONS)) {
       const exists = await client.query('SELECT id FROM prompts WHERE name = $1', [spec.name]);
       if (exists.rows.length > 0) {
-        console.log('Prompt already exists:', spec.name);
         continue;
       }
 
       const promptId = uuidv4();
       const tags = JSON.stringify(spec.tags || []);
+      const promptCreatedBy = seedApprover(Object.keys(PROMPTS_WITH_VERSIONS).indexOf(key));
       await client.query(
-        `INSERT INTO prompts (id, name, description, tags, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $5)`,
-        [promptId, spec.name, spec.description, tags, now]
+        `INSERT INTO prompts (id, name, description, tags, created_by, created_at, updated_at, updated_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $6, $5)`,
+        [promptId, spec.name, spec.description, tags, promptCreatedBy, now]
       );
 
       let vn = 0;
@@ -2820,10 +3011,11 @@ async function main() {
         const hash = sha256Hash(contentJson);
         const versionId = uuidv4();
         latestVersionId = versionId;
+        const pvApprover = seedApprover(vn);
         await client.query(
-          `INSERT INTO prompt_versions (id, prompt_id, version, content, system_prompt, model, status, approved_by, approved_at, sha256_hash, created_at, commit_message)
-           VALUES ($1, $2, $3, $4, $5, $6, 'Approved', $7, $8, $9, $8, $10)`,
-          [versionId, promptId, vn, v.content, v.systemPrompt || null, v.model || 'gpt-4', 'compliance@example.com', now, hash, v.commitMessage]
+          `INSERT INTO prompt_versions (id, prompt_id, version, content, system_prompt, model, status, approved_by, approved_at, sha256_hash, created_by, created_at, submitted_by, updated_at, updated_by, commit_message)
+           VALUES ($1, $2, $3, $4, $5, $6, 'approved', $7, $8, $9, $7, $8, $7, $8, $7, $10)`,
+          [versionId, promptId, vn, v.content, v.systemPrompt || null, v.model || 'gpt-4', pvApprover, now, hash, v.commitMessage]
         );
       }
 
@@ -2834,14 +3026,12 @@ async function main() {
           [latestVersionId, promptId]
         );
       }
-
-      console.log('Created prompt with versions:', spec.name, `(${vn} versions)`);
     }
 
-    // 8. Templates
+    // 8. Templates (real-world schemas for context creation) for context creation)
     const templates = [
-      { name: 'compliance-policy-template', description: 'Schema for compliance policy context', schema: { type: 'object', properties: { policy: { type: 'string' }, effectiveDate: { type: 'string' }, kycRequired: { type: 'boolean' } } }, defaultValues: {} },
-      { name: 'trading-limits-template', description: 'Schema for trading limits context', schema: { type: 'object', properties: { varLimit: { type: 'number' }, singleNameLimit: { type: 'number' } } }, defaultValues: {} },
+      { name: 'compliance-policy-template', description: 'Compliance policy context: policy name, effective date, regulatory hooks, and KYC/AML flags', schema: { type: 'object', properties: { policy: { type: 'string', description: 'Policy name' }, effectiveDate: { type: 'string', description: 'YYYY-MM-DD' }, regulatoryHooks: { type: 'array', items: { type: 'string' }, description: 'e.g. BSA, FINRA, GDPR' }, kycRequired: { type: 'boolean' } }, required: ['policy', 'effectiveDate'] }, defaultValues: { kycRequired: true } },
+      { name: 'trading-limits-template', description: 'Trading desk limits: VaR and single-name limits per desk', schema: { type: 'object', properties: { varLimit: { type: 'number', description: 'Daily VaR limit (USD)' }, singleNameLimit: { type: 'number', description: 'Max exposure per issuer (USD)' }, desk: { type: 'string', enum: ['equities', 'fixed_income', 'fx', 'commodities'] } }, required: ['varLimit', 'singleNameLimit'] }, defaultValues: {} },
     ];
     for (const t of templates) {
       await client.query(
@@ -2849,19 +3039,16 @@ async function main() {
         [t.name, t.description, JSON.stringify(t.schema), JSON.stringify(t.defaultValues)]
       );
     }
-    console.log('Templates upserted');
 
     // 9. Settings
     await client.query(`INSERT INTO settings (key, value) VALUES ('theme', '"system"') ON CONFLICT (key) DO NOTHING`);
-    console.log('Settings upserted');
 
     // 10. Scan targets
     const scanCount = await client.query('SELECT COUNT(*) AS c FROM scan_targets');
     if (parseInt(scanCount.rows[0].c, 10) === 0) {
       await client.query(
-        `INSERT INTO scan_targets (id, url, description) VALUES (gen_random_uuid(), 'https://agents.example.com/ib/trading', 'IB Trade Desk agent'), (gen_random_uuid(), 'https://agents.example.com/wm/portfolio', 'WM Portfolio Agent')`
+        `INSERT INTO scan_targets (id, url, description) VALUES (gen_random_uuid(), 'https://agents.sandarb-demo.com/investment-banking/agent-01', 'IB Trade Desk agent'), (gen_random_uuid(), 'https://agents.sandarb-demo.com/wealth-management/agent-01', 'WM Portfolio Agent')`
       );
-      console.log('Scan targets inserted');
     }
 
     // 11. Access logs (sandarb_access_logs: metadata holds action_type, context_id, contextName)
@@ -2871,20 +3058,19 @@ async function main() {
       const ctx2 = await client.query("SELECT id FROM contexts WHERE name = 'wm-suitability-policy' LIMIT 1");
       if (ctx1.rows.length > 0) {
         await client.query(
-          `INSERT INTO sandarb_access_logs (agent_id, trace_id, version_id, metadata) VALUES ('investment-banking-agent-01', 'trace-seed-1', NULL, $1::jsonb)`,
+          `INSERT INTO sandarb_access_logs (agent_id, trace_id, version_id, metadata) VALUES ('investment-banking-agent-01', 'trace-inject-ib-001', NULL, $1::jsonb)`,
           [JSON.stringify({ action_type: 'INJECT_SUCCESS', context_id: ctx1.rows[0].id, contextName: 'ib-trading-limits' })]
         );
       }
       if (ctx2.rows.length > 0) {
         await client.query(
-          `INSERT INTO sandarb_access_logs (agent_id, trace_id, version_id, metadata) VALUES ('wealth-management-agent-01', 'trace-seed-2', NULL, $1::jsonb)`,
+          `INSERT INTO sandarb_access_logs (agent_id, trace_id, version_id, metadata) VALUES ('wealth-management-agent-01', 'trace-inject-wm-001', NULL, $1::jsonb)`,
           [JSON.stringify({ action_type: 'INJECT_SUCCESS', context_id: ctx2.rows[0].id, contextName: 'wm-suitability-policy' })]
         );
       }
       await client.query(
-        `INSERT INTO sandarb_access_logs (agent_id, trace_id, metadata) VALUES ('unknown-shadow-agent', 'trace-seed-3', '{"action_type":"INJECT_DENIED","reason":"unauthenticated_agent","contextRequested":"ib-trading-limits"}'::jsonb)`
+        `INSERT INTO sandarb_access_logs (agent_id, trace_id, metadata) VALUES ('unregistered-agent', 'trace-deny-001', '{"action_type":"INJECT_DENIED","reason":"unauthenticated_agent","contextRequested":"ib-trading-limits"}'::jsonb)`
       );
-      console.log('Access logs inserted');
     }
 
     // 12. Unauthenticated detections
@@ -2892,16 +3078,12 @@ async function main() {
     if (udCount.rows[0].c === 0) {
       await client.query(
         `INSERT INTO unauthenticated_detections (source_url, detected_agent_id, details) VALUES
-         ('https://agents.example.com/ib/trading', 'trade-desk-agent', '{"method":"discovery_scan","risk":"medium"}'::jsonb),
-         ('https://internal-tools.corp/chat', 'internal-chat-agent', '{"method":"discovery_scan","risk":"low"}'::jsonb),
-         ('https://shadow.example.com/assistant', NULL, '{"method":"discovery_scan","risk":"high","note":"unregistered endpoint"}'::jsonb)`
+         ('https://agents.sandarb-demo.com/investment-banking/agent-01', 'investment-banking-agent-01', '{"method":"discovery_scan","risk":"medium","note":"A2A endpoint responded without Sandarb auth"}'::jsonb),
+         ('https://internal-tools.sandarb-demo.com/chat', 'internal-chat-agent', '{"method":"discovery_scan","risk":"low","note":"Internal tool; low exposure"}'::jsonb),
+         ('https://shadow-unregistered.example.com/assistant', NULL, '{"method":"discovery_scan","risk":"high","note":"Unregistered endpoint; no agent_id in registry"}'::jsonb)`
       );
-      console.log('Unauthenticated detections inserted');
     }
-
-    console.log('Seed complete. Postgres has: 30 orgs, 420 agents, 500+ realistic AI agent contexts (policies, products, risk rules, FAQs), 300+ AI agent prompts, templates, settings.');
   } catch (err) {
-    console.error('Seed failed:', err.message);
     process.exit(1);
   } finally {
     await client.end();

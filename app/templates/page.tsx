@@ -23,8 +23,7 @@ export default function TemplatesPage() {
       if (data.success) {
         setTemplates(data.data);
       }
-    } catch (error) {
-      console.error('Failed to fetch templates:', error);
+    } catch {
     } finally {
       setLoading(false);
     }

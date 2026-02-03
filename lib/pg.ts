@@ -1,9 +1,9 @@
 /**
- * Postgres client for Sandarb. When DATABASE_URL is set, use this instead of SQLite.
- * Ensures sandarb-dev DB and tables exist on first use.
+ * Postgres client for Sandarb. Requires DATABASE_URL. Ensures DB and tables exist on first use.
  */
 
 import { Pool, PoolClient } from 'pg';
+import { logger } from './otel';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 let pool: Pool | null = null;
@@ -55,9 +55,11 @@ CREATE TABLE IF NOT EXISTS contexts (
   lob_tag TEXT NOT NULL CHECK (lob_tag IN ('Wealth-Management', 'Investment-Banking', 'Retail-Banking', 'Legal-Compliance')),
   data_classification TEXT DEFAULT 'Internal' CHECK (data_classification IN ('Public', 'Internal', 'Confidential', 'Restricted', 'MNPI')),
   owner_team TEXT NOT NULL,
+  created_by TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   is_active BOOLEAN DEFAULT true,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_by TEXT,
   tags TEXT DEFAULT '[]',
   regulatory_hooks TEXT DEFAULT '[]'
 );
@@ -72,8 +74,11 @@ CREATE TABLE IF NOT EXISTS context_versions (
   status TEXT DEFAULT 'Pending' CHECK (status IN ('Draft', 'Pending', 'Approved', 'Archived')),
   created_by TEXT NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  submitted_by TEXT,
   approved_by TEXT,
   approved_at TIMESTAMP WITH TIME ZONE,
+  updated_at TIMESTAMP WITH TIME ZONE,
+  updated_by TEXT,
   is_active BOOLEAN DEFAULT FALSE,
   commit_message TEXT,
   UNIQUE(context_id, version_label)
@@ -90,8 +95,10 @@ CREATE TABLE IF NOT EXISTS prompts (
   current_version_id UUID,
   project_id TEXT,
   tags JSONB DEFAULT '[]',
+  created_by TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_by TEXT
 );
 
 -- Prompt Versioning & Regulatory Approval (parity with context_versions)
@@ -109,6 +116,9 @@ CREATE TABLE IF NOT EXISTS prompt_versions (
   commit_message TEXT,
   created_by TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  submitted_by TEXT,
+  updated_at TIMESTAMP WITH TIME ZONE,
+  updated_by TEXT,
   -- Governance fields (parity with context_versions)
   status TEXT DEFAULT 'Proposed' CHECK (status IN ('Draft', 'Proposed', 'Approved', 'Rejected', 'Archived')),
   approved_by TEXT,
@@ -186,9 +196,11 @@ CREATE TABLE IF NOT EXISTS agents (
   approval_status TEXT DEFAULT 'draft',
   approved_by TEXT,
   approved_at TIMESTAMP WITH TIME ZONE,
+  submitted_by TEXT,
   created_by TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_by TEXT,
   owner_team TEXT,
   tools_used JSONB DEFAULT '[]',
   allowed_data_scopes JSONB DEFAULT '[]',
@@ -230,8 +242,26 @@ CREATE TABLE IF NOT EXISTS templates (
 );
 `;
 
+const MIGRATIONS_SQL = [
+  `DO $$ BEGIN ALTER TABLE agents ADD COLUMN submitted_by TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$`,
+  `DO $$ BEGIN ALTER TABLE agents ADD COLUMN updated_by TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$`,
+  `DO $$ BEGIN ALTER TABLE prompts ADD COLUMN created_by TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$`,
+  `DO $$ BEGIN ALTER TABLE prompts ADD COLUMN updated_by TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$`,
+  `DO $$ BEGIN ALTER TABLE prompt_versions ADD COLUMN submitted_by TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$`,
+  `DO $$ BEGIN ALTER TABLE prompt_versions ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE; EXCEPTION WHEN duplicate_column THEN NULL; END $$`,
+  `DO $$ BEGIN ALTER TABLE prompt_versions ADD COLUMN updated_by TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$`,
+  `DO $$ BEGIN ALTER TABLE contexts ADD COLUMN created_by TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$`,
+  `DO $$ BEGIN ALTER TABLE contexts ADD COLUMN updated_by TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$`,
+  `DO $$ BEGIN ALTER TABLE context_versions ADD COLUMN submitted_by TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$`,
+  `DO $$ BEGIN ALTER TABLE context_versions ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE; EXCEPTION WHEN duplicate_column THEN NULL; END $$`,
+  `DO $$ BEGIN ALTER TABLE context_versions ADD COLUMN updated_by TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$`,
+];
+
 async function runSchema(p: Pool): Promise<void> {
   await p.query(SCHEMA_SQL);
+  for (const sql of MIGRATIONS_SQL) {
+    await p.query(sql);
+  }
   const r = await p.query(
     "SELECT id FROM organizations WHERE is_root = true OR slug = 'root' LIMIT 1"
   );
@@ -246,12 +276,9 @@ async function runSchema(p: Pool): Promise<void> {
   }
 }
 
-export function usePg(): boolean {
-  return Boolean(DATABASE_URL);
-}
-
 export async function ensureDb(): Promise<void> {
-  if (!DATABASE_URL || schemaEnsured) return;
+  if (!DATABASE_URL) throw new Error('DATABASE_URL is required');
+  if (schemaEnsured) return;
   await createDbIfNotExists();
   const p = new Pool({ connectionString: DATABASE_URL });
   try {
@@ -262,8 +289,11 @@ export async function ensureDb(): Promise<void> {
   schemaEnsured = true;
 }
 
-export async function getPool(): Promise<Pool | null> {
-  if (!DATABASE_URL) return null;
+export async function getPool(): Promise<Pool> {
+  if (!DATABASE_URL) {
+    logger.error('DATABASE_URL is required', { component: 'pg' });
+    throw new Error('DATABASE_URL is required');
+  }
   if (!pool) {
     await ensureDb();
     pool = new Pool({ connectionString: DATABASE_URL });
@@ -273,7 +303,6 @@ export async function getPool(): Promise<Pool | null> {
 
 export async function query<T = unknown>(text: string, params?: unknown[]): Promise<T[]> {
   const p = await getPool();
-  if (!p) throw new Error('Postgres not configured');
   const res = await p.query(text, params);
   return (res.rows as T[]) || [];
 }

@@ -23,6 +23,7 @@ import {
   taskToSpec,
 } from '@/lib/a2a-server';
 import { logA2ACall } from '@/lib/audit';
+import { withSpan, logger } from '@/lib/otel';
 
 const JSON_RPC_HEADERS = {
   'Content-Type': 'application/json',
@@ -89,6 +90,7 @@ function buildA2ALogContext(
 
 // POST - JSON-RPC 2.0 only (A2A spec: request body MUST be JSONRPCRequest)
 export async function POST(request: NextRequest) {
+  return withSpan('POST /api/a2a', async () => {
   let body: JsonRpcRequest | undefined;
   let logCtx: { agentId: string; traceId: string; inputSummary: string; requestIp: string | null } | undefined;
 
@@ -121,6 +123,7 @@ export async function POST(request: NextRequest) {
     });
     return response;
   } catch (error) {
+    logger.error('A2A error', { route: 'POST /api/a2a', error: String(error) });
     const method = body?.method ?? 'unknown';
     if (logCtx) {
       await logA2ACall({
@@ -132,7 +135,6 @@ export async function POST(request: NextRequest) {
         requestIp: logCtx.requestIp,
       });
     }
-    console.error('A2A error:', error);
     return NextResponse.json(
       {
         jsonrpc: '2.0',
@@ -145,6 +147,7 @@ export async function POST(request: NextRequest) {
       { status: 500, headers: JSON_RPC_HEADERS }
     );
   }
+  });
 }
 
 // ============================================================================

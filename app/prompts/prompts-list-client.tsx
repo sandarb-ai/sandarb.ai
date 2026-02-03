@@ -34,8 +34,7 @@ export function PromptsListClient({ initialPrompts }: PromptsListClientProps) {
       if (res.ok) {
         window.location.reload();
       }
-    } catch (error) {
-      console.error('Failed to delete prompt:', error);
+    } catch {
     }
   };
 

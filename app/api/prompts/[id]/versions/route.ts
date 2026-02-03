@@ -4,9 +4,11 @@ import {
   getPromptVersions,
   createPromptVersion,
 } from '@/lib/prompts';
+import { withSpan, logger } from '@/lib/otel';
 
 // GET /api/prompts/:id/versions - List all versions
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  return withSpan('GET /api/prompts/[id]/versions', async () => {
   try {
     const { id } = await params;
     const prompt = await getPromptById(id);
@@ -25,18 +27,20 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       data: versions,
     });
   } catch (error) {
-    console.error('Failed to fetch versions:', error);
+    logger.error('Failed to fetch versions', { route: 'GET /api/prompts/[id]/versions', error: String(error) });
     return NextResponse.json(
       { success: false, error: 'Failed to fetch versions' },
       { status: 500 }
     );
   }
+  });
 }
 
 // POST /api/prompts/:id/versions - Create new version
 // Governance: versions are created as 'proposed' by default and require approval.
 // Set autoApprove: true for backward compatibility (immediate approval).
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  return withSpan('POST /api/prompts/[id]/versions', async () => {
   try {
     const { id } = await params;
     const prompt = await getPromptById(id);
@@ -100,10 +104,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       { status: 201 }
     );
   } catch (error) {
-    console.error('Failed to create version:', error);
+    logger.error('Failed to create version', { route: 'POST /api/prompts/[id]/versions', error: String(error) });
     return NextResponse.json(
       { success: false, error: 'Failed to create version' },
       { status: 500 }
     );
   }
+  });
 }

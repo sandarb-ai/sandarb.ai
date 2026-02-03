@@ -81,8 +81,10 @@ function rowToContext(row: Record<string, unknown>, content?: Record<string, unk
     isActive: row.is_active !== false,
     priority: 0,
     expiresAt: null,
+    createdBy: row.created_by != null ? String(row.created_by) : null,
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at ?? row.created_at),
+    updatedBy: row.updated_by != null ? String(row.updated_by) : null,
     lineOfBusiness: lobDb ? (LOB_DB_TO_APP[lobDb] ?? null) : null,
     dataClassification: dataDb ? (DATA_CLASS_DB_TO_APP[dataDb] ?? null) : null,
     regulatoryHooks: parseJsonArray(row.regulatory_hooks) as RegulatoryHook[],
@@ -265,6 +267,10 @@ export async function updateContextPg(id: string, input: ContextUpdateInput): Pr
   if (input.tags !== undefined) {
     updates.push(`tags = $${i++}`);
     values.push(JSON.stringify(input.tags));
+  }
+  if (input.updatedBy !== undefined) {
+    updates.push(`updated_by = $${i++}`);
+    values.push(input.updatedBy);
   }
 
   if (updates.length > 0) {

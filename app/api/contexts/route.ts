@@ -7,9 +7,11 @@ import {
   getContextsByComplianceFilters,
 } from '@/lib/contexts';
 import type { ContextCreateInput, LineOfBusiness, DataClassification, RegulatoryHook } from '@/types';
+import { withSpan, logger } from '@/lib/otel';
 
 // GET /api/contexts - List contexts; optional limit/offset for pagination; search by q or filter by compliance
 export async function GET(request: NextRequest) {
+  return withSpan('GET /api/contexts', async () => {
   try {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('q');
@@ -41,16 +43,18 @@ export async function GET(request: NextRequest) {
     const contexts = await getAllContexts();
     return NextResponse.json({ success: true, data: contexts, total: contexts.length });
   } catch (error) {
-    console.error('Failed to fetch contexts:', error);
+    logger.error('Failed to fetch contexts', { route: 'GET /api/contexts', error: String(error) });
     return NextResponse.json(
       { success: false, error: 'Failed to fetch contexts' },
       { status: 500 }
     );
   }
+  });
 }
 
 // POST /api/contexts - Create new context
 export async function POST(request: NextRequest) {
+  return withSpan('POST /api/contexts', async () => {
   try {
     const body = await request.json();
     const {
@@ -106,8 +110,7 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    console.error('Failed to create context:', error);
-
+    logger.error('Failed to create context', { route: 'POST /api/contexts', error: String(error) });
     // Handle unique constraint violation
     if (error instanceof Error && error.message.includes('UNIQUE constraint')) {
       return NextResponse.json(
@@ -121,4 +124,5 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+  });
 }
