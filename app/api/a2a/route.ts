@@ -23,6 +23,7 @@ import {
   taskToSpec,
 } from '@/lib/a2a-server';
 import { logA2ACall } from '@/lib/audit';
+import { verifyToken } from '@/lib/auth/jwt';
 import { withSpan, logger } from '@/lib/otel';
 
 const JSON_RPC_HEADERS = {
@@ -91,6 +92,26 @@ function buildA2ALogContext(
 // POST - JSON-RPC 2.0 only (A2A spec: request body MUST be JSONRPCRequest)
 export async function POST(request: NextRequest) {
   return withSpan('POST /api/a2a', async () => {
+    // --- 🔒 SECURITY CHECK START ---
+    const authHeader = request.headers.get('Authorization');
+    const token = authHeader?.split(' ')[1]; // "Bearer <token>"
+
+    if (!token) {
+      return NextResponse.json(
+        { error: { code: -32600, message: 'Missing Authorization header' } },
+        { status: 401 }
+      );
+    }
+
+    const verified = await verifyToken(token);
+    if (!verified) {
+      return NextResponse.json(
+        { error: { code: -32600, message: 'Invalid or expired token' } },
+        { status: 401 }
+      );
+    }
+    // --- 🔒 SECURITY CHECK END ---
+
   let body: JsonRpcRequest | undefined;
   let logCtx: { agentId: string; traceId: string; inputSummary: string; requestIp: string | null } | undefined;
 
