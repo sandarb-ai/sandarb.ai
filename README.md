@@ -7,6 +7,19 @@
 
 It serves as the regulatory and compliance backbone for your internal agent ecosystem. While your tech teams focus on building Agents, Sandarb runs alongside them to provide approval workflows, validated context, audit logging, and pending-review visibility.
 
+### Quick Start (local development)
+
+```bash
+git clone https://github.com/openint-ai/sandarb.ai.git && cd sandarb.ai
+npm install
+docker compose up -d postgres
+./scripts/start-sandarb.sh
+```
+
+**UI:** http://localhost:4000 · **API:** http://localhost:4001  
+
+Full steps (env, troubleshooting): **[docs/QUICKSTART.md](docs/QUICKSTART.md)**
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![GCP Native](https://img.shields.io/badge/Deploy-Google%20Cloud-4285F4?logo=google-cloud&logoColor=white)](https://cloud.google.com/)
 
@@ -61,12 +74,6 @@ Sandarb fits into your architecture however you need it to.
 * **A2A Protocol:** Sandarb is an AI Agent for AI Governance. Other agents call `POST /api/a2a` with skills like `get_context`, `validate_context`, and `get_lineage`.
 * **API:** Standard HTTP endpoints (`GET /api/contexts`, `GET /api/agents`) for traditional integration.
 * **Git-like Flow:** Propose edits with commit messages. Contexts and prompts get versioned history. Sandarb tracks approvals and revisions like a lightweight Pull Request flow.
-
----
-
-## 🦙 Local development (Ollama + Qwen 2.5)
-
-To run the **Apsara agent team** with a local LLM and no API keys, use **Ollama** with **Qwen 2.5**. Run `./scripts/setup-ollama.sh` to pull the model and generate OpenClaw config; then start the team with `./scripts/start-apsara-team.sh`. See [Developer guide – Local development with Ollama](docs/developer-guide.md#local-development-with-ollama--qwen-25) for details.
 
 ---
 

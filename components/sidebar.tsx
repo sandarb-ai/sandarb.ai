@@ -16,7 +16,6 @@ import {
   FolderOpen,
   Activity,
   MessageSquareText,
-  MessageCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -31,7 +30,6 @@ import { SignedInStrip } from '@/components/signed-in-strip';
 const workspaceNav = [
   { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { title: 'Agent Pulse', href: '/agent-pulse', icon: Activity },
-  { title: 'Team Chat', href: '/apsara-chat', icon: MessageCircle },
   { title: 'Organizations', href: '/organizations', icon: Building2 },
   { title: 'Agents', href: '/agents', icon: Bot },
 ];
@@ -125,17 +123,6 @@ export function Sidebar() {
       >
         {/* Nav only — branding is in the top header bar */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-2">
-          <Section label="Workspace" icon={FolderOpen}>
-            {workspaceNav.map((item) => (
-              <NavItem
-                key={item.href}
-                href={item.href}
-                icon={item.icon}
-                title={item.title}
-              />
-            ))}
-          </Section>
-
           <Section
             label="AI Governance"
             icon={Shield}
@@ -155,6 +142,17 @@ export function Sidebar() {
             }
           >
             {contentNav.map((item) => (
+              <NavItem
+                key={item.href}
+                href={item.href}
+                icon={item.icon}
+                title={item.title}
+              />
+            ))}
+          </Section>
+
+          <Section label="Workspace" icon={FolderOpen}>
+            {workspaceNav.map((item) => (
               <NavItem
                 key={item.href}
                 href={item.href}

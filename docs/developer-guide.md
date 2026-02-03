@@ -80,21 +80,6 @@ export DATABASE_URL=postgresql://postgres:sandarb@localhost:5432/sandarb-dev  # 
 
 Open the UI at http://localhost:4000. Sign in to see the dashboard. Demo data is seeded on start when `DATABASE_URL` is set.
 
-## Local development with Ollama + Qwen 2.5
-
-To run the **Apsara team** (OpenClaw agents) with a local LLM and no API keys:
-
-1. **Install and run Ollama** (https://ollama.com).
-2. **Run the setup script:**  
-   `./scripts/setup-ollama.sh`  
-   This pulls the default model `qwen2.5:7b` and writes a sample OpenClaw config to `~/.openclaw/openclaw.json.ollama-sample`.
-3. **Configure OpenClaw** to use Ollama: copy or merge the sample into `~/.openclaw/openclaw.json`, then run `openclaw gateway restart`.
-4. **Start the Apsara team:**  
-   `./scripts/start-apsara-team.sh`  
-   (Optional: `./scripts/start-apsara-team.sh --dry-run` for a single-agent test.)
-
-Using Qwen 2.5 locally avoids cloud API credits and rate limits and is the recommended setup for Sandarb.ai agent development.
-
 ## API (core)
 
 | Method | Endpoint | Description |

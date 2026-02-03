@@ -15,7 +15,7 @@ import { getAllContexts, getContextByName } from './contexts';
 import { formatContent } from './utils';
 import { getAgentById, getAllAgents, registerByManifest } from './agents';
 import { getProposedRevisions, getAllProposedRevisions } from './revisions';
-import { logAuditEvent, logContextDelivery, getLineage } from './audit';
+import { logAuditEvent, logContextDelivery, logPromptUsage, getLineage } from './audit';
 import { pollAgentMcp, deriveMcpUrl } from './mcp-client';
 import type {
   AgentCard,
@@ -620,6 +620,17 @@ export const executeSkill = async (
       if (input.variables) {
         content = interpolatePrompt(content, input.variables as Record<string, unknown>);
       }
+
+      const agentId = (input.agentId as string) ?? 'anonymous';
+      const traceId = (input.traceId as string) ?? `a2a-${Date.now()}`;
+      await logPromptUsage({
+        agentId,
+        traceId,
+        promptId: prompt.id,
+        promptVersionId: version.id,
+        promptName: prompt.name,
+        intent: input.intent as string | undefined,
+      });
 
       return {
         name: prompt.name,

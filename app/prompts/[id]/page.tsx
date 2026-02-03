@@ -17,6 +17,8 @@ import {
   Shield,
   Clock,
   Hash,
+  Copy,
+  ExternalLink,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,6 +27,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { TextDiffView } from '@/components/text-diff-view';
 import type { Prompt, PromptVersion, PromptVersionStatus } from '@/types';
 import { formatDate } from '@/lib/utils';
 
@@ -44,6 +53,48 @@ const STATUS_LABELS: Record<PromptVersionStatus, string> = {
   archived: 'Archived',
 };
 
+function PullApiBar({ promptName }: { promptName: string }) {
+  const [copied, setCopied] = useState(false);
+  const agentId = 'sandarb-prompt-preview';
+  const traceId = 'test-1';
+  const apiPath = `/api/prompts/pull?name=${encodeURIComponent(promptName)}&agentId=${encodeURIComponent(agentId)}&traceId=${encodeURIComponent(traceId)}`;
+  const fullUrl = typeof window !== 'undefined' ? `${window.location.origin}${apiPath}` : apiPath;
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(fullUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleTest = () => {
+    if (typeof window !== 'undefined') window.open(fullUrl, '_blank', 'noopener');
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border/80 bg-muted/30 px-4 py-2.5 mt-4">
+      <span className="inline-flex items-center gap-2 text-sm font-medium">
+        <span className="inline-flex items-center rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
+          Live
+        </span>
+        What your agent receives
+      </span>
+      <code className="flex-1 min-w-0 truncate rounded bg-muted/80 px-2 py-1 text-xs font-mono" title={fullUrl}>
+        GET {apiPath}
+      </code>
+      <div className="flex items-center gap-1.5">
+        <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={handleCopy}>
+          {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
+          {copied ? 'Copied' : 'Copy URL'}
+        </Button>
+        <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={handleTest}>
+          <ExternalLink className="h-3.5 w-3.5" />
+          Test API
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function PromptDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -61,6 +112,7 @@ export default function PromptDetailPage() {
   const [newModel, setNewModel] = useState('');
   const [autoApprove, setAutoApprove] = useState(true);
   const [activeTab, setActiveTab] = useState('content');
+  const [diffVersion, setDiffVersion] = useState<PromptVersion | null>(null);
 
   useEffect(() => {
     if (id) fetchPrompt();
@@ -171,6 +223,12 @@ export default function PromptDetailPage() {
 
   const proposed = versions.filter((v) => v.status === 'proposed');
   const history = versions.filter((v) => v.status === 'approved' || v.status === 'rejected' || v.status === 'archived');
+  const historyByVersion = [...history].sort((a, b) => b.version - a.version);
+
+  function getPreviousVersionInHistory(v: PromptVersion): PromptVersion | null {
+    const idx = historyByVersion.findIndex((x) => x.id === v.id);
+    return idx >= 0 && idx < historyByVersion.length - 1 ? historyByVersion[idx + 1]! : null;
+  }
 
   if (loading) {
     return (
@@ -349,6 +407,10 @@ export default function PromptDetailPage() {
                     </div>
                   </CardContent>
                 </Card>
+                {/* What your agent receives: pull API */}
+                {prompt?.name && (
+                  <PullApiBar promptName={prompt.name} />
+                )}
               </div>
             </div>
           </TabsContent>
@@ -361,7 +423,7 @@ export default function PromptDetailPage() {
                   Version History
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  All approved, rejected, and archived versions. The latest approved version is active.
+                  All approved, rejected, and archived versions. The latest approved version is active. Click &quot;View diff&quot; to compare with the previous version.
                 </p>
               </CardHeader>
               <CardContent className="p-0">
@@ -380,6 +442,7 @@ export default function PromptDetailPage() {
                           <th className="text-left py-3 px-4 font-medium text-muted-foreground">Approved By</th>
                           <th className="text-left py-3 px-4 font-medium text-muted-foreground">Commit Message</th>
                           <th className="text-left py-3 px-4 font-medium text-muted-foreground max-w-md">Content Preview</th>
+                          <th className="text-right py-3 px-4 font-medium text-muted-foreground">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -409,6 +472,15 @@ export default function PromptDetailPage() {
                                 {v.content.slice(0, 200)}{v.content.length > 200 ? '...' : ''}
                               </pre>
                             </td>
+                            <td className="py-3 px-4 text-right">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setDiffVersion(v)}
+                              >
+                                View diff
+                              </Button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -417,6 +489,24 @@ export default function PromptDetailPage() {
                 )}
               </CardContent>
             </Card>
+
+        {/* Version diff dialog: compare selected version with previous */}
+        <Dialog open={!!diffVersion} onOpenChange={(open) => !open && setDiffVersion(null)}>
+          <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
+            <DialogHeader>
+              <DialogTitle>Version diff</DialogTitle>
+            </DialogHeader>
+            {diffVersion && (
+              <TextDiffView
+                oldText={getPreviousVersionInHistory(diffVersion)?.content ?? ''}
+                newText={diffVersion.content}
+                oldLabel={getPreviousVersionInHistory(diffVersion) ? `v${getPreviousVersionInHistory(diffVersion)!.version}` : '(none)'}
+                newLabel={`v${diffVersion.version}`}
+                className="flex-1 min-h-0"
+              />
+            )}
+          </DialogContent>
+        </Dialog>
           </TabsContent>
 
           <TabsContent value="pending" className="mt-0">

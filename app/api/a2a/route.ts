@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
     }
 
     logCtx = buildA2ALogContext(body, request);
-    const response = await handleJsonRpc(body);
+    const response = await handleJsonRpc(body, logCtx);
     await logA2ACall({
       agentId: logCtx.agentId,
       traceId: logCtx.traceId,
@@ -158,7 +158,9 @@ interface JsonRpcRequest {
   params?: Record<string, unknown>;
 }
 
-async function handleJsonRpc(body: JsonRpcRequest) {
+type A2ALogContext = { agentId: string; traceId: string; inputSummary: string; requestIp: string | null };
+
+async function handleJsonRpc(body: JsonRpcRequest, logCtx?: A2ALogContext) {
   const { id, method, params } = body;
 
   try {
@@ -177,12 +179,13 @@ async function handleJsonRpc(body: JsonRpcRequest) {
         break;
       }
 
-      case 'skills/execute':
-        result = await executeSkill(
-          params?.skill as string,
-          (params?.input || {}) as Record<string, unknown>
-        );
+      case 'skills/execute': {
+        const input = (params?.input || {}) as Record<string, unknown>;
+        const inputWithAudit =
+          logCtx ? { ...input, agentId: input.agentId ?? logCtx.agentId, traceId: input.traceId ?? logCtx.traceId } : input;
+        result = await executeSkill(params?.skill as string, inputWithAudit);
         break;
+      }
 
       case 'tasks/create': {
         const task = createTask(
