@@ -42,6 +42,7 @@ const DROP_ORDER = [
   'prompts',
   'templates',
   'settings',
+  'service_accounts',
 ];
 
 async function main() {

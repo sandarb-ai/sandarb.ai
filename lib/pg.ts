@@ -240,6 +240,17 @@ CREATE TABLE IF NOT EXISTS templates (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Service accounts for A2A token auth (client_id + bcrypt-hashed secret)
+CREATE TABLE IF NOT EXISTS service_accounts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_id TEXT NOT NULL UNIQUE,
+  secret_hash TEXT NOT NULL,
+  agent_id TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_service_accounts_client_id ON service_accounts(client_id);
 `;
 
 const MIGRATIONS_SQL = [
@@ -255,6 +266,8 @@ const MIGRATIONS_SQL = [
   `DO $$ BEGIN ALTER TABLE context_versions ADD COLUMN submitted_by TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$`,
   `DO $$ BEGIN ALTER TABLE context_versions ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE; EXCEPTION WHEN duplicate_column THEN NULL; END $$`,
   `DO $$ BEGIN ALTER TABLE context_versions ADD COLUMN updated_by TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$`,
+  `CREATE TABLE IF NOT EXISTS service_accounts (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), client_id TEXT NOT NULL UNIQUE, secret_hash TEXT NOT NULL, agent_id TEXT NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(), updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW())`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_service_accounts_client_id ON service_accounts(client_id)`,
 ];
 
 async function runSchema(p: Pool): Promise<void> {

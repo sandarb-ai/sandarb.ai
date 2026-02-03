@@ -82,19 +82,18 @@ From the repo root:
 ./scripts/deploy-gcp.sh
 ```
 
-Defaults: **project** `sandarb-ai` (or `GCP_PROJECT_ID` or gcloud config), **region** `us-central1`, **build** with `--no-cache`. The script loads `DATABASE_URL` from `.env` in the repo root if present.
+Defaults: **project** `sandarb-ai` (or `GCP_PROJECT_ID` or gcloud config), **region** `us-central1`, **build** with Docker layer cache. The script loads `DATABASE_URL` from `.env` in the repo root if present.
 
-Override project/region or use Docker layer cache:
+Override project/region or disable cache:
 
 ```bash
 ./scripts/deploy-gcp.sh sandarb-ai us-central1
-./scripts/deploy-gcp.sh my-project us-east1 --cache
+./scripts/deploy-gcp.sh my-project us-east1 --no-cache
 ```
 
-The script enables APIs, creates an Artifact Registry repo if needed, builds the image with Cloud Build (unique tag per build, `--no-cache` by default), and deploys to Cloud Run. The service URL is printed at the end.
+The script enables APIs, creates an Artifact Registry repo if needed, builds the image with Cloud Build (unique tag per build), and deploys to Cloud Run. The service URL is printed at the end.
 
-**Deployment not showing latest code?** The script uses a unique image tag per build and `--no-cache` by default. If build fails with an error about `--no-cache` (e.g. Kaniko enabled), run with `--cache`:  
-`./scripts/deploy-gcp.sh [PROJECT_ID] [REGION] --cache`
+**Deployment not showing latest code?** The script uses a unique image tag per build. To disable Docker layer cache, run with `--no-cache` (may fail if Kaniko is disabled in the project).
 
 **GCP demo: use Postgres and drive all demo from the DB.**  
 Put `DATABASE_URL` in `.env` (or export it) so the script passes it to Cloud Run and reseeds after deploy. The script will:

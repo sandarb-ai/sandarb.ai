@@ -3,7 +3,7 @@
 # Usage: ./scripts/deploy-gcp.sh [PROJECT_ID] [REGION] [--cache]
 #   PROJECT_ID default: sandarb-ai (or GCP_PROJECT_ID or gcloud config)
 #   REGION default: us-central1
-#   Build uses --no-cache by default; pass --cache to use Docker layer cache.
+#   Build uses Docker layer cache by default; pass --no-cache to disable (may fail if Kaniko is off).
 # Prerequisites: gcloud installed, logged in (e.g. gcloud auth login with sudhir@openint.ai)
 
 set -e
@@ -53,23 +53,23 @@ fi
 # Parse args (only positional; ignore flags like --help/--cache for PROJECT_ID/REGION)
 PROJECT_ID=""
 REGION=""
-# Build with --no-cache by default so latest code is always used; pass --cache to use layer cache
-NO_CACHE="--no-cache"
+# Build with layer cache by default; pass --no-cache to disable (requires Kaniko in some projects)
+NO_CACHE=""
 for arg in "$@"; do
   if [[ "$arg" == "--help" || "$arg" == "-h" ]]; then
-    echo "Usage: $0 [PROJECT_ID] [REGION] [--cache]"
+    echo "Usage: $0 [PROJECT_ID] [REGION] [--no-cache]"
     echo "  PROJECT_ID default: sandarb-ai (or GCP_PROJECT_ID or gcloud config)"
     echo "  REGION default: us-central1"
-    echo "  Build uses --no-cache by default; pass --cache to use Docker layer cache."
+    echo "  Build uses Docker layer cache by default; pass --no-cache to disable (may fail if Kaniko is off)."
     echo "  DATABASE_URL is loaded from REPO_ROOT/.env if present."
     echo "Example: $0 sandarb-ai us-central1"
     exit 0
   fi
-  if [[ "$arg" == "--cache" ]]; then
-    NO_CACHE=""
+  if [[ "$arg" == "--no-cache" ]]; then
+    NO_CACHE="--no-cache"
     continue
   fi
-  # Only use non-flag args as PROJECT_ID / REGION (so --cache can appear anywhere)
+  # Only use non-flag args as PROJECT_ID / REGION (so --no-cache can appear anywhere)
   if [[ "$arg" != -* && -z "$PROJECT_ID" ]]; then
     PROJECT_ID="$arg"
   elif [[ "$arg" != -* && -n "$PROJECT_ID" && -z "$REGION" ]]; then
@@ -138,7 +138,7 @@ if ! "${BUILD_CMD[@]}" . ; then
   echo "  - 403 ...-compute@developer.gserviceaccount.com storage.objects.get: grant the default Compute SA access to the bucket:"
   echo "    PROJECT_NUMBER=\$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')"
   echo "    gcloud storage buckets add-iam-policy-binding gs://${PROJECT_ID}_cloudbuild --member=\"serviceAccount:\${PROJECT_NUMBER}-compute@developer.gserviceaccount.com\" --role=\"roles/storage.objectViewer\""
-  echo "  - If build fails with 'Invalid value for [no-cache]', run with --cache (Kaniko may be enabled)."
+  echo "  - If build fails with 'Invalid value for [no-cache]', omit --no-cache (Kaniko may be disabled)."
   exit 1
 fi
 

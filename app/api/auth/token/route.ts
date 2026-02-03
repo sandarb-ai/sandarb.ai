@@ -1,14 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { signToken } from '@/lib/auth/jwt';
+import { verifyServiceAccount } from '@/lib/service-accounts-pg';
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-
-  // TODO: Replace this with a real DB lookup of client_id/secret
-  if (body.clientId === 'admin' && body.clientSecret === 'change-me') {
-    const token = await signToken('admin-agent');
-    return NextResponse.json({ access_token: token, expires_in: 3600 });
+  let body: { clientId?: string; clientSecret?: string };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
   }
 
-  return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+  const clientId = body?.clientId ?? '';
+  const clientSecret = body?.clientSecret ?? '';
+  const agentId = await verifyServiceAccount(clientId, clientSecret);
+  if (!agentId) {
+    return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+  }
+
+  const token = await signToken(agentId);
+  return NextResponse.json({ access_token: token, expires_in: 3600 });
 }

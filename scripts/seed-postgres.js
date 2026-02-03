@@ -29,6 +29,7 @@ if (fs.existsSync(envPath)) {
 const { Client } = require('pg');
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
+const bcrypt = require('bcrypt');
 
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:sandarb@localhost:5432/sandarb-dev';
 
@@ -3082,6 +3083,40 @@ async function main() {
          ('https://internal-tools.sandarb-demo.com/chat', 'internal-chat-agent', '{"method":"discovery_scan","risk":"low","note":"Internal tool; low exposure"}'::jsonb),
          ('https://shadow-unregistered.example.com/assistant', NULL, '{"method":"discovery_scan","risk":"high","note":"Unregistered endpoint; no agent_id in registry"}'::jsonb)`
       );
+    }
+
+    // 13. Service accounts for UI, API, and A2A token auth (POST /api/auth/token)
+    const saCount = await client.query(
+      "SELECT COUNT(*)::int AS c FROM service_accounts WHERE client_id IN ('sandarb-ui', 'sandarb-api', 'sandarb-a2a')"
+    );
+    const haveServiceAccounts = saCount.rows[0] && parseInt(saCount.rows[0].c, 10) >= 3;
+    if (!haveServiceAccounts) {
+      const secrets = {
+        ui: process.env.SANDARB_UI_SECRET || crypto.randomBytes(24).toString('hex'),
+        api: process.env.SANDARB_API_SECRET || crypto.randomBytes(24).toString('hex'),
+        a2a: process.env.SANDARB_A2A_SECRET || crypto.randomBytes(24).toString('hex'),
+      };
+      if (!process.env.SANDARB_UI_SECRET || !process.env.SANDARB_API_SECRET || !process.env.SANDARB_A2A_SECRET) {
+        console.log('');
+        console.log('Service account secrets (add to .env for next runs):');
+        console.log('SANDARB_UI_SECRET=' + secrets.ui);
+        console.log('SANDARB_API_SECRET=' + secrets.api);
+        console.log('SANDARB_A2A_SECRET=' + secrets.a2a);
+        console.log('');
+      }
+      const accounts = [
+        { client_id: 'sandarb-ui', secret: secrets.ui, agent_id: 'sandarb-ui' },
+        { client_id: 'sandarb-api', secret: secrets.api, agent_id: 'sandarb-api' },
+        { client_id: 'sandarb-a2a', secret: secrets.a2a, agent_id: 'sandarb-a2a' },
+      ];
+      for (const a of accounts) {
+        const secretHash = await bcrypt.hash(a.secret, 10);
+        await client.query(
+          `INSERT INTO service_accounts (client_id, secret_hash, agent_id) VALUES ($1, $2, $3) ON CONFLICT (client_id) DO UPDATE SET secret_hash = EXCLUDED.secret_hash, agent_id = EXCLUDED.agent_id, updated_at = NOW()`,
+          [a.client_id, secretHash, a.agent_id]
+        );
+      }
+      console.log('Seeded service_accounts: sandarb-ui, sandarb-api, sandarb-a2a');
     }
   } catch (err) {
     process.exit(1);
