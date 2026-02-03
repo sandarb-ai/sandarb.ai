@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getA2ALog } from '@/lib/audit';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/agent-pulse/log
  * Unified A2A log: all agent ↔ Sandarb communication (INJECT_SUCCESS + INJECT_DENIED) for Slack-like chat.

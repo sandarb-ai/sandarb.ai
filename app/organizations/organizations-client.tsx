@@ -39,8 +39,9 @@ export function OrganizationsPageClient({ initialOrgs }: OrganizationsPageClient
 
   const filtered = orgs.filter(
     (o) =>
-      o.name.toLowerCase().includes(search.toLowerCase()) ||
-      o.slug.toLowerCase().includes(search.toLowerCase())
+      !o.isRoot &&
+      (o.name.toLowerCase().includes(search.toLowerCase()) ||
+        o.slug.toLowerCase().includes(search.toLowerCase()))
   );
 
   return (

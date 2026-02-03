@@ -65,13 +65,16 @@ export function AgentsPageClient({ initialAgents, initialOrgs }: AgentsPageClien
     }
   };
 
+  const nonRootOrgIds = new Set(initialOrgs.filter((o) => !o.isRoot).map((o) => o.id));
+  const agentsNotInRoot = agents.filter((a) => nonRootOrgIds.has(a.orgId));
+  const orgsForDropdown = initialOrgs.filter((o) => !o.isRoot);
   const byOrg = (a: RegisteredAgent) => !orgFilter || a.orgId === orgFilter;
   const bySearch = (a: RegisteredAgent) =>
     !search ||
     a.name.toLowerCase().includes(search.toLowerCase()) ||
     a.description?.toLowerCase().includes(search.toLowerCase()) ||
     a.a2aUrl.toLowerCase().includes(search.toLowerCase());
-  const filtered = agents.filter(byOrg).filter(bySearch);
+  const filtered = agentsNotInRoot.filter(byOrg).filter(bySearch);
 
   return (
     <div className="flex flex-col h-full">
@@ -79,7 +82,7 @@ export function AgentsPageClient({ initialAgents, initialOrgs }: AgentsPageClien
         <div className="flex flex-col gap-4">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-semibold tracking-tight">Agents</h1>
+              <h1 className="text-2xl font-semibold tracking-tight">Agent Registry</h1>
               <p className="text-sm text-muted-foreground">
                 A2A-compatible agents. Register by URL or add manually.
               </p>
@@ -107,7 +110,7 @@ export function AgentsPageClient({ initialAgents, initialOrgs }: AgentsPageClien
               onChange={(e) => setOrgFilter(e.target.value)}
             >
               <option value="">All orgs</option>
-              {initialOrgs.map((o) => (
+              {orgsForDropdown.map((o) => (
                 <option key={o.id} value={o.id}>{o.name}</option>
               ))}
             </select>

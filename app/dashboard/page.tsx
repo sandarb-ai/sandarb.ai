@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { getPromptStats, getRecentPrompts } from '@/lib/prompts';
 import { getContextCount } from '@/lib/contexts';
 import { getAgentCount, getRecentAgents } from '@/lib/agents';
+import { getRootOrganization, getAllOrganizations } from '@/lib/organizations';
 import { getRecentOrganizationsWithCounts } from '@/lib/dashboard';
 import { formatRelativeTime } from '@/lib/utils';
 import type { Prompt, RegisteredAgent } from '@/types';
@@ -19,16 +20,24 @@ export default async function DashboardPage() {
   let promptStats = { total: 0, active: 0 };
   let contextStats = { total: 0, active: 0 };
   let agentCount = 0;
+  let orgCount = 0;
   let recentOrgs: OrgWithCounts[] = [];
   let recentAgents: RegisteredAgent[] = [];
   let recentPrompts: Prompt[] = [];
 
   try {
+    const [root, totalAgents, allOrgs] = await Promise.all([
+      getRootOrganization(),
+      getAgentCount(),
+      getAllOrganizations(),
+    ]);
     promptStats = await getPromptStats();
     contextStats = await getContextCount();
-    agentCount = await getAgentCount();
+    agentCount = root ? totalAgents - (await getAgentCount(root.id)) : totalAgents;
+    orgCount = allOrgs.filter((o) => !o.isRoot).length;
     recentOrgs = await getRecentOrganizationsWithCounts(6);
-    recentAgents = await getRecentAgents(6);
+    const rawRecentAgents = await getRecentAgents(6);
+    recentAgents = root ? rawRecentAgents.filter((a) => a.orgId !== root.id) : rawRecentAgents;
     recentPrompts = await getRecentPrompts(6);
   } catch {
     // Fallback: show zeros and empty lists if DB not ready
@@ -42,20 +51,20 @@ export default async function DashboardPage() {
       />
 
       <div className="flex-1 p-6 space-y-6">
-        {promptStats.total === 0 && recentOrgs.length === 0 && (
+        {promptStats.total === 0 && orgCount === 0 && (
           <LoadSampleDataCard />
         )}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <StatsCard
             title="Organizations"
-            value={recentOrgs.length}
+            value={orgCount}
             description="Teams and divisions"
             icon={Building2}
             href="/organizations"
             variant="indigo"
           />
           <StatsCard
-            title="Agents"
+            title="Agent Registry"
             value={agentCount}
             description="Registered A2A agents"
             icon={Bot}
@@ -130,7 +139,7 @@ export default async function DashboardPage() {
         {recentAgents.length > 0 && (
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-violet-600 dark:text-violet-400">Agents</h2>
+              <h2 className="text-lg font-semibold text-violet-600 dark:text-violet-400">Agent Registry</h2>
               <Link href="/agents" className="text-sm text-muted-foreground hover:text-foreground">
                 View all
               </Link>
@@ -249,7 +258,7 @@ export default async function DashboardPage() {
                     3
                   </div>
                   <div>
-                    <p className="font-medium">Register Agents</p>
+                    <p className="font-medium">Register agent</p>
                     <p className="text-sm text-muted-foreground">
                       Connect your A2A agents to the governance platform.
                     </p>

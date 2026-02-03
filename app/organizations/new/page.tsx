@@ -121,7 +121,7 @@ export default function NewOrganizationPage() {
                     value={parentId ?? ''}
                     onChange={(e) => setParentId(e.target.value || null)}
                   >
-                    <option value="">Root (top-level)</option>
+                    <option value="">Top-level</option>
                     {parents.filter((o) => !o.isRoot).map((o) => (
                       <option key={o.id} value={o.id}>{o.name}</option>
                     ))}

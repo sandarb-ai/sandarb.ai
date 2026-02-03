@@ -40,9 +40,11 @@ function RegisterAgentForm() {
       .then((r) => r.json())
       .then((d) => {
         if (d.success) {
-          setOrgs(d.data);
-          if (!orgIdUrl && d.data.length) setOrgIdUrl(d.data[0].id);
-          if (!orgIdManual && d.data.length) setOrgIdManual(d.data[0].id);
+          const nonRoot = (d.data as Organization[]).filter((o) => !o.isRoot);
+          setOrgs(nonRoot);
+          const firstId = nonRoot[0]?.id;
+          if (!orgIdUrl && firstId) setOrgIdUrl(firstId);
+          if (!orgIdManual && firstId) setOrgIdManual(firstId);
         }
       });
   }, [preselectedOrgId]);

@@ -48,6 +48,11 @@ npm install
 npm run dev
 ```
 
+### Seed data (Postgres)
+
+- Run `npm run db:full-reset-pg` to reset and seed sample data.
+- **Agent names must differ per org.** In `scripts/seed-postgres.js`, each organization gets its own set of agent names (e.g. org name + role); never reuse the same agent name list across orgs.
+
 ### Optional: GCP deploy (gcloud CLI)
 
 To deploy to GCP (e.g. `./scripts/deploy-gcp.sh 191433138534`), install the Google Cloud SDK:

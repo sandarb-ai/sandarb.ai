@@ -113,7 +113,7 @@ export default function AboutPage() {
               <Button variant="outline">Contexts</Button>
             </Link>
             <Link href="/agents">
-              <Button variant="outline">Agents</Button>
+              <Button variant="outline">Agent Registry</Button>
             </Link>
           </section>
         </article>

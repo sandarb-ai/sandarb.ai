@@ -280,9 +280,9 @@ export DATABASE_URL=postgresql://postgres:sandarb@localhost:5432/sandarb-dev
 
           <H3>Manifest schema</H3>
           <CodeBlock label="sandarb.json">{`{
-  "agent_id": "kyc-verification-bot",
-  "name": "KYC Verification Bot",
-  "description": "Document verification and identity checking",
+  "agent_id": "kyc-verification-agent",
+  "name": "KYC Verification Agent",
+  "description": "Performs know-your-customer verification and document checks for onboarding and compliance.",
   "version": "1.2.0",
   "url": "https://agents.example.com/kyc-bot",
   "owner_team": "compliance",

@@ -1,13 +1,31 @@
 #!/usr/bin/env node
 /**
  * Initialize Postgres for Sandarb: create sandarb-dev DB if missing, then create all tables.
- * Run when DATABASE_URL is set (e.g. postgresql://user:pass@localhost:5432/sandarb-dev).
+ * Loads .env from project root; defaults DATABASE_URL to local docker-compose URL.
  * If the DB doesn't exist, connects to default "postgres" DB first to create sandarb-dev.
  */
 
+const path = require('path');
+const fs = require('fs');
+
+const root = path.resolve(__dirname, '..');
+const envPath = path.join(root, '.env');
+if (fs.existsSync(envPath)) {
+  const content = fs.readFileSync(envPath, 'utf8');
+  for (const line of content.split('\n')) {
+    const trimmed = line.replace(/^#.*/, '').trim();
+    const m = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
+    if (m) {
+      const key = m[1];
+      let val = m[2].replace(/^["']|["']$/g, '').trim();
+      if (!process.env[key]) process.env[key] = val;
+    }
+  }
+}
+
 const { Client } = require('pg');
 
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://localhost:5432/sandarb-dev';
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:sandarb@localhost:5432/sandarb-dev';
 
 function getCreateDbUrl(url) {
   try {

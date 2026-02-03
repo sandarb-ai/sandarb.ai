@@ -27,17 +27,17 @@ import {
 } from '@/components/ui/tooltip';
 import { SignedInStrip } from '@/components/signed-in-strip';
 
+const contentNav = [
+  { title: 'Agent Registry', href: '/agents', icon: Bot },
+  { title: 'Agent Prompt', href: '/prompts', icon: MessageSquareText },
+  { title: 'Agent Context', href: '/contexts', icon: FileJson },
+  { title: 'Templates', href: '/templates', icon: FileText },
+];
+
 const workspaceNav = [
   { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { title: 'Agent Pulse', href: '/agent-pulse', icon: Activity },
   { title: 'Organizations', href: '/organizations', icon: Building2 },
-  { title: 'Agents', href: '/agents', icon: Bot },
-];
-
-const contentNav = [
-  { title: 'Agent Prompt', href: '/prompts', icon: MessageSquareText },
-  { title: 'Agent Context', href: '/contexts', icon: FileJson },
-  { title: 'Templates', href: '/templates', icon: FileText },
 ];
 
 export function Sidebar() {

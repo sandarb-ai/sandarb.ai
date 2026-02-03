@@ -1,22 +1,36 @@
 #!/usr/bin/env node
 /**
  * Seed Postgres with sample data for Sandarb (financial services target).
- * Run after init-postgres: npm run db:init-pg && DATABASE_URL=... node scripts/seed-postgres.js
- * Or: export DATABASE_URL=postgresql://user:pass@host:5432/sandarb-dev && node scripts/seed-postgres.js
+ * Run after init-postgres: npm run db:init-pg && node scripts/seed-postgres.js
+ * Loads .env from project root; defaults DATABASE_URL to local docker-compose URL.
  *
  * Inserts: root org, Retail/IB/Wealth orgs, agents, contexts with version history,
  * templates, settings, scan_targets, audit log, unauthenticated_detections, activity_log.
  */
 
+const path = require('path');
+const fs = require('fs');
+
+const root = path.resolve(__dirname, '..');
+const envPath = path.join(root, '.env');
+if (fs.existsSync(envPath)) {
+  const content = fs.readFileSync(envPath, 'utf8');
+  for (const line of content.split('\n')) {
+    const trimmed = line.replace(/^#.*/, '').trim();
+    const m = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
+    if (m) {
+      const key = m[1];
+      let val = m[2].replace(/^["']|["']$/g, '').trim();
+      if (!process.env[key]) process.env[key] = val;
+    }
+  }
+}
+
 const { Client } = require('pg');
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 
-const DATABASE_URL = process.env.DATABASE_URL;
-if (!DATABASE_URL) {
-  console.error('Set DATABASE_URL (e.g. postgresql://user:pass@localhost:5432/sandarb-dev)');
-  process.exit(1);
-}
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:sandarb@localhost:5432/sandarb-dev';
 
 function sha256Hash(content) {
   return crypto.createHash('sha256').update(JSON.stringify(content)).digest('hex');
@@ -64,43 +78,56 @@ const ORGS = [
   { name: 'Strategy', slug: 'strategy', description: 'Corporate strategy and planning' },
 ];
 
-// Real-world agent / role names (AI-curated). Same as app/api/seed/route.ts for consistency.
-const AGENT_NAMES = [
-  { name: 'Portfolio Analyst', description: 'Portfolio analysis and performance attribution' },
-  { name: 'KYC Verification Bot', description: 'Know-your-customer verification and document checks' },
-  { name: 'Loan Origination Assistant', description: 'Loan application intake and initial underwriting support' },
-  { name: 'Trade Surveillance Agent', description: 'Real-time trade surveillance and exception flagging' },
-  { name: 'Customer Onboarding Bot', description: 'Digital onboarding and identity verification' },
-  { name: 'Compliance Checker', description: 'Policy and regulatory compliance checks' },
-  { name: 'Fraud Detection Agent', description: 'Transaction monitoring and fraud pattern detection' },
-  { name: 'Document Extraction Bot', description: 'Extract and classify data from documents' },
-  { name: 'Credit Scoring Assistant', description: 'Credit risk scoring and decision support' },
-  { name: 'AML Alert Triage', description: 'Anti-money laundering alert triage and escalation' },
-  { name: 'Client Reporting Bot', description: 'Automated client reports and dashboards' },
-  { name: 'Research Summarizer', description: 'Summarize research and market commentary' },
-  { name: 'Suitability Advisor', description: 'Product suitability and risk appetite assessment' },
-  { name: 'Settlement Recon Agent', description: 'Settlement and reconciliation automation' },
-  { name: 'Margin Calculator', description: 'Margin and collateral calculations' },
-  { name: 'Limit Monitor', description: 'Position and limit monitoring' },
-  { name: 'Disclosure Generator', description: 'Regulatory and product disclosure generation' },
-  { name: 'Contract Analyzer', description: 'Contract extraction and clause analysis' },
-  { name: 'Incident Triage Bot', description: 'Security and ops incident triage' },
-  { name: 'Audit Sampler', description: 'Sample selection and audit support' },
-  { name: 'Tax Classifier', description: 'Tax classification and reporting support' },
-  { name: 'Order Router', description: 'Smart order routing and execution support' },
-  { name: 'Client Outreach Bot', description: 'Scheduled client outreach and follow-up' },
-  { name: 'NLP Document Reviewer', description: 'Natural language document review' },
-  { name: 'Model Risk Validator', description: 'Model validation and back-testing support' },
-  { name: 'Regulatory Reporter', description: 'Regulatory filing and reporting support' },
-  { name: 'Chatbot for Support', description: 'Customer and internal support chatbot' },
-  { name: 'Data Quality Monitor', description: 'Data quality checks and anomaly detection' },
-  { name: 'Vendor Risk Scorer', description: 'Vendor risk assessment and monitoring' },
-  { name: 'ESG Data Aggregator', description: 'ESG data collection and reporting' },
-  { name: 'Strategy Research Agent', description: 'Strategy and market research support' },
+// A2A Agent Card: name + description per https://google.github.io/A2A/specification/ §5.5 AgentCard.
+// IMPORTANT: Every agent name must be globally unique — no repetition across or within orgs.
+// We build 420 unique role suffixes (14 base roles × 30 variants), then assign one per (org, slot).
+const AGENTS_PER_ORG = 14;
+const TOTAL_AGENTS = ORGS.length * AGENTS_PER_ORG; // 30 * 14 = 420
+
+const ROLE_NAMES = [
+  'Portfolio Analyst', 'KYC Verification', 'Loan Origination', 'Trade Surveillance',
+  'Customer Onboarding', 'Compliance Check', 'Fraud Detection', 'Document Extraction',
+  'Credit Scoring', 'AML Alert Triage', 'Client Reporting', 'Research Summarizer',
+  'Suitability Advisor', 'Settlement Reconciliation',
+];
+const ROLE_DESCRIPTIONS = [
+  'Provides portfolio analysis and performance attribution for this line of business.',
+  'Performs know-your-customer verification and document checks for onboarding and compliance.',
+  'Handles application intake and initial underwriting support for lending workflows.',
+  'Monitors activity in real time and flags exceptions for compliance and risk.',
+  'Supports digital onboarding and identity verification for new customers.',
+  'Runs policy and regulatory compliance checks across processes and content.',
+  'Monitors transactions and detects fraud patterns for risk and security teams.',
+  'Extracts and classifies data from documents for downstream systems and workflows.',
+  'Provides credit risk scoring and decision support for underwriting and approvals.',
+  'Triages and escalates anti-money laundering alerts for compliance review.',
+  'Generates automated client reports and dashboards for advisory and operations.',
+  'Summarizes research and market commentary for analysts and decision makers.',
+  'Assesses product suitability and risk appetite for advisory and distribution.',
+  'Automates settlement and reconciliation for trades and positions.',
 ];
 
-// 14 agents per org × 30 orgs = 420 agents
-const AGENTS_PER_ORG = 14;
+// 30 variants so 14 * 30 = 420 unique role suffixes (no repeated role text across agents).
+const ROLE_VARIANTS = [
+  '', ' (Lead)', ' (Support)', ' (Primary)', ' (Analytics)', ' (Operations)', ' (Compliance)',
+  ' (Risk)', ' (Client-Facing)', ' (Back-Office)', ' (Advisory)', ' (Execution)', ' (Review)',
+  ' (Monitoring)', ' (Reporting)', ' (Triage)', ' (Onboarding)', ' (Wealth)', ' (Retail)',
+  ' (IB)', ' (Legal)', ' (Treasury)', ' (Tech)', ' (Data)', ' (Regional)', ' (Global)',
+  ' (Tier 1)', ' (Tier 2)', ' (Escalation)', ' (Resolution)',
+];
+
+function buildUniqueRoleSuffixes() {
+  const out = [];
+  for (let k = 0; k < TOTAL_AGENTS; k++) {
+    const base = ROLE_NAMES[k % ROLE_NAMES.length];
+    const variant = ROLE_VARIANTS[Math.floor(k / ROLE_NAMES.length) % ROLE_VARIANTS.length];
+    out.push(base + variant);
+  }
+  return out;
+}
+
+const UNIQUE_ROLE_SUFFIXES = buildUniqueRoleSuffixes();
+
 function buildAgentsBySlug() {
   const out = {};
   let globalIndex = 0;
@@ -108,12 +135,13 @@ function buildAgentsBySlug() {
     out[o.slug] = [];
     for (let i = 1; i <= AGENTS_PER_ORG; i++) {
       const num = String(i).padStart(2, '0');
-      const agentEntry = AGENT_NAMES[globalIndex % AGENT_NAMES.length];
+      const roleSuffix = UNIQUE_ROLE_SUFFIXES[globalIndex];
+      const description = ROLE_DESCRIPTIONS[(globalIndex % ROLE_NAMES.length)];
       globalIndex += 1;
       out[o.slug].push({
         agentId: `${o.slug}-agent-${num}`,
-        name: agentEntry.name,
-        description: agentEntry.description,
+        name: `${o.name} ${roleSuffix} Agent`,
+        description: description,
         url: `https://agents.example.com/${o.slug.replace(/-/g, '/')}/agent-${num}`,
       });
     }
@@ -121,6 +149,18 @@ function buildAgentsBySlug() {
   return out;
 }
 const AGENTS_BY_SLUG = buildAgentsBySlug();
+
+// Assert: every agent name is globally unique (no repetition).
+(function assertUniqueAgentNames() {
+  const allNames = [];
+  for (const agents of Object.values(AGENTS_BY_SLUG)) {
+    for (const a of agents) allNames.push(a.name);
+  }
+  const unique = new Set(allNames);
+  if (unique.size !== allNames.length) {
+    throw new Error(`Seed invariant: expected ${allNames.length} unique agent names, got ${unique.size}`);
+  }
+})();
 
 // Real-world AI Agent Prompts — the "Employee Handbook" for AI agents
 const PROMPTS_WITH_VERSIONS = {
@@ -2611,7 +2651,7 @@ async function main() {
     }
     console.log('Created orgs:', Object.keys(orgIds).length, '(30 child orgs + root)');
 
-    // 3. Agents: 14 per org × 30 orgs = 420 (idempotent via ON CONFLICT)
+    // 3. Agents: 14 per org × 30 orgs = 420. Every agent name is globally unique (A2A; no repetition).
     let agentsCreated = 0;
     for (const [slug, agents] of Object.entries(AGENTS_BY_SLUG)) {
       const orgId = orgIds[slug];
