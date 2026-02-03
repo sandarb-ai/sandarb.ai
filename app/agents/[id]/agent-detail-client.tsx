@@ -100,23 +100,24 @@ export function AgentDetailClient({ initialAgent }: AgentDetailClientProps) {
         <div className="flex items-center gap-2 flex-1">
           <Bot className="h-6 w-6 text-muted-foreground" />
           <h1 className="text-2xl font-semibold tracking-tight">{agent.name}</h1>
-          <Badge variant={agent.status === 'active' ? 'success' : 'secondary'}>{agent.status}</Badge>
           <Badge
             variant={
               (agent.approvalStatus ?? 'draft') === 'approved'
-                ? 'approved'
+                ? 'success'
                 : (agent.approvalStatus ?? 'draft') === 'pending_approval'
                   ? 'pending_review'
                   : (agent.approvalStatus ?? 'draft') === 'rejected'
                     ? 'rejected'
-                    : 'draft'
+                    : 'secondary'
             }
             className="capitalize"
           >
             {(agent.approvalStatus ?? 'draft') === 'pending_approval' ? (
-              <><GitPullRequest className="h-3 w-3 mr-1 inline" /> Pending review</>
+              <><GitPullRequest className="h-3 w-3 mr-1 inline" /> Pending</>
+            ) : (agent.approvalStatus ?? 'draft') === 'approved' ? (
+              'Active'
             ) : (
-              agent.approvalStatus ?? 'draft'
+              (agent.approvalStatus ?? 'draft') === 'rejected' ? 'Rejected' : 'Draft'
             )}
           </Badge>
         </div>
@@ -184,8 +185,18 @@ export function AgentDetailClient({ initialAgent }: AgentDetailClientProps) {
                   <Calendar className="h-3 w-3" /> Governance
                 </h4>
                 <div className="rounded-md border border-border/50 bg-muted/30 p-3">
-                  <FieldRow label="Status" value={agent.status} />
-                  <FieldRow label="Approval" value={agent.approvalStatus ?? 'draft'} />
+                  <FieldRow
+                    label="Status"
+                    value={
+                      (agent.approvalStatus ?? 'draft') === 'approved'
+                        ? 'Active'
+                        : (agent.approvalStatus ?? 'draft') === 'pending_approval'
+                          ? 'Pending'
+                          : (agent.approvalStatus ?? 'draft') === 'rejected'
+                            ? 'Rejected'
+                            : 'Draft'
+                    }
+                  />
                   <FieldRow label="Owner team" value={agent.ownerTeam ?? '—'} />
                   <FieldRow label="Created" value={formatDate(agent.createdAt)} />
                   <FieldRow label="Created by" value={formatApprovedBy(agent.createdBy)} />

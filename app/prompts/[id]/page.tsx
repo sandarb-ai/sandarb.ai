@@ -37,9 +37,9 @@ import { TextDiffView } from '@/components/text-diff-view';
 import type { Prompt, PromptVersion, PromptVersionStatus } from '@/types';
 import { formatDate, formatApprovedBy } from '@/lib/utils';
 
-const STATUS_COLORS: Record<PromptVersionStatus, 'default' | 'success' | 'destructive' | 'secondary' | 'outline'> = {
+const STATUS_COLORS: Record<PromptVersionStatus, 'default' | 'success' | 'destructive' | 'secondary' | 'outline' | 'pending_review'> = {
   draft: 'secondary',
-  proposed: 'default',
+  proposed: 'pending_review',
   approved: 'success',
   rejected: 'destructive',
   archived: 'outline',

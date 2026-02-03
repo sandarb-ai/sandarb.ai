@@ -132,7 +132,7 @@ export default async function AgentPulsePage() {
                             Agent ID: {d.detectedAgentId}
                           </span>
                         )}
-                        <Badge variant="outline" className="w-fit text-xs border-amber-500/50">
+                        <Badge variant="warning" className="w-fit text-xs">
                           Unauthenticated agent detected
                         </Badge>
                       </div>

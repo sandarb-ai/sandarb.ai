@@ -12,14 +12,15 @@ const badgeVariants = cva(
         secondary:
           'border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80',
         destructive:
-          'border-transparent bg-destructive text-destructive-foreground shadow hover:bg-destructive/80',
+          'border-transparent bg-rose-500 text-white shadow hover:bg-rose-600 dark:bg-rose-600 dark:hover:bg-rose-700',
         outline: 'text-foreground',
         success:
-          'border-transparent bg-emerald-500 text-white shadow hover:bg-emerald-600',
+          'border-transparent bg-emerald-500 text-white shadow hover:bg-emerald-600 dark:bg-emerald-600 dark:hover:bg-emerald-700',
         draft: 'border-transparent bg-gray-600 text-gray-100 shadow hover:bg-gray-700',
-        pending_review: 'border-transparent bg-amber-400 text-amber-950 shadow hover:bg-amber-500',
-        approved: 'border-transparent bg-emerald-500 text-white shadow hover:bg-emerald-600',
-        rejected: 'border-transparent bg-red-500 text-white shadow hover:bg-red-600',
+        pending_review: 'border-transparent bg-amber-400 text-amber-950 shadow hover:bg-amber-500 dark:bg-amber-500 dark:text-amber-950 dark:hover:bg-amber-600',
+        warning: 'border-transparent bg-amber-400 text-amber-950 shadow hover:bg-amber-500 dark:bg-amber-500 dark:text-amber-950 dark:hover:bg-amber-600',
+        approved: 'border-transparent bg-emerald-500 text-white shadow hover:bg-emerald-600 dark:bg-emerald-600 dark:hover:bg-emerald-700',
+        rejected: 'border-transparent bg-rose-500 text-white shadow hover:bg-rose-600 dark:bg-rose-600 dark:hover:bg-rose-700',
       },
     },
     defaultVariants: {

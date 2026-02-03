@@ -23,6 +23,7 @@ if [[ -f "$REPO_ROOT/.env" ]]; then
     fi
   done < "$REPO_ROOT/.env"
 fi
+# Optional: SANDARB_UI_SECRET, SANDARB_API_SECRET, SANDARB_A2A_SECRET in .env so post-deploy seed uses them for service_accounts
 
 # Find gcloud (PATH or common install locations)
 find_gcloud() {
@@ -101,6 +102,11 @@ echo "Deploying Sandarb to GCP"
 echo "  Project: $PROJECT_ID"
 echo "  Region:  $REGION"
 echo "  Account: $ACTIVE_ACCOUNT"
+if [ -n "$DATABASE_URL" ]; then
+  echo "  DATABASE_URL: set (Cloud Run + post-deploy reseed will use it; service_accounts sandarb-ui/api/a2a will be seeded)."
+else
+  echo "  DATABASE_URL: not set (add to .env for Postgres + post-deploy reseed + service account seeding)."
+fi
 echo ""
 
 # Enable APIs

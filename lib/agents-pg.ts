@@ -94,6 +94,47 @@ export async function getAgentCountPg(orgId?: string): Promise<number> {
   return parseInt(row?.count ?? '0', 10);
 }
 
+export interface AgentStats {
+  total: number;
+  active: number;
+  draft: number;
+  pending_approval: number;
+  approved: number;
+  rejected: number;
+}
+
+export async function getAgentStatsPg(excludeOrgId?: string): Promise<AgentStats> {
+  const where = excludeOrgId ? 'WHERE org_id != $1' : '';
+  const params = excludeOrgId ? [excludeOrgId] : [];
+  const totalRow = await queryOne<{ count: string }>(
+    `SELECT COUNT(*)::text AS count FROM agents ${where}`,
+    params.length ? params : undefined
+  );
+  const total = parseInt(totalRow?.count ?? '0', 10);
+  const countByApproval = await query<{ approval_status: string; count: string }>(
+    `SELECT COALESCE(approval_status, 'draft') AS approval_status, COUNT(*)::text AS count FROM agents ${where} GROUP BY approval_status`,
+    params.length ? params : undefined
+  );
+  const byApproval: Record<string, number> = { draft: 0, pending_approval: 0, approved: 0, rejected: 0 };
+  for (const r of countByApproval) {
+    const k = (r.approval_status || 'draft') as keyof typeof byApproval;
+    if (k in byApproval) byApproval[k] = parseInt(r.count, 10);
+  }
+  const activeWhere = excludeOrgId ? 'WHERE org_id != $1 AND status = \'active\'' : 'WHERE status = \'active\'';
+  const activeRow = await queryOne<{ count: string }>(
+    `SELECT COUNT(*)::text AS count FROM agents ${activeWhere}`,
+    params.length ? params : undefined
+  );
+  return {
+    total,
+    active: parseInt(activeRow?.count ?? '0', 10),
+    draft: byApproval.draft,
+    pending_approval: byApproval.pending_approval,
+    approved: byApproval.approved,
+    rejected: byApproval.rejected,
+  };
+}
+
 export async function getRecentAgentsPg(limit: number = 6): Promise<RegisteredAgent[]> {
   const rows = await query<Record<string, unknown>>(
     'SELECT * FROM agents ORDER BY created_at DESC LIMIT $1',

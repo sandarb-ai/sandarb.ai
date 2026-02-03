@@ -8,6 +8,8 @@ import { logger } from './otel';
 const DATABASE_URL = process.env.DATABASE_URL;
 let pool: Pool | null = null;
 let schemaEnsured = false;
+/** Serialize ensureDb so concurrent getPool() calls don't run runSchema() twice (avoids duplicate index error). */
+let schemaPromise: Promise<void> | null = null;
 
 function getCreateDbUrl(url: string): string {
   try {
@@ -292,14 +294,19 @@ async function runSchema(p: Pool): Promise<void> {
 export async function ensureDb(): Promise<void> {
   if (!DATABASE_URL) throw new Error('DATABASE_URL is required');
   if (schemaEnsured) return;
-  await createDbIfNotExists();
-  const p = new Pool({ connectionString: DATABASE_URL });
-  try {
-    await runSchema(p);
-  } finally {
-    await p.end();
+  if (!schemaPromise) {
+    schemaPromise = (async () => {
+      await createDbIfNotExists();
+      const p = new Pool({ connectionString: DATABASE_URL });
+      try {
+        await runSchema(p);
+      } finally {
+        await p.end();
+      }
+      schemaEnsured = true;
+    })();
   }
-  schemaEnsured = true;
+  await schemaPromise;
 }
 
 export async function getPool(): Promise<Pool> {

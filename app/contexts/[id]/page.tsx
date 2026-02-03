@@ -420,7 +420,17 @@ export default function EditContextPage() {
                               )}
                             </td>
                             <td className="py-3 px-4 text-right whitespace-nowrap">
-                              <Badge variant={rev.status === 'approved' ? 'success' : 'secondary'}>
+                              <Badge
+                                variant={
+                                  rev.status === 'approved'
+                                    ? 'success'
+                                    : rev.status === 'proposed'
+                                      ? 'pending_review'
+                                      : rev.status === 'rejected'
+                                        ? 'destructive'
+                                        : 'secondary'
+                                }
+                              >
                                 {rev.status}
                               </Badge>
                             </td>

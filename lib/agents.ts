@@ -82,6 +82,12 @@ export async function getAgentCount(orgId?: string): Promise<number> {
   return agentsPg.getAgentCountPg(orgId);
 }
 
+export type AgentStats = agentsPg.AgentStats;
+
+export async function getAgentStats(excludeOrgId?: string): Promise<AgentStats> {
+  return agentsPg.getAgentStatsPg(excludeOrgId);
+}
+
 export async function getRecentAgents(limit: number = 6): Promise<RegisteredAgent[]> {
   return agentsPg.getRecentAgentsPg(limit);
 }

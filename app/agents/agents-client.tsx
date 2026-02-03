@@ -3,40 +3,85 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Plus, Search, Bot, ExternalLink, Trash2, Table2, LayoutGrid, RefreshCw } from 'lucide-react';
-import { formatDate, formatApprovedBy } from '@/lib/utils';
+import { Plus, Search, Bot, ExternalLink, Trash2, Table2, LayoutGrid, RefreshCw, CheckCircle2, Clock, FileEdit, XCircle } from 'lucide-react';
+import { formatApprovedBy, formatRelativeTime } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/empty-state';
 import { apiUrl } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import type { RegisteredAgent } from '@/types';
 import type { Organization } from '@/types';
+import type { AgentStats } from '@/lib/agents';
 
 type ViewMode = 'table' | 'card';
 
 interface AgentsPageClientProps {
   initialAgents: RegisteredAgent[];
   initialOrgs: Organization[];
+  initialStats: AgentStats;
 }
 
 function getOrgName(orgId: string, orgs: Organization[]): string {
   return orgs.find((o) => o.id === orgId)?.name ?? orgId;
 }
 
-function StatusBadge({ status }: { status: string }) {
+/** Single status badge: one value per agent (Draft, Pending, Active, Rejected). No "Approved" label. */
+function AgentStatusBadge({ approvalStatus }: { approvalStatus: string }) {
+  const map: Record<string, { label: string; variant: 'success' | 'secondary' | 'destructive' | 'outline' | 'pending_review' }> = {
+    draft: { label: 'Draft', variant: 'secondary' },
+    pending_approval: { label: 'Pending', variant: 'pending_review' },
+    approved: { label: 'Active', variant: 'success' },
+    rejected: { label: 'Rejected', variant: 'destructive' },
+  };
+  const { label, variant } = map[approvalStatus ?? 'draft'] ?? { label: approvalStatus ?? 'Draft', variant: 'secondary' as const };
+  return <Badge variant={variant} className="text-xs">{label}</Badge>;
+}
+
+function StatCard({
+  label,
+  value,
+  variant = 'sky',
+  icon: Icon,
+}: {
+  label: string;
+  value: number;
+  variant?: 'sky' | 'teal' | 'violet' | 'orange' | 'rose' | 'slate' | 'emerald' | 'amber' | 'red';
+  icon: React.ElementType;
+}) {
+  const styles: Record<string, string> = {
+    sky: 'text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/30',
+    teal: 'text-teal-600 dark:text-teal-400 bg-teal-100 dark:bg-teal-900/30',
+    emerald: 'text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30',
+    violet: 'text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-900/30',
+    amber: 'text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30',
+    orange: 'text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30',
+    rose: 'text-rose-600 dark:text-rose-400 bg-rose-100 dark:bg-rose-900/30',
+    red: 'text-rose-600 dark:text-rose-400 bg-rose-100 dark:bg-rose-900/30',
+    slate: 'text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/50',
+  };
+  const s = styles[variant] ?? styles.slate;
   return (
-    <Badge variant={status === 'active' ? 'success' : 'secondary'} className="text-xs capitalize">
-      {status}
-    </Badge>
+    <Card className="overflow-hidden">
+      <CardContent className="p-4 flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</p>
+          <p className="text-2xl font-bold mt-0.5">{value}</p>
+        </div>
+        <div className={cn('rounded-lg p-2', s)}>
+          <Icon className="h-5 w-5" />
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
-export function AgentsPageClient({ initialAgents, initialOrgs }: AgentsPageClientProps) {
+export function AgentsPageClient({ initialAgents, initialOrgs, initialStats }: AgentsPageClientProps) {
   const router = useRouter();
   const [agents, setAgents] = useState<RegisteredAgent[]>(initialAgents);
+  const stats = initialStats;
   const [search, setSearch] = useState('');
   const [orgFilter, setOrgFilter] = useState<string>('');
   const [viewMode, setViewMode] = useState<ViewMode>('table');
@@ -64,13 +109,13 @@ export function AgentsPageClient({ initialAgents, initialOrgs }: AgentsPageClien
 
   return (
     <div className="flex flex-col h-full">
-      <header className="border-b bg-background px-6 py-4">
-        <div className="flex flex-col gap-4">
+      <header className="border-b bg-background px-6 py-5">
+        <div className="flex flex-col gap-5">
           <div className="flex items-start justify-between gap-4">
             <div>
               <h1 className="text-2xl font-semibold tracking-tight">Agent Registry</h1>
-              <p className="text-sm text-muted-foreground">
-                A2A-compatible agents. Register by service URL or add manually. Sorted by last updated.
+              <p className="text-sm text-muted-foreground mt-1">
+                A2A-compatible agents. Register by service URL or add manually.
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -93,12 +138,8 @@ export function AgentsPageClient({ initialAgents, initialOrgs }: AgentsPageClien
                   }
                 }}
               >
-                {reseedLoading ? (
-                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                )}
-                Reseed Agent Registry
+                {reseedLoading ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                Reseed
               </Button>
               <Link href="/agents/new">
                 <Button>
@@ -108,6 +149,16 @@ export function AgentsPageClient({ initialAgents, initialOrgs }: AgentsPageClien
               </Link>
             </div>
           </div>
+
+          {/* Stats row - dashboard-style small cards (single status per agent: no Approved) */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            <StatCard label="Total agents" value={stats.total} variant="sky" icon={Bot} />
+            <StatCard label="Active" value={stats.approved} variant="emerald" icon={CheckCircle2} />
+            <StatCard label="Draft" value={stats.draft} variant="slate" icon={FileEdit} />
+            <StatCard label="Pending" value={stats.pending_approval} variant="amber" icon={Clock} />
+            <StatCard label="Rejected" value={stats.rejected} variant="red" icon={XCircle} />
+          </div>
+
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative shrink-0">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
@@ -134,9 +185,7 @@ export function AgentsPageClient({ initialAgents, initialOrgs }: AgentsPageClien
                 onClick={() => setViewMode('table')}
                 className={cn(
                   'flex items-center gap-1.5 rounded px-2.5 text-sm font-medium transition-colors',
-                  viewMode === 'table'
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                  viewMode === 'table' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
                 )}
                 aria-pressed={viewMode === 'table'}
               >
@@ -148,9 +197,7 @@ export function AgentsPageClient({ initialAgents, initialOrgs }: AgentsPageClien
                 onClick={() => setViewMode('card')}
                 className={cn(
                   'flex items-center gap-1.5 rounded px-2.5 text-sm font-medium transition-colors',
-                  viewMode === 'card'
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                  viewMode === 'card' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
                 )}
                 aria-pressed={viewMode === 'card'}
               >
@@ -165,89 +212,72 @@ export function AgentsPageClient({ initialAgents, initialOrgs }: AgentsPageClien
       <div className="flex-1 p-6 overflow-auto">
         {filtered.length === 0 ? (
           search || orgFilter ? (
-            <EmptyState
-              title="No agents found"
-              description="Try changing filters."
-            />
+            <EmptyState title="No agents found" description="Try changing filters." />
           ) : (
             <EmptyState
               icon={Bot}
               title="No agents registered"
-              description="Register an A2A agent by URL or add one manually. Use this registry to choose which agents are available to your team."
+              description="Register an A2A agent by URL or add one manually."
               actionLabel="Register agent"
               actionHref="/agents/new"
             />
           )
         ) : viewMode === 'table' ? (
-          <div className="rounded-lg border border-border bg-background overflow-hidden">
-            <div className="overflow-x-auto overflow-y-visible">
-              <table className="w-full text-sm min-w-[900px]" style={{ tableLayout: 'auto' }}>
+          <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm" style={{ tableLayout: 'fixed', minWidth: 800 }}>
                 <thead>
-                  <tr className="border-b border-border bg-muted/50">
-                    <th className="text-left py-3 px-4 font-medium text-muted-foreground min-w-[200px]">Name</th>
-                    <th className="text-left py-3 px-4 font-medium text-muted-foreground">Organization</th>
-                    <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Status</th>
-                    <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Approval</th>
-                    <th className="text-left py-3 px-4 font-medium text-muted-foreground min-w-[180px]">Service URL</th>
-                    <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Created</th>
-                    <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Last updated</th>
-                    <th className="text-right py-3 px-4 font-medium text-muted-foreground w-24">Actions</th>
+                  <tr className="border-b border-border bg-muted/40">
+                    <th className="text-left py-3 px-4 font-medium text-muted-foreground w-[22%]">Agent</th>
+                    <th className="text-left py-3 px-4 font-medium text-muted-foreground w-[14%]">Organization</th>
+                    <th className="text-left py-3 px-4 font-medium text-muted-foreground w-[18%]">Status</th>
+                    <th className="text-left py-3 px-4 font-medium text-muted-foreground w-[24%]">Service URL</th>
+                    <th className="text-left py-3 px-4 font-medium text-muted-foreground w-[14%]">Updated</th>
+                    <th className="text-right py-3 px-4 font-medium text-muted-foreground w-[8%]">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((agent) => (
                     <tr
                       key={agent.id}
-                      className="border-b border-border/80 last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
+                      className="border-b border-border/60 last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
                       onClick={() => router.push(`/agents/${agent.id}`)}
                     >
                       <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
                           <Bot className="h-4 w-4 shrink-0 text-muted-foreground" />
-                          <span className="font-medium">{agent.name}</span>
+                          <span className="font-medium truncate">{agent.name}</span>
                         </div>
+                        {agent.description && (
+                          <p className="text-xs text-muted-foreground truncate mt-0.5 pl-6">{agent.description}</p>
+                        )}
                       </td>
-                      <td className="py-3 px-4 text-muted-foreground">
+                      <td className="py-3 px-4 text-muted-foreground truncate">
                         {getOrgName(agent.orgId, initialOrgs)}
                       </td>
                       <td className="py-3 px-4">
-                        <StatusBadge status={agent.status} />
+                        <AgentStatusBadge approvalStatus={agent.approvalStatus ?? 'draft'} />
                       </td>
-                      <td className="py-3 px-4 text-muted-foreground whitespace-nowrap">
-                        {agent.approvalStatus === 'approved' && agent.approvedBy
-                          ? `Approved by ${formatApprovedBy(agent.approvedBy)}`
-                          : agent.approvalStatus === 'pending_approval' && agent.submittedBy
-                            ? `Submitted by ${formatApprovedBy(agent.submittedBy)}`
-                            : '—'}
-                      </td>
-                      <td className="py-3 px-4 min-w-0 max-w-[220px]">
+                      <td className="py-3 px-4 min-w-0">
                         <a
                           href={agent.a2aUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-muted-foreground hover:text-foreground truncate block"
+                          className="text-muted-foreground hover:text-foreground truncate block text-xs"
                           title={agent.a2aUrl}
                           onClick={(e) => e.stopPropagation()}
                         >
-                          {agent.a2aUrl}
+                          {agent.a2aUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}
                         </a>
                       </td>
-                      <td className="py-3 px-4 text-muted-foreground whitespace-nowrap" title={agent.createdAt}>
-                        <span className="block">{formatDate(agent.createdAt)}</span>
-                        {agent.createdBy && (
-                          <span className="block text-xs mt-0.5">{formatApprovedBy(agent.createdBy)}</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-muted-foreground whitespace-nowrap" title={agent.updatedAt}>
-                        <span className="block">{formatDate(agent.updatedAt)}</span>
-                        {agent.updatedBy && (
-                          <span className="block text-xs mt-0.5">{formatApprovedBy(agent.updatedBy)}</span>
-                        )}
+                      <td className="py-3 px-4 text-muted-foreground text-xs whitespace-nowrap">
+                        {formatRelativeTime(agent.updatedAt)}
+                        {agent.updatedBy && <span className="block truncate mt-0.5">{formatApprovedBy(agent.updatedBy)}</span>}
                       </td>
                       <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-0.5">
-                          <a href={agent.a2aUrl} target="_blank" rel="noopener noreferrer" className="rounded-md">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" aria-label="Open service URL">
+                          <a href={agent.a2aUrl} target="_blank" rel="noopener noreferrer">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" aria-label="Open URL">
                               <ExternalLink className="h-4 w-4" />
                             </Button>
                           </a>
@@ -255,7 +285,7 @@ export function AgentsPageClient({ initialAgents, initialOrgs }: AgentsPageClien
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                            aria-label="Delete agent"
+                            aria-label="Delete"
                             onClick={() => handleDelete(agent.id)}
                           >
                             <Trash2 className="h-4 w-4" />
@@ -276,53 +306,36 @@ export function AgentsPageClient({ initialAgents, initialOrgs }: AgentsPageClien
                 className="group flex flex-col relative transition-all hover:shadow-md hover:bg-muted/50 cursor-pointer"
                 onClick={() => router.push(`/agents/${agent.id}`)}
               >
-                <CardHeader className="pb-2">
+                <CardContent className="p-5 flex flex-col gap-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0 flex-wrap">
                       <Bot className="h-5 w-5 text-muted-foreground shrink-0" />
                       <span className="font-semibold truncate">{agent.name}</span>
-                      <StatusBadge status={agent.status} />
                     </div>
-                    <div
-                      className="flex shrink-0 items-center gap-0.5"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <ExternalLink className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity mr-1" />
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-70 group-hover:opacity-100 transition-opacity"
-                        aria-label="Delete agent"
-                        onClick={() => handleDelete(agent.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                    <div className="flex shrink-0" onClick={(e) => e.stopPropagation()}>
+                      <AgentStatusBadge approvalStatus={agent.approvalStatus ?? 'draft'} />
                     </div>
                   </div>
-                </CardHeader>
-                <CardContent className="flex-1 flex flex-col gap-2">
-                  <p className="text-sm text-muted-foreground line-clamp-2">
-                    {agent.description || agent.a2aUrl}
+                  {agent.description && (
+                    <p className="text-sm text-muted-foreground line-clamp-2">{agent.description}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground truncate" title={agent.a2aUrl}>
+                    {agent.a2aUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}
                   </p>
-                  <div className="text-xs text-muted-foreground space-y-0.5">
-                    {(agent.approvalStatus === 'approved' && agent.approvedBy) || (agent.approvalStatus === 'pending_approval' && agent.submittedBy) ? (
-                      <p>
-                        {agent.approvalStatus === 'approved' ? 'Approved' : 'Submitted'} by {formatApprovedBy(agent.approvedBy ?? agent.submittedBy)}
-                      </p>
-                    ) : null}
-                    <p>Created {formatDate(agent.createdAt)}{agent.createdBy ? ` · ${formatApprovedBy(agent.createdBy)}` : ''}</p>
-                    <p>Updated {formatDate(agent.updatedAt)}{agent.updatedBy ? ` · ${formatApprovedBy(agent.updatedBy)}` : ''}</p>
+                  <div className="text-xs text-muted-foreground flex items-center justify-between mt-auto pt-2 border-t border-border/60">
+                    <span>{getOrgName(agent.orgId, initialOrgs)}</span>
+                    <span>{formatRelativeTime(agent.updatedAt)}{agent.updatedBy ? ` · ${formatApprovedBy(agent.updatedBy)}` : ''}</span>
                   </div>
-                  <a
-                    href={agent.a2aUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-muted-foreground hover:text-foreground truncate block mt-auto"
-                    title={agent.a2aUrl}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {agent.a2aUrl}
-                  </a>
+                  <div className="flex justify-end gap-0.5 -mb-1" onClick={(e) => e.stopPropagation()}>
+                    <a href={agent.a2aUrl} target="_blank" rel="noopener noreferrer">
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
+                    </a>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(agent.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))}

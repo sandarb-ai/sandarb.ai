@@ -164,7 +164,18 @@ export default async function DashboardPage() {
                     </CardHeader>
                     <CardContent className="pt-0">
                       <div className="flex items-center gap-2">
-                        <Badge variant={agent.approvalStatus === 'approved' ? 'default' : 'secondary'} className="text-xs">
+                        <Badge
+                          variant={
+                            agent.approvalStatus === 'approved'
+                              ? 'success'
+                              : agent.approvalStatus === 'pending_approval'
+                                ? 'pending_review'
+                                : agent.approvalStatus === 'rejected'
+                                  ? 'destructive'
+                                  : 'secondary'
+                          }
+                          className="text-xs"
+                        >
                           {agent.approvalStatus}
                         </Badge>
                         <span className="text-xs text-muted-foreground">
@@ -208,7 +219,7 @@ export default async function DashboardPage() {
                     </CardHeader>
                     <CardContent className="pt-0">
                       <div className="flex items-center gap-2">
-                        <Badge variant={prompt.currentVersionId ? 'default' : 'secondary'} className="text-xs">
+                        <Badge variant={prompt.currentVersionId ? 'success' : 'secondary'} className="text-xs">
                           {prompt.currentVersionId ? 'Active' : 'Draft'}
                         </Badge>
                         <span className="text-xs text-muted-foreground">
