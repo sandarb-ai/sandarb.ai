@@ -40,16 +40,22 @@ function AgentStatusBadge({ approvalStatus }: { approvalStatus: string }) {
   return <Badge variant={variant} className="text-xs">{label}</Badge>;
 }
 
+type StatusFilter = null | 'approved' | 'draft' | 'pending_approval' | 'rejected';
+
 function StatCard({
   label,
   value,
   variant = 'sky',
   icon: Icon,
+  onClick,
+  selected,
 }: {
   label: string;
   value: number;
   variant?: 'sky' | 'teal' | 'violet' | 'orange' | 'rose' | 'slate' | 'emerald' | 'amber' | 'red';
   icon: React.ElementType;
+  onClick?: () => void;
+  selected?: boolean;
 }) {
   const styles: Record<string, string> = {
     sky: 'text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/30',
@@ -63,17 +69,32 @@ function StatCard({
     slate: 'text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/50',
   };
   const s = styles[variant] ?? styles.slate;
+  const content = (
+    <CardContent className="p-4 flex items-center justify-between gap-3">
+      <div>
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</p>
+        <p className="text-2xl font-bold mt-0.5">{value}</p>
+      </div>
+      <div className={cn('rounded-lg p-2', s)}>
+        <Icon className="h-5 w-5" />
+      </div>
+    </CardContent>
+  );
   return (
-    <Card className="overflow-hidden">
-      <CardContent className="p-4 flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</p>
-          <p className="text-2xl font-bold mt-0.5">{value}</p>
-        </div>
-        <div className={cn('rounded-lg p-2', s)}>
-          <Icon className="h-5 w-5" />
-        </div>
-      </CardContent>
+    <Card
+      className={cn(
+        'overflow-hidden transition-colors',
+        onClick && 'cursor-pointer hover:bg-muted/50',
+        selected && 'ring-2 ring-primary'
+      )}
+    >
+      {onClick ? (
+        <button type="button" onClick={onClick} className="w-full text-left block" aria-pressed={selected} aria-label={label}>
+          {content}
+        </button>
+      ) : (
+        content
+      )}
     </Card>
   );
 }
@@ -86,6 +107,24 @@ export function AgentsPageClient({ initialAgents, initialOrgs, initialStats }: A
   const [orgFilter, setOrgFilter] = useState<string>('');
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [reseedLoading, setReseedLoading] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(null);
+  const [statusFilterLoading, setStatusFilterLoading] = useState(false);
+
+  const fetchAgentsByStatus = async (approvalStatus: StatusFilter) => {
+    setStatusFilterLoading(true);
+    try {
+      const path = approvalStatus
+        ? `/api/agents?approvalStatus=${encodeURIComponent(approvalStatus)}`
+        : '/api/agents';
+      const res = await fetch(path);
+      const data = await res.json();
+      if (data?.data) setAgents(data.data);
+      setStatusFilter(approvalStatus);
+      router.refresh();
+    } finally {
+      setStatusFilterLoading(false);
+    }
+  };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Remove this agent from the registry?')) return;
@@ -131,6 +170,7 @@ export function AgentsPageClient({ initialAgents, initialOrgs, initialStats }: A
                       const listRes = await fetch(apiUrl('/api/agents'));
                       const listData = await listRes.json();
                       if (listData?.data) setAgents(listData.data);
+                      setStatusFilter(null);
                       router.refresh();
                     }
                   } finally {
@@ -150,14 +190,52 @@ export function AgentsPageClient({ initialAgents, initialOrgs, initialStats }: A
             </div>
           </div>
 
-          {/* Stats row - dashboard-style small cards (single status per agent: no Approved) */}
+          {/* Stats row - clickable cards filter list by status (Total = show all, same as current) */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            <StatCard label="Total agents" value={stats.total} variant="sky" icon={Bot} />
-            <StatCard label="Active" value={stats.approved} variant="emerald" icon={CheckCircle2} />
-            <StatCard label="Draft" value={stats.draft} variant="slate" icon={FileEdit} />
-            <StatCard label="Pending" value={stats.pending_approval} variant="amber" icon={Clock} />
-            <StatCard label="Rejected" value={stats.rejected} variant="red" icon={XCircle} />
+            <StatCard
+              label="Total agents"
+              value={stats.total}
+              variant="sky"
+              icon={Bot}
+              onClick={() => fetchAgentsByStatus(null)}
+              selected={statusFilter === null}
+            />
+            <StatCard
+              label="Active"
+              value={stats.approved}
+              variant="emerald"
+              icon={CheckCircle2}
+              onClick={() => fetchAgentsByStatus('approved')}
+              selected={statusFilter === 'approved'}
+            />
+            <StatCard
+              label="Draft"
+              value={stats.draft}
+              variant="slate"
+              icon={FileEdit}
+              onClick={() => fetchAgentsByStatus('draft')}
+              selected={statusFilter === 'draft'}
+            />
+            <StatCard
+              label="Pending"
+              value={stats.pending_approval}
+              variant="amber"
+              icon={Clock}
+              onClick={() => fetchAgentsByStatus('pending_approval')}
+              selected={statusFilter === 'pending_approval'}
+            />
+            <StatCard
+              label="Rejected"
+              value={stats.rejected}
+              variant="red"
+              icon={XCircle}
+              onClick={() => fetchAgentsByStatus('rejected')}
+              selected={statusFilter === 'rejected'}
+            />
           </div>
+          {statusFilterLoading && (
+            <p className="text-xs text-muted-foreground">Loading agents…</p>
+          )}
 
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative shrink-0">

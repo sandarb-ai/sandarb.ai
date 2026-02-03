@@ -54,8 +54,8 @@ function normalizeAgentCard(raw: Record<string, unknown>, url: string): AgentCar
   };
 }
 
-export async function getAllAgents(orgId?: string): Promise<RegisteredAgent[]> {
-  return agentsPg.getAllAgentsPg(orgId);
+export async function getAllAgents(orgId?: string, approvalStatus?: string): Promise<RegisteredAgent[]> {
+  return agentsPg.getAllAgentsPg(orgId, approvalStatus);
 }
 
 export async function getAgentById(id: string): Promise<RegisteredAgent | null> {

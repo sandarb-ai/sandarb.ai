@@ -10,7 +10,8 @@ export async function GET(request: NextRequest) {
     try {
       const { searchParams } = new URL(request.url);
       const orgId = searchParams.get('orgId') || undefined;
-      let agents = await getAllAgents(orgId);
+      const approvalStatus = searchParams.get('approvalStatus') || undefined;
+      let agents = await getAllAgents(orgId, approvalStatus);
       if (!orgId) {
         const root = await getRootOrganization();
         if (root) agents = agents.filter((a) => a.orgId !== root.id);

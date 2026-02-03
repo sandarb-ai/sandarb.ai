@@ -48,10 +48,23 @@ function rowToAgent(row: Record<string, unknown>): RegisteredAgent {
   };
 }
 
-export async function getAllAgentsPg(orgId?: string): Promise<RegisteredAgent[]> {
-  const rows = orgId
-    ? await query<Record<string, unknown>>('SELECT * FROM agents WHERE org_id = $1 ORDER BY updated_at DESC NULLS LAST, name ASC', [orgId])
-    : await query<Record<string, unknown>>('SELECT * FROM agents ORDER BY updated_at DESC NULLS LAST, name ASC');
+export async function getAllAgentsPg(orgId?: string, approvalStatus?: string): Promise<RegisteredAgent[]> {
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+  let i = 1;
+  if (orgId) {
+    conditions.push(`org_id = $${i++}`);
+    params.push(orgId);
+  }
+  if (approvalStatus) {
+    conditions.push(`COALESCE(approval_status, 'draft') = $${i++}`);
+    params.push(approvalStatus);
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  const rows = await query<Record<string, unknown>>(
+    `SELECT * FROM agents ${where} ORDER BY updated_at DESC NULLS LAST, name ASC`,
+    params.length ? params : undefined
+  );
   return rows.map(rowToAgent);
 }
 
