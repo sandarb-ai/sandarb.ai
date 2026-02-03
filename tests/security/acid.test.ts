@@ -377,3 +377,48 @@ describe('Security ACID — Approval workflow', () => {
     expect(mockApprovePromptVersion).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// A2A POST auth — require valid JWT before processing JSON-RPC
+// ---------------------------------------------------------------------------
+
+describe('Security ACID — A2A POST auth', () => {
+  it('returns 401 when Authorization header is missing', async () => {
+    const { POST } = await import('@/app/api/a2a/route');
+    const req = new Request('http://localhost/api/a2a', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'agent/info',
+        params: {},
+      }),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(401);
+    const data = await res.json();
+    expect(data.error?.message).toMatch(/Missing Authorization|Authorization header/i);
+  });
+
+  it('returns 401 when token is invalid or expired', async () => {
+    const { POST } = await import('@/app/api/a2a/route');
+    const req = new Request('http://localhost/api/a2a', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer invalid-token',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'agent/info',
+        params: {},
+      }),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(401);
+    const data = await res.json();
+    expect(data.error?.message).toMatch(/Invalid or expired|expired token/i);
+  });
+});
