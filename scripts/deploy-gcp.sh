@@ -133,4 +133,20 @@ URL=$("$GCLOUD" run services describe "$SERVICE_NAME" --region="$REGION" --proje
 echo ""
 echo "Deployed. Sandarb is available at: $URL"
 echo "Health: $URL/api/health"
-echo "Demo data is seeded on container start (visible after you sign in)."
+
+# Post-deploy: clean and reseed GCP Postgres so it has the same real-world data as localhost.
+# Set DATABASE_URL to your Cloud SQL connection string (e.g. via Cloud SQL Proxy or public IP).
+if [ -n "$DATABASE_URL" ]; then
+  echo ""
+  echo "Post-deploy: cleaning and reseeding Postgres (DATABASE_URL is set)..."
+  if (cd "$REPO_ROOT" && node scripts/full-reset-postgres.js); then
+    echo "Postgres cleaned and reseeded. GCP DB now has the same sample data as local."
+  else
+    echo "Warning: post-deploy reseed failed. Run manually: DATABASE_URL=<your-gcp-pg-url> npm run db:full-reset-pg"
+    exit 1
+  fi
+else
+  echo "Tip: To reseed GCP Postgres with real-world data after deploy, run:"
+  echo "  DATABASE_URL=<your-cloud-sql-url> ./scripts/deploy-gcp.sh $PROJECT_ID ${REGION}"
+  echo "  or: DATABASE_URL=<your-cloud-sql-url> npm run db:full-reset-pg"
+fi

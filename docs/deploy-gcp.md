@@ -95,6 +95,32 @@ The script enables APIs, creates an Artifact Registry repo if needed, builds the
 
 **Demo data:** When `DATABASE_URL` is set, the container seeds sample data (orgs, agents, contexts, templates) on start. Sign in to see it on the dashboard, agents, and contexts pages.
 
+### Post-deploy: clean and reseed GCP Postgres (real-world data like localhost)
+
+After deployment, the GCP Postgres database may not have the same real-world sample data as localhost (orgs, agents, contexts, prompts) unless you run a full reset and seed.
+
+**Option 1 – Reseed as part of deploy (recommended)**  
+Set `DATABASE_URL` to your Cloud SQL connection string and run the deploy script. After deploy, it will run `scripts/full-reset-postgres.js` (drop tables, reapply schema, seed) so the GCP DB matches local:
+
+```bash
+# Use Cloud SQL Proxy or your Cloud SQL connection string
+export DATABASE_URL="postgresql://USER:PASS@/DB?host=/cloudsql/PROJECT:REGION:INSTANCE"
+# Or public IP (ensure DB allows your IP):
+# export DATABASE_URL="postgresql://USER:PASS@PUBLIC_IP:5432/DB"
+
+./scripts/deploy-gcp.sh PROJECT_ID [REGION]
+```
+
+**Option 2 – Reseed only (no redeploy)**  
+From your machine, point `DATABASE_URL` at the GCP Postgres instance and run the full-reset script:
+
+```bash
+export DATABASE_URL="postgresql://..."   # your Cloud SQL URL
+npm run db:full-reset-pg
+```
+
+This drops all Sandarb tables, reapplies the schema, and seeds the same sample data as local (30 orgs, 420 agents, 500+ contexts, prompts, templates).
+
 ## Build and push the image
 
 ### Option A: Artifact Registry (recommended)
