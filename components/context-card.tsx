@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Pencil, Trash2 } from 'lucide-react';
+import { ExternalLink, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -26,38 +26,20 @@ export function ContextCard({ context, onDelete }: ContextCardProps) {
 
   return (
     <Card
-      className="group relative transition-shadow hover:shadow-md hover:bg-muted/50 cursor-pointer"
+      className="group transition-all hover:shadow-md hover:bg-muted/50 cursor-pointer"
       onClick={() => router.push(`/contexts/${context.id}`)}
     >
-      <div
-        className="absolute top-2 right-2 flex items-center gap-1 z-10"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <Link href={`/contexts/${context.id}`}>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
-            <Pencil className="h-4 w-4" />
-          </Button>
-        </Link>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-          onClick={() => onDelete?.(context.id)}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
-      <CardHeader className="pb-3 pr-20">
-        <div className="flex items-start justify-between">
-          <div className="space-y-1">
-            <CardTitle className="flex items-center gap-2">
-              {context.name}
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1 space-y-1">
+            <CardTitle className="flex flex-wrap items-center gap-2">
+              <span className="break-words">{context.name}</span>
               {context.isActive ? (
-                <Badge variant="success" className="text-xs">
+                <Badge variant="success" className="text-xs shrink-0">
                   Active
                 </Badge>
               ) : (
-                <Badge variant="secondary" className="text-xs">
+                <Badge variant="secondary" className="text-xs shrink-0">
                   Inactive
                 </Badge>
               )}
@@ -67,6 +49,25 @@ export function ContextCard({ context, onDelete }: ContextCardProps) {
                 {truncate(context.description, 80)}
               </CardDescription>
             )}
+          </div>
+          <div
+            className="flex shrink-0 items-center gap-0.5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <ExternalLink className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity mr-1" />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-70 group-hover:opacity-100 transition-opacity"
+              aria-label="Delete context"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onDelete?.(context.id);
+              }}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
           </div>
         </div>
       </CardHeader>

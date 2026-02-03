@@ -7,14 +7,11 @@ import {
   getCurrentPromptVersion,
 } from '@/lib/prompts';
 
-interface RouteParams {
-  params: { id: string };
-}
-
 // GET /api/prompts/:id - Get prompt with versions
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const prompt = getPromptById(params.id);
+    const { id } = await params;
+    const prompt = await getPromptById(id);
 
     if (!prompt) {
       return NextResponse.json(
@@ -23,8 +20,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const versions = getPromptVersions(prompt.id);
-    const currentVersion = getCurrentPromptVersion(prompt.id);
+    const versions = await getPromptVersions(id);
+    const currentVersion = await getCurrentPromptVersion(id);
 
     return NextResponse.json({
       success: true,
@@ -44,23 +41,24 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 }
 
 // PUT /api/prompts/:id - Update prompt metadata
-export async function PUT(request: NextRequest, { params }: RouteParams) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const body = await request.json();
     const { name, description, currentVersionId, projectId, tags } = body;
 
-    // Validate name format if provided
-    if (name && !/^[a-zA-Z0-9_-]+$/.test(name)) {
+    // Validate name format if provided (lowercase alphanumeric, hyphens, underscores only)
+    if (name && !/^[a-z0-9_-]+$/.test(name)) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Name must contain only letters, numbers, hyphens, and underscores',
+          error: 'Name must be lowercase and contain only letters, numbers, hyphens (-), and underscores (_)',
         },
         { status: 400 }
       );
     }
 
-    const prompt = updatePrompt(params.id, {
+    const prompt = await updatePrompt(id, {
       name,
       description,
       currentVersionId,
@@ -95,9 +93,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 }
 
 // DELETE /api/prompts/:id - Delete prompt and all versions
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const deleted = deletePrompt(params.id);
+    const { id } = await params;
+    const deleted = await deletePrompt(id);
 
     if (!deleted) {
       return NextResponse.json(

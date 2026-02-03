@@ -82,18 +82,64 @@ CREATE TABLE IF NOT EXISTS context_versions (
 CREATE INDEX IF NOT EXISTS idx_context_versions_context_id ON context_versions(context_id);
 CREATE INDEX IF NOT EXISTS idx_context_versions_status ON context_versions(status);
 
--- Immutable Audit Log
+-- Prompts (Employee Handbook / Behavior Instructions)
+CREATE TABLE IF NOT EXISTS prompts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT UNIQUE NOT NULL,
+  description TEXT,
+  current_version_id UUID,
+  project_id TEXT,
+  tags JSONB DEFAULT '[]',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Prompt Versioning & Regulatory Approval (parity with context_versions)
+CREATE TABLE IF NOT EXISTS prompt_versions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  prompt_id UUID NOT NULL REFERENCES prompts(id) ON DELETE CASCADE,
+  version INTEGER NOT NULL,
+  content TEXT NOT NULL,
+  variables JSONB DEFAULT '[]',
+  model TEXT,
+  temperature REAL,
+  max_tokens INTEGER,
+  system_prompt TEXT,
+  metadata JSONB DEFAULT '{}',
+  commit_message TEXT,
+  created_by TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  -- Governance fields (parity with context_versions)
+  status TEXT DEFAULT 'Proposed' CHECK (status IN ('Draft', 'Proposed', 'Approved', 'Rejected', 'Archived')),
+  approved_by TEXT,
+  approved_at TIMESTAMP WITH TIME ZONE,
+  parent_version_id UUID REFERENCES prompt_versions(id),
+  sha256_hash TEXT NOT NULL,
+  UNIQUE(prompt_id, version)
+);
+
+CREATE INDEX IF NOT EXISTS idx_prompt_versions_prompt_id ON prompt_versions(prompt_id);
+CREATE INDEX IF NOT EXISTS idx_prompt_versions_status ON prompt_versions(status);
+
+-- Immutable Audit Log (Governance Intersection: tracks both prompts and contexts)
 CREATE TABLE IF NOT EXISTS sandarb_access_logs (
   log_id BIGSERIAL PRIMARY KEY,
   agent_id TEXT NOT NULL,
   trace_id TEXT NOT NULL,
+  -- Context tracking
+  context_id UUID REFERENCES contexts(id),
   version_id UUID REFERENCES context_versions(id),
+  -- Prompt tracking (enables "Agent X used Prompt v4.2 and Context Chunk #992")
+  prompt_id UUID REFERENCES prompts(id),
+  prompt_version_id UUID REFERENCES prompt_versions(id),
   accessed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   request_ip TEXT,
   metadata JSONB
 );
 
 CREATE INDEX IF NOT EXISTS idx_sandarb_access_logs_accessed_at ON sandarb_access_logs(accessed_at);
+CREATE INDEX IF NOT EXISTS idx_sandarb_access_logs_agent_id ON sandarb_access_logs(agent_id);
+CREATE INDEX IF NOT EXISTS idx_sandarb_access_logs_trace_id ON sandarb_access_logs(trace_id);
 
 CREATE TABLE IF NOT EXISTS activity_log (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

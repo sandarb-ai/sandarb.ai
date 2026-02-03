@@ -83,7 +83,7 @@ export default function AboutPage() {
               How it works
             </h2>
             <p className="text-muted-foreground mt-3 leading-relaxed">
-              Agents register with Sandarb (by URL or by pinging with a manifest). When an agent needs context, it calls Sandarb’s API or A2A skill; Sandarb returns the approved content and logs the request. You get organizations, an agent registry, versioned prompts and contexts, and lineage—all exposed as a REST API and as an A2A agent so other agents can talk to Sandarb directly.
+              Agents register with Sandarb (by URL or by pinging with a manifest). When an agent needs context, it calls Sandarb’s API or A2A skill; Sandarb returns the approved content and logs the request. You get organizations, an agent registry, versioned prompts and contexts, and lineage—all exposed as an API and as an A2A agent so other agents can talk to Sandarb directly.
             </p>
             <p className="text-muted-foreground mt-2 leading-relaxed">
               Optional: Sandarb can also pull state from agents via MCP (Model Context Protocol) for monitoring, so you get visibility without forcing every agent to push logs.

@@ -48,68 +48,63 @@ export function ComplianceMetadataFields({
 
   return (
     <div className="space-y-4">
-      <div className="space-y-2">
-        <Label>Line of Business (LOB)</Label>
-        <select
-          className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
-          value={lineOfBusiness ?? ''}
-          onChange={(e) =>
-            onLineOfBusinessChange(
-              (e.target.value as LineOfBusiness) || null
-            )
-          }
-        >
-          <option value="">— Select —</option>
-          {LINE_OF_BUSINESS_OPTIONS.map((opt) => (
-            <option key={opt} value={opt}>
-              {LOB_LABELS[opt]}
-            </option>
-          ))}
-        </select>
-        <p className="text-xs text-muted-foreground">
-          Retail, Investment Banking, or Wealth Management. Required for compliance search.
-        </p>
+      {/* LOB + Data Classification — side by side on larger screens */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium text-muted-foreground">Line of Business</Label>
+          <select
+            className="flex h-8 w-full rounded-md border border-input bg-background px-2.5 py-1 text-sm"
+            value={lineOfBusiness ?? ''}
+            onChange={(e) =>
+              onLineOfBusinessChange((e.target.value as LineOfBusiness) || null)
+            }
+          >
+            <option value="">— Select —</option>
+            {LINE_OF_BUSINESS_OPTIONS.map((opt) => (
+              <option key={opt} value={opt}>
+                {LOB_LABELS[opt]}
+              </option>
+            ))}
+          </select>
+          <p className="text-[10px] text-muted-foreground">Retail, IB, or Wealth. For compliance search.</p>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium text-muted-foreground">Data Classification</Label>
+          <select
+            className="flex h-8 w-full rounded-md border border-input bg-background px-2.5 py-1 text-sm"
+            value={dataClassification ?? ''}
+            onChange={(e) =>
+              onDataClassificationChange((e.target.value as DataClassification) || null)
+            }
+          >
+            <option value="">— Select —</option>
+            {DATA_CLASSIFICATION_OPTIONS.map((opt) => (
+              <option key={opt} value={opt}>
+                {DATA_CLASS_LABELS[opt]}
+              </option>
+            ))}
+          </select>
+          <p className="text-[10px] text-muted-foreground">Public → Restricted. MNPI control.</p>
+        </div>
       </div>
-      <div className="space-y-2">
-        <Label>Data Classification</Label>
-        <select
-          className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
-          value={dataClassification ?? ''}
-          onChange={(e) =>
-            onDataClassificationChange(
-              (e.target.value as DataClassification) || null
-            )
-          }
-        >
-          <option value="">— Select —</option>
-          {DATA_CLASSIFICATION_OPTIONS.map((opt) => (
-            <option key={opt} value={opt}>
-              {DATA_CLASS_LABELS[opt]}
-            </option>
-          ))}
-        </select>
-        <p className="text-xs text-muted-foreground">
-          Public, Internal, Confidential, or Restricted. Ensures no MNPI leaks into general-purpose LLMs.
-        </p>
-      </div>
-      <div className="space-y-2">
-        <Label>Regulatory Hook</Label>
-        <div className="flex flex-wrap gap-4 rounded-md border border-input bg-background px-3 py-2">
+
+      {/* Regulatory hooks — single compact row */}
+      <div className="space-y-1.5">
+        <Label className="text-xs font-medium text-muted-foreground">Regulatory Hook</Label>
+        <div className="flex flex-wrap gap-3 rounded-md border border-input bg-muted/30 px-2.5 py-2">
           {REGULATORY_HOOK_OPTIONS.map((hook) => (
-            <label key={hook} className="flex items-center gap-2 cursor-pointer">
+            <label key={hook} className="flex items-center gap-2 cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={regulatoryHooks.includes(hook)}
                 onChange={() => toggleRegulatoryHook(hook)}
-                className="rounded border-input"
+                className="rounded border-input h-3.5 w-3.5 accent-primary"
               />
-              <span className="text-sm">{hook}</span>
+              <span className="text-xs font-medium">{hook}</span>
             </label>
           ))}
         </div>
-        <p className="text-xs text-muted-foreground">
-          Is this context subject to FINRA, SEC, or GDPR logging requirements?
-        </p>
+        <p className="text-[10px] text-muted-foreground">FINRA, SEC, or GDPR logging requirements.</p>
       </div>
     </div>
   );

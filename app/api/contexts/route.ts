@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   getAllContexts,
+  getContextsPaginated,
   createContext,
   searchContexts,
   getContextsByComplianceFilters,
 } from '@/lib/contexts';
 import type { ContextCreateInput, LineOfBusiness, DataClassification, RegulatoryHook } from '@/types';
 
-// GET /api/contexts - List all contexts, search by q, or filter by compliance (lineOfBusiness, dataClassification, regulatoryHook)
+// GET /api/contexts - List contexts; optional limit/offset for pagination; search by q or filter by compliance
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -15,24 +16,30 @@ export async function GET(request: NextRequest) {
     const lineOfBusiness = searchParams.get('lineOfBusiness') as LineOfBusiness | null;
     const dataClassification = searchParams.get('dataClassification') as DataClassification | null;
     const regulatoryHook = searchParams.get('regulatoryHook') as RegulatoryHook | null;
+    const limitParam = searchParams.get('limit');
+    const offsetParam = searchParams.get('offset');
+    const limit = limitParam ? Math.min(Math.max(1, parseInt(limitParam, 10)), 200) : 0;
+    const offset = offsetParam ? Math.max(0, parseInt(offsetParam, 10)) : 0;
+    const usePagination = limit > 0;
 
-    let contexts;
     if (query) {
-      contexts = await searchContexts(query);
-    } else if (lineOfBusiness || dataClassification || regulatoryHook) {
-      contexts = await getContextsByComplianceFilters({
+      const contexts = await searchContexts(query);
+      return NextResponse.json({ success: true, data: contexts, total: contexts.length });
+    }
+    if (lineOfBusiness || dataClassification || regulatoryHook) {
+      const contexts = await getContextsByComplianceFilters({
         ...(lineOfBusiness && { lineOfBusiness }),
         ...(dataClassification && { dataClassification }),
         ...(regulatoryHook && { regulatoryHook }),
       });
-    } else {
-      contexts = await getAllContexts();
+      return NextResponse.json({ success: true, data: contexts, total: contexts.length });
     }
-
-    return NextResponse.json({
-      success: true,
-      data: contexts,
-    });
+    if (usePagination) {
+      const { contexts, total } = await getContextsPaginated(limit, offset);
+      return NextResponse.json({ success: true, data: contexts, total });
+    }
+    const contexts = await getAllContexts();
+    return NextResponse.json({ success: true, data: contexts, total: contexts.length });
   } catch (error) {
     console.error('Failed to fetch contexts:', error);
     return NextResponse.json(
@@ -72,12 +79,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check name format
-    if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+    // Check name format (lowercase alphanumeric, hyphens, underscores only)
+    if (!/^[a-z0-9_-]+$/.test(name)) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Name must contain only letters, numbers, hyphens, and underscores',
+          error: 'Name must be lowercase and contain only letters, numbers, hyphens (-), and underscores (_)',
         },
         { status: 400 }
       );

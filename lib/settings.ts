@@ -6,7 +6,7 @@
 import db from './db';
 
 const DEFAULTS: Record<string, string> = {
-  theme: 'system',
+  theme: 'light',
   defaultFormat: 'json',
   defaultEnvironment: 'development',
 };
@@ -48,7 +48,7 @@ export type ThemeValue = 'light' | 'dark' | 'system';
 export function getTheme(): ThemeValue {
   const v = getSetting('theme');
   if (v === 'light' || v === 'dark' || v === 'system') return v;
-  return 'system';
+  return 'light';
 }
 
 export function setTheme(theme: ThemeValue): void {

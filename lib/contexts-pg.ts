@@ -100,6 +100,27 @@ async function getLatestContent(contextId: string): Promise<Record<string, unkno
   return row ? parseJson(row.content) : {};
 }
 
+/** Get the latest approved version info (content + version ID) for governance tracking. */
+export async function getLatestApprovedVersionPg(contextId: string): Promise<{
+  content: Record<string, unknown>;
+  versionId: string | null;
+  versionLabel: string | null;
+} | null> {
+  const row = await queryOne<{ id: string; content: unknown; version_label: string }>(
+    `SELECT id, content, version_label FROM context_versions
+     WHERE context_id = $1 AND status = 'Approved'
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [contextId]
+  );
+  if (!row) return null;
+  return {
+    content: parseJson(row.content),
+    versionId: row.id,
+    versionLabel: row.version_label,
+  };
+}
+
 export async function getAllContextsPg(): Promise<Context[]> {
   const rows = await query<Record<string, unknown>>(
     `SELECT * FROM contexts ORDER BY created_at DESC`
@@ -110,6 +131,21 @@ export async function getAllContextsPg(): Promise<Context[]> {
     result.push(rowToContext(row, content));
   }
   return result;
+}
+
+export async function getContextsPaginatedPg(limit: number, offset: number): Promise<{ contexts: Context[]; total: number }> {
+  const countRow = await queryOne<{ count: string }>(`SELECT COUNT(*)::text AS count FROM contexts`);
+  const total = parseInt(countRow?.count ?? '0', 10);
+  const rows = await query<Record<string, unknown>>(
+    `SELECT * FROM contexts ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+    [limit, offset]
+  );
+  const contexts: Context[] = [];
+  for (const row of rows) {
+    const content = await getLatestContent(String(row.id));
+    contexts.push(rowToContext(row, content));
+  }
+  return { contexts, total };
 }
 
 export async function getActiveContextsPg(): Promise<Context[]> {
@@ -364,4 +400,17 @@ export async function getRecentActivityPg(limit: number = 10): Promise<Record<st
     `SELECT id, type, resource_type, resource_id, resource_name, created_at FROM activity_log ORDER BY created_at DESC LIMIT $1`,
     [limit]
   );
+}
+
+export async function getRecentContextsPg(limit: number = 6): Promise<Context[]> {
+  const rows = await query<Record<string, unknown>>(
+    `SELECT * FROM contexts ORDER BY created_at DESC LIMIT $1`,
+    [limit]
+  );
+  const result: Context[] = [];
+  for (const row of rows) {
+    const content = await getLatestContent(String(row.id));
+    result.push(rowToContext(row, content));
+  }
+  return result;
 }

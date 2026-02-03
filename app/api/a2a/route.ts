@@ -1,13 +1,15 @@
 /**
  * A2A (Agent-to-Agent Protocol) HTTP Endpoint
  *
- * Implements Google's A2A protocol for agent interoperability.
- * Allows other AI agents to discover and use Sandarb's capabilities.
+ * How A2A URLs work in practice for the Sandarb AI agent:
+ * - Discovery: Agent A uses this A2A URL to read Sandarb's capabilities (GET returns Agent Card).
+ * - Interaction: Agent A sends JSON-RPC 2.0 over HTTP(S) to this URL to initiate a task (POST).
+ * - Real-time updates: For long-running tasks, an A2A server may use SSE to send updates; Sandarb currently responds synchronously.
  *
- * Endpoints:
  * - GET /api/a2a - Agent Card (discovery)
- * - POST /api/a2a - Execute skill / handle message
- * - GET /api/a2a/tasks/:id - Get task status
+ * - POST /api/a2a - JSON-RPC 2.0 only: message/send, tasks/get, tasks/create, tasks/execute, skills/list, skills/execute, agent/info
+ *
+ * @see https://google.github.io/A2A/specification/
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -18,56 +20,129 @@ import {
   getTask,
   executeSkill,
   processMessage,
+  taskToSpec,
 } from '@/lib/a2a-server';
-import type { A2AMessage } from '@/types';
+import { logA2ACall } from '@/lib/audit';
 
-// GET - Return Agent Card for discovery
+const JSON_RPC_HEADERS = {
+  'Content-Type': 'application/json',
+  'X-A2A-Version': '0.3',
+};
+
+// GET - Return Agent Card for discovery (A2A spec: well-known or direct)
 export async function GET(request: NextRequest) {
   const baseUrl = new URL(request.url).origin;
   const card = getAgentCard(baseUrl);
 
+  await logA2ACall({
+    agentId: 'anonymous',
+    traceId: `discovery-${Date.now()}`,
+    method: 'GET',
+    inputSummary: 'Agent Card discovery',
+    resultSummary: 'ok',
+    requestIp:
+      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+      request.headers.get('x-real-ip') ??
+      null,
+  });
+
   return NextResponse.json(card, {
-    headers: {
-      'Content-Type': 'application/json',
-      'X-A2A-Version': '0.3',
-    },
+    headers: JSON_RPC_HEADERS,
   });
 }
 
-// POST - Handle skill execution or message
+/** Build agentId/traceId/inputSummary for A2A log from JSON-RPC body and request. */
+function buildA2ALogContext(
+  body: { method?: string; id?: string | number; params?: Record<string, unknown> },
+  request: NextRequest
+): { agentId: string; traceId: string; inputSummary: string; requestIp: string | null } {
+  const params = body?.params ?? {};
+  const msg = params?.message as Record<string, unknown> | undefined;
+  const meta = msg?.metadata as Record<string, unknown> | undefined;
+  const agentId =
+    (meta?.senderId as string) ??
+    (params?.input && typeof params.input === 'object' && params.input !== null
+      ? (params.input as Record<string, unknown>).agentId
+      : undefined);
+  const traceId =
+    (meta?.traceId as string) ??
+    (params?.traceId as string) ??
+    `req-${body?.id ?? Date.now()}`;
+  let inputSummary = '';
+  if (body?.method === 'skills/execute' && params?.skill) inputSummary = `skill=${String(params.skill)}`;
+  else if (body?.method === 'message/send') inputSummary = 'message/send';
+  else if (body?.method === 'tasks/create' && params?.skill) inputSummary = `task skill=${String(params.skill)}`;
+  else if (body?.method === 'tasks/get' && params?.taskId) inputSummary = `taskId=${String(params.taskId)}`;
+  else if (body?.method === 'tasks/execute' && params?.taskId) inputSummary = `taskId=${String(params.taskId)}`;
+  else if (body?.method) inputSummary = body.method;
+  const requestIp =
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    request.headers.get('x-real-ip') ??
+    null;
+  return {
+    agentId: typeof agentId === 'string' ? agentId : 'anonymous',
+    traceId: typeof traceId === 'string' ? traceId : `req-${body?.id ?? Date.now()}`,
+    inputSummary: inputSummary.slice(0, 200),
+    requestIp,
+  };
+}
+
+// POST - JSON-RPC 2.0 only (A2A spec: request body MUST be JSONRPCRequest)
 export async function POST(request: NextRequest) {
+  let body: JsonRpcRequest | undefined;
+  let logCtx: { agentId: string; traceId: string; inputSummary: string; requestIp: string | null } | undefined;
+
   try {
-    const body = await request.json();
+    body = (await request.json()) as JsonRpcRequest;
 
-    // Check if it's a JSON-RPC request
-    if (body.jsonrpc === '2.0') {
-      return handleJsonRpc(body);
+    if (body?.jsonrpc !== '2.0') {
+      return NextResponse.json(
+        {
+          jsonrpc: '2.0',
+          id: null,
+          error: {
+            code: -32600,
+            message: 'Invalid Request. A2A requires JSON-RPC 2.0; send body with jsonrpc: "2.0", method, id, and optional params.',
+          },
+        },
+        { status: 400, headers: JSON_RPC_HEADERS }
+      );
     }
 
-    // Check if it's a direct skill invocation
-    if (body.skill) {
-      return handleSkillInvocation(body);
-    }
-
-    // Check if it's a message
-    if (body.message || body.messages) {
-      return handleMessage(body);
-    }
-
-    // Check if it's a task creation
-    if (body.action === 'create_task') {
-      return handleTaskCreation(body);
-    }
-
-    return NextResponse.json(
-      { error: 'Invalid request format' },
-      { status: 400 }
-    );
+    logCtx = buildA2ALogContext(body, request);
+    const response = await handleJsonRpc(body);
+    await logA2ACall({
+      agentId: logCtx.agentId,
+      traceId: logCtx.traceId,
+      method: body.method ?? 'unknown',
+      inputSummary: logCtx.inputSummary || undefined,
+      resultSummary: 'ok',
+      requestIp: logCtx.requestIp,
+    });
+    return response;
   } catch (error) {
+    const method = body?.method ?? 'unknown';
+    if (logCtx) {
+      await logA2ACall({
+        agentId: logCtx.agentId,
+        traceId: logCtx.traceId,
+        method,
+        inputSummary: logCtx.inputSummary || undefined,
+        error: error instanceof Error ? error.message : 'Internal error',
+        requestIp: logCtx.requestIp,
+      });
+    }
     console.error('A2A error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal error' },
-      { status: 500 }
+      {
+        jsonrpc: '2.0',
+        id: body?.id ?? null,
+        error: {
+          code: -32603,
+          message: error instanceof Error ? error.message : 'Internal error',
+        },
+      },
+      { status: 500, headers: JSON_RPC_HEADERS }
     );
   }
 }
@@ -90,15 +165,17 @@ async function handleJsonRpc(body: JsonRpcRequest) {
     let result: unknown;
 
     switch (method) {
-      case 'agent/info':
+      case 'agent/info': {
         const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
         result = getAgentCard(baseUrl);
         break;
+      }
 
-      case 'skills/list':
+      case 'skills/list': {
         const card = getAgentCard('');
         result = { skills: card.skills };
         break;
+      }
 
       case 'skills/execute':
         result = await executeSkill(
@@ -107,80 +184,61 @@ async function handleJsonRpc(body: JsonRpcRequest) {
         );
         break;
 
-      case 'tasks/create':
+      case 'tasks/create': {
         const task = createTask(
           params?.skill as string,
           (params?.input || {}) as Record<string, unknown>
         );
-        result = { taskId: task.id, status: task.status };
+        result = taskToSpec(task);
         break;
+      }
 
-      case 'tasks/get':
+      case 'tasks/get': {
         const existingTask = getTask(params?.taskId as string);
         if (!existingTask) {
           throw new Error(`Task not found: ${params?.taskId}`);
         }
-        result = existingTask;
+        result = taskToSpec(existingTask);
         break;
+      }
 
-      case 'tasks/execute':
+      case 'tasks/execute': {
         const executedTask = await executeTask(params?.taskId as string);
-        result = executedTask;
+        result = taskToSpec(executedTask);
         break;
+      }
 
-      case 'message/send':
-        const response = await processMessage(params?.message as A2AMessage);
-        result = { message: response };
+      case 'message/send': {
+        const msg = params?.message as { parts?: unknown[] } | undefined;
+        if (!msg || typeof msg !== 'object' || !Array.isArray(msg.parts) || msg.parts.length === 0) {
+          throw new Error('message/send requires params.message with at least one part.');
+        }
+        result = await processMessage({
+          message: params?.message as Parameters<typeof processMessage>[0]['message'],
+          configuration: params?.configuration as Parameters<typeof processMessage>[0]['configuration'],
+        });
         break;
+      }
 
       default:
         throw new Error(`Unknown method: ${method}`);
     }
 
-    return NextResponse.json({
-      jsonrpc: '2.0',
-      id,
-      result,
-    });
+    return NextResponse.json(
+      { jsonrpc: '2.0', id, result },
+      { headers: JSON_RPC_HEADERS }
+    );
   } catch (error) {
-    return NextResponse.json({
-      jsonrpc: '2.0',
-      id,
-      error: {
-        code: -32603,
-        message: error instanceof Error ? error.message : 'Internal error',
+    return NextResponse.json(
+      {
+        jsonrpc: '2.0',
+        id,
+        error: {
+          code: -32603,
+          message: error instanceof Error ? error.message : 'Internal error',
+        },
       },
-    });
+      { status: 200, headers: JSON_RPC_HEADERS }
+    );
   }
-}
-
-async function handleSkillInvocation(body: { skill: string; input?: Record<string, unknown> }) {
-  const result = await executeSkill(body.skill, body.input || {});
-  return NextResponse.json({ success: true, result });
-}
-
-async function handleMessage(body: { message?: A2AMessage; messages?: A2AMessage[] }) {
-  const message = body.message || (body.messages && body.messages[body.messages.length - 1]);
-  if (!message) {
-    return NextResponse.json({ error: 'No message provided' }, { status: 400 });
-  }
-
-  const response = await processMessage(message);
-  return NextResponse.json({ message: response });
-}
-
-async function handleTaskCreation(body: { skill: string; input?: Record<string, unknown>; async?: boolean }) {
-  const task = createTask(body.skill, body.input || {});
-
-  if (body.async) {
-    // Return immediately for async execution
-    return NextResponse.json({
-      taskId: task.id,
-      status: task.status,
-    });
-  }
-
-  // Execute synchronously
-  const completedTask = await executeTask(task.id);
-  return NextResponse.json(completedTask);
 }

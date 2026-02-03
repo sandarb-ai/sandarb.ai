@@ -5,11 +5,16 @@
 // PROMPT MANAGEMENT
 // ============================================================================
 
+/** Governance status for prompt versions (mirrors context revision workflow). */
+export type PromptVersionStatus = 'draft' | 'proposed' | 'approved' | 'rejected' | 'archived';
+
+export const PROMPT_VERSION_STATUS_OPTIONS: PromptVersionStatus[] = ['draft', 'proposed', 'approved', 'rejected', 'archived'];
+
 export interface Prompt {
   id: string;
   name: string;                          // Unique identifier (slug)
   description: string | null;
-  currentVersionId: string | null;       // Active version
+  currentVersionId: string | null;       // Active (approved) version
   projectId: string | null;              // Group prompts by project
   tags: string[];
   createdAt: string;
@@ -30,6 +35,12 @@ export interface PromptVersion {
   commitMessage: string | null;          // Version description
   createdBy: string | null;
   createdAt: string;
+  // Governance fields (parity with context revisions)
+  status: PromptVersionStatus;           // Approval workflow status
+  approvedBy: string | null;             // Who approved this version
+  approvedAt: string | null;             // When it was approved
+  parentVersionId: string | null;        // Lineage: which version this was based on
+  sha256Hash: string | null;             // Content integrity hash
 }
 
 export interface PromptVariable {
@@ -38,6 +49,21 @@ export interface PromptVariable {
   description?: string;
   required: boolean;
   default?: unknown;
+}
+
+export interface PromptVersionCreateInput {
+  promptId: string;
+  content: string;
+  variables?: PromptVariable[];
+  model?: string;
+  temperature?: number;
+  maxTokens?: number;
+  systemPrompt?: string;
+  metadata?: Record<string, unknown>;
+  commitMessage?: string;
+  createdBy?: string;
+  /** If true, version is immediately approved (for backward compatibility). Default: false (proposed). */
+  autoApprove?: boolean;
 }
 
 // ============================================================================
@@ -283,19 +309,36 @@ export interface MCPPrompt {
 
 // ============================================================================
 // A2A (Agent-to-Agent Protocol) TYPES
+// Aligned with Google A2A spec: https://google.github.io/A2A/specification/
 // ============================================================================
 
+/** A2A spec: optional protocol features (streaming, push, state history). */
+export interface AgentCapabilities {
+  streaming?: boolean;
+  pushNotifications?: boolean;
+  stateTransitionHistory?: boolean;
+}
+
+/** A2A spec Agent Card: identity, url, capabilities object, default MIME modes, skills. */
 export interface AgentCard {
   name: string;
   description: string;
-  url: string;                           // Agent endpoint URL
+  url: string;
   version: string;
-  capabilities: AgentCapability[];
+  provider?: { organization: string; url: string };
+  documentationUrl?: string;
+  capabilities: AgentCapabilities;
+  securitySchemes?: Record<string, unknown>;
+  security?: Record<string, string[]>[];
+  defaultInputModes: string[];
+  defaultOutputModes: string[];
+  skills: AgentSkill[];
+  supportsAuthenticatedExtendedCard?: boolean;
+  /** @deprecated Use securitySchemes/security. Kept for backward compat. */
   authentication?: {
     type: 'bearer' | 'api_key' | 'oauth2';
     schemes?: string[];
   };
-  skills: AgentSkill[];
 }
 
 // ============================================================================
@@ -329,46 +372,97 @@ export interface SandarbManifest {
   agent_card?: AgentCard;
 }
 
+/** @deprecated A2A spec uses AgentCapabilities object; kept for reference. */
 export interface AgentCapability {
   name: string;
   description: string;
   streaming?: boolean;
 }
 
+/** A2A spec AgentSkill: id, name, description, tags, optional examples (strings), input/output MIME modes. */
 export interface AgentSkill {
   id: string;
   name: string;
   description: string;
+  tags: string[];
+  examples?: string[];
+  inputModes?: string[];
+  outputModes?: string[];
+  /** Sandarb extension: JSON Schema for skill input (optional). */
   inputSchema?: Record<string, unknown>;
+  /** Sandarb extension: JSON Schema for skill output (optional). */
   outputSchema?: Record<string, unknown>;
-  examples?: Array<{
-    input: unknown;
-    output: unknown;
-  }>;
 }
 
+/** A2A spec TaskState lifecycle. */
+export type TaskState =
+  | 'submitted'
+  | 'working'
+  | 'input-required'
+  | 'completed'
+  | 'canceled'
+  | 'failed'
+  | 'rejected'
+  | 'auth-required'
+  | 'unknown';
+
+/** A2A spec TaskStatus: state + optional message and timestamp. */
+export interface TaskStatus {
+  state: TaskState;
+  message?: A2AMessage;
+  timestamp?: string;
+}
+
+/** A2A spec Task: id, contextId, status, optional artifacts/history/metadata. */
+export interface A2ATaskSpec {
+  id: string;
+  contextId: string;
+  status: TaskStatus;
+  artifacts?: A2AArtifact[];
+  history?: A2AMessage[];
+  metadata?: Record<string, unknown>;
+}
+
+/** Internal task record used by Sandarb (skill, input, output); maps to A2ATaskSpec for API. */
 export interface A2ATask {
   id: string;
+  contextId: string;
   agentId: string;
   skill: string;
   input: Record<string, unknown>;
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: TaskStatus;
   output?: unknown;
   error?: string;
   createdAt: string;
   completedAt?: string;
 }
 
+/** A2A spec Artifact: artifactId, optional name/description, parts, metadata. */
+export interface A2AArtifact {
+  artifactId: string;
+  name?: string;
+  description?: string;
+  parts: A2AMessagePart[];
+  metadata?: Record<string, unknown> | null;
+}
+
+/** A2A spec Message: role, parts, messageId, kind; optional metadata, taskId, contextId, referenceTaskIds. */
 export interface A2AMessage {
   role: 'user' | 'agent';
   parts: A2AMessagePart[];
+  messageId: string;
+  kind: 'message';
   metadata?: Record<string, unknown>;
+  referenceTaskIds?: string[];
+  taskId?: string;
+  contextId?: string;
 }
 
+/** A2A spec Part: discriminator is "kind". */
 export type A2AMessagePart =
-  | { type: 'text'; text: string }
-  | { type: 'data'; mimeType: string; data: string }
-  | { type: 'file'; uri: string; mimeType?: string };
+  | { kind: 'text'; text: string; metadata?: Record<string, unknown> }
+  | { kind: 'data'; data: Record<string, unknown>; metadata?: Record<string, unknown> }
+  | { kind: 'file'; file: { name?: string; mimeType?: string; bytes?: string; uri?: string }; metadata?: Record<string, unknown> };
 
 // ============================================================================
 // OBSERVABILITY

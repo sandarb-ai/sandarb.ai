@@ -12,22 +12,19 @@ import {
   Check,
   XCircle,
   FileEdit,
-  MessageSquare,
-  GitCompare,
+  Shield,
+  Copy,
+  ExternalLink,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ContextEditor } from '@/components/context-editor';
-import { ContextPreview } from '@/components/context-preview';
+import { ComplianceMetadataFields } from '@/components/compliance-metadata-fields';
 import type { Context, ContextRevision, LineOfBusiness, DataClassification, RegulatoryHook } from '@/types';
 import { formatDate } from '@/lib/utils';
-import { ComplianceMetadataFields } from '@/components/compliance-metadata-fields';
 import { ContentDiffView } from '@/components/content-diff-view';
 import {
   Dialog,
@@ -36,6 +33,49 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
+function InjectApiBar({ contextName }: { contextName: string }) {
+  const [copied, setCopied] = useState(false);
+  // Auditable injection requires agentId and traceId (headers or query). Use preview agent for Test API / Copy URL.
+  const agentId = 'sandarb-context-preview';
+  const traceId = 'test-1';
+  const apiPath = `/api/inject?name=${encodeURIComponent(contextName)}&format=json&agentId=${encodeURIComponent(agentId)}&traceId=${encodeURIComponent(traceId)}`;
+  const fullUrl = typeof window !== 'undefined' ? `${window.location.origin}${apiPath}` : apiPath;
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(fullUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleTest = () => {
+    if (typeof window !== 'undefined') window.open(fullUrl, '_blank', 'noopener');
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border/80 bg-muted/30 px-4 py-2.5">
+      <span className="inline-flex items-center gap-2 text-sm font-medium">
+        <span className="inline-flex items-center rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
+          Live
+        </span>
+        What your agent receives
+      </span>
+      <code className="flex-1 min-w-0 truncate rounded bg-muted/80 px-2 py-1 text-xs font-mono" title={fullUrl}>
+        GET {apiPath}
+      </code>
+      <div className="flex items-center gap-1.5">
+        <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={handleCopy}>
+          {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
+          {copied ? 'Copied' : 'Copy URL'}
+        </Button>
+        <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={handleTest}>
+          <ExternalLink className="h-3.5 w-3.5" />
+          Test API
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function EditContextPage() {
   const router = useRouter();
   const params = useParams();
@@ -43,17 +83,13 @@ export default function EditContextPage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [proposing, setProposing] = useState(false);
-  const [commitMessage, setCommitMessage] = useState('');
   const [context, setContext] = useState<Context | null>(null);
-  const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [tags, setTags] = useState('');
+  const [content, setContent] = useState<Record<string, unknown>>({});
+  const [isActive, setIsActive] = useState(true);
   const [lineOfBusiness, setLineOfBusiness] = useState<LineOfBusiness | null>(null);
   const [dataClassification, setDataClassification] = useState<DataClassification | null>(null);
   const [regulatoryHooks, setRegulatoryHooks] = useState<RegulatoryHook[]>([]);
-  const [content, setContent] = useState<Record<string, unknown>>({});
-  const [isActive, setIsActive] = useState(true);
   const [revisions, setRevisions] = useState<ContextRevision[]>([]);
   const [activeTab, setActiveTab] = useState('content');
   const [diffRevision, setDiffRevision] = useState<ContextRevision | null>(null);
@@ -65,17 +101,12 @@ export default function EditContextPage() {
       if (data.success) {
         const ctx = data.data;
         setContext(ctx);
-        setName(ctx.name);
         setDescription(ctx.description || '');
-        setTags(ctx.tags?.join(', ') ?? '');
+        setContent(ctx.content ?? {});
+        setIsActive(ctx.isActive);
         setLineOfBusiness(ctx.lineOfBusiness ?? null);
         setDataClassification(ctx.dataClassification ?? null);
         setRegulatoryHooks(ctx.regulatoryHooks ?? []);
-        setContent(ctx.content ?? {});
-        setIsActive(ctx.isActive);
-      } else {
-        alert('Context not found');
-        router.push('/contexts');
       }
     } catch (error) {
       console.error('Failed to fetch context:', error);
@@ -98,9 +129,10 @@ export default function EditContextPage() {
     fetchContext();
   }, [id]);
 
+  // Fetch revisions on load so History/Pending tab counts are correct without clicking
   useEffect(() => {
-    if (id && activeTab !== 'content') fetchRevisions();
-  }, [id, activeTab]);
+    if (id) fetchRevisions();
+  }, [id]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -109,10 +141,8 @@ export default function EditContextPage() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name,
           description,
           content,
-          tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
           isActive,
           lineOfBusiness,
           dataClassification,
@@ -130,37 +160,6 @@ export default function EditContextPage() {
       alert('Failed to update context');
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handlePropose = async () => {
-    if (!commitMessage.trim()) {
-      alert('Commit message is required to propose changes.');
-      return;
-    }
-    setProposing(true);
-    try {
-      const res = await fetch(`/api/contexts/${id}/revisions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content,
-          commitMessage: commitMessage.trim(),
-        }),
-      });
-      if (res.ok) {
-        setCommitMessage('');
-        setActiveTab('pending');
-        fetchRevisions();
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to propose changes');
-      }
-    } catch (error) {
-      console.error('Failed to propose revision:', error);
-      alert('Failed to propose changes');
-    } finally {
-      setProposing(false);
     }
   };
 
@@ -215,9 +214,23 @@ export default function EditContextPage() {
     );
   }
 
+  if (!context) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 p-8">
+        <p className="text-muted-foreground">Context not found.</p>
+        <Link href="/contexts">
+          <Button variant="outline">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to contexts
+          </Button>
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full">
-      <header className="flex items-center justify-between border-b bg-background px-6 py-4">
+      <header className="sticky top-0 z-10 flex items-center justify-between border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-6 py-3">
         <div className="flex items-center gap-4">
           <Link href="/contexts">
             <Button variant="ghost" size="icon">
@@ -226,39 +239,45 @@ export default function EditContextPage() {
           </Link>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-semibold tracking-tight">{name}</h1>
-              <Badge variant={isActive ? 'default' : 'secondary'}>
+              <h1 className="text-xl font-semibold tracking-tight font-mono">{context.name}</h1>
+              <Badge variant={isActive ? 'success' : 'secondary'}>
                 {isActive ? 'Active' : 'Inactive'}
               </Badge>
             </div>
-            <p className="text-sm text-muted-foreground">Edit context · changes tracked like git</p>
+            {description && (
+              <p className="text-sm text-muted-foreground truncate max-w-md">{description}</p>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setIsActive(!isActive)}>
+          <Button variant="outline" size="sm" onClick={() => setIsActive(!isActive)}>
             {isActive ? 'Deactivate' : 'Activate'}
           </Button>
           <Button
             variant="outline"
+            size="sm"
             className="text-destructive hover:text-destructive"
             onClick={handleDelete}
           >
-            <Trash2 className="h-4 w-4 mr-2" />
-            Delete
+            <Trash2 className="h-4 w-4" />
           </Button>
-          <Button onClick={handleSave} disabled={saving || !name}>
-            <Save className="h-4 w-4 mr-2" />
+          <Button size="sm" onClick={handleSave} disabled={saving}>
+            <Save className="h-4 w-4 mr-1" />
             {saving ? 'Saving...' : 'Save'}
           </Button>
         </div>
       </header>
 
-      <div className="flex-1 p-6 overflow-auto">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-4">
+      <div className="flex-1 p-6 overflow-auto flex flex-col min-h-0">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
+          <TabsList className="mb-4 shrink-0">
             <TabsTrigger value="content" className="gap-2">
               <FileEdit className="h-4 w-4" />
-              Content
+              Edit content
+            </TabsTrigger>
+            <TabsTrigger value="compliance" className="gap-2">
+              <Shield className="h-4 w-4" />
+              Compliance
             </TabsTrigger>
             <TabsTrigger value="history" className="gap-2">
               <History className="h-4 w-4" />
@@ -270,62 +289,39 @@ export default function EditContextPage() {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="content" className="space-y-6 mt-0">
-            {/* Request Review (4-eyes principle) */}
-            <Card className="border-primary/20 bg-muted/30">
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <GitPullRequest className="h-4 w-4" />
-                  Request Review (4-eyes principle)
-                </CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Context that changes model behavior often needs a second pair of eyes before going live. Add a commit message and request review; an approver can approve or reject.
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="space-y-2">
-                  <Label htmlFor="commitMessage" className="flex items-center gap-2">
-                    <MessageSquare className="h-4 w-4" />
-                    Commit message
-                  </Label>
-                  <Input
-                    id="commitMessage"
-                    placeholder="e.g. Update API config for staging"
-                    value={commitMessage}
-                    onChange={(e) => setCommitMessage(e.target.value)}
-                  />
+          <TabsContent value="content" className="mt-0 flex-1 min-h-0 flex flex-col">
+            <div className="grid gap-6 lg:grid-cols-[1fr,minmax(300px,340px)] min-h-0 h-[calc(100vh-160px)]">
+              {/* Left pane: Content editor + compact "What your agent receives" bar */}
+              <div className="flex flex-col gap-4 min-h-0 overflow-hidden">
+                {/* Content (JSON) — fills available height */}
+                <div className="flex flex-col min-h-0 flex-1">
+                  <div className="flex items-center justify-between mb-2 shrink-0">
+                    <h3 className="text-sm font-semibold text-foreground">Content (JSON)</h3>
+                    <p className="text-xs text-muted-foreground">
+                      <code className="rounded bg-muted px-1.5 py-0.5">{'{{var}}'}</code> for variables
+                    </p>
+                  </div>
+                  <div className="flex-1 min-h-0 rounded-xl border border-border/80 overflow-hidden bg-background shadow-sm ring-1 ring-black/5 dark:ring-white/5">
+                    <ContextEditor value={content} onChange={setContent} />
+                  </div>
                 </div>
-                <Button onClick={handlePropose} disabled={proposing || !commitMessage.trim()}>
-                  <GitPullRequest className="h-4 w-4 mr-2" />
-                  {proposing ? 'Requesting...' : 'Request Review'}
-                </Button>
-              </CardContent>
-            </Card>
+                {/* Live — What your agent receives: copy + test API */}
+                <InjectApiBar contextName={context.name} />
+              </div>
 
-            <div className="grid gap-6 lg:grid-cols-2">
-              <div className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Details</CardTitle>
+              {/* Right pane: Regulatory & compliance only — resized for clarity */}
+              <div className="flex flex-col min-h-0 lg:sticky lg:top-[57px] lg:self-start lg:max-h-[calc(100vh-100px)] overflow-auto">
+                <Card className="border-l-4 border-l-primary shadow-sm">
+                  <CardHeader className="py-3 px-4">
+                    <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                      <Shield className="h-3.5 w-3.5 text-primary" />
+                      Regulatory & compliance
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      LOB, data classification, and regulatory hooks for governance and search.
+                    </p>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="name">Name *</Label>
-                      <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="description">Description</Label>
-                      <Textarea
-                        id="description"
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        rows={2}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="tags">Tags</Label>
-                      <Input id="tags" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="Optional comma-separated labels" />
-                    </div>
+                  <CardContent className="px-4 pb-4 pt-0">
                     <ComplianceMetadataFields
                       lineOfBusiness={lineOfBusiness}
                       dataClassification={dataClassification}
@@ -336,29 +332,32 @@ export default function EditContextPage() {
                     />
                   </CardContent>
                 </Card>
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Content</CardTitle>
-                    <p className="text-xs text-muted-foreground font-normal">
-                      Use placeholders like <code className="rounded bg-muted px-1">{'{{client_name}}'}</code> or <code className="rounded bg-muted px-1">{'{{portfolio_id}}'}</code>; Sandarb injects values at request time from query <code className="rounded bg-muted px-1">vars=</code> or header <code className="rounded bg-muted px-1">X-Sandarb-Variables</code>.
-                    </p>
-                  </CardHeader>
-                  <CardContent>
-                    <ContextEditor value={content} onChange={setContent} />
-                  </CardContent>
-                </Card>
-              </div>
-              <div className="lg:sticky lg:top-6 lg:self-start">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Preview</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ContextPreview content={content} contextName={name} />
-                  </CardContent>
-                </Card>
               </div>
             </div>
+          </TabsContent>
+
+          <TabsContent value="compliance" className="mt-0">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  Regulatory & compliance
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Line of business, data classification, and regulatory hooks for governance and search.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <ComplianceMetadataFields
+                  lineOfBusiness={lineOfBusiness}
+                  dataClassification={dataClassification}
+                  regulatoryHooks={regulatoryHooks}
+                  onLineOfBusinessChange={setLineOfBusiness}
+                  onDataClassificationChange={setDataClassification}
+                  onRegulatoryHooksChange={setRegulatoryHooks}
+                />
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="history" className="mt-0">
@@ -369,62 +368,70 @@ export default function EditContextPage() {
                   Version history
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  All approved and rejected changes. View diff to see exactly what changed between versions.
+                  All approved and rejected changes. Click on the diff to view full comparison.
                 </p>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-0">
                 {history.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-6 text-center">
+                  <p className="text-sm text-muted-foreground py-6 text-center px-6">
                     No history yet. Save or approve a proposed change to see commits here.
                   </p>
                 ) : (
-                  <ul className="space-y-3">
-                    {history.map((rev) => (
-                      <li
-                        key={rev.id}
-                        className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-lg border p-4 bg-muted/30"
-                      >
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-background border">
-                          <GitCommit className="h-4 w-4 text-muted-foreground" />
-                        </div>
-                        <div className="min-w-0 flex-1 space-y-2">
-                          <p className="font-medium truncate">{rev.commitMessage || 'No message'}</p>
-                          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                            <div>
-                              <dt className="font-medium text-foreground/80">Created by</dt>
-                              <dd>{rev.createdBy || '—'}</dd>
-                            </div>
-                            <div>
-                              <dt className="font-medium text-foreground/80">Created datetime</dt>
-                              <dd>{formatDate(rev.createdAt)}</dd>
-                            </div>
-                            <div>
-                              <dt className="font-medium text-foreground/80">Last edited by</dt>
-                              <dd>{rev.approvedBy ?? '—'}</dd>
-                            </div>
-                            <div>
-                              <dt className="font-medium text-foreground/80">Last edited datetime</dt>
-                              <dd>{rev.approvedAt ? formatDate(rev.approvedAt) : '—'}</dd>
-                            </div>
-                          </dl>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <Badge variant={rev.status === 'approved' ? 'default' : 'secondary'}>
-                            {rev.status}
-                          </Badge>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="gap-1"
-                            onClick={() => setDiffRevision(rev)}
-                          >
-                            <GitCompare className="h-4 w-4" />
-                            View diff
-                          </Button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border bg-muted/50">
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Date / time</th>
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Created by</th>
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Approved by</th>
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap w-40">Commit message</th>
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground min-w-[320px] lg:min-w-[480px]">Changes (diff)</th>
+                          <th className="text-right py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {history.map((rev) => (
+                          <tr key={rev.id} className="border-b border-border/80 hover:bg-muted/20 align-top">
+                            <td className="py-3 px-4 whitespace-nowrap text-muted-foreground">
+                              <span className="block">{formatDate(rev.createdAt)}</span>
+                              {rev.approvedAt && (
+                                <span className="block text-xs mt-0.5">Approved: {formatDate(rev.approvedAt)}</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 whitespace-nowrap">{rev.createdBy || '—'}</td>
+                            <td className="py-3 px-4 whitespace-nowrap">{rev.approvedBy ?? '—'}</td>
+                            <td className="py-3 px-4 max-w-[12rem]">
+                              <p className="truncate font-medium text-foreground" title={rev.commitMessage || undefined}>
+                                {rev.commitMessage || 'No message'}
+                              </p>
+                            </td>
+                            <td className="py-2 px-4 min-w-[320px] lg:min-w-[480px]">
+                              {context && (
+                                <div 
+                                  className="rounded border border-border/60 bg-muted/20 overflow-hidden max-h-40 overflow-y-auto cursor-pointer hover:border-primary/50 transition-colors"
+                                  onClick={() => setDiffRevision(rev)}
+                                  title="Click to view full diff"
+                                >
+                                  <ContentDiffView
+                                    oldContent={rev.content}
+                                    newContent={context.content ?? {}}
+                                    oldLabel="Revision"
+                                    newLabel="Current"
+                                    className="!border-0 !rounded-none text-[11px]"
+                                  />
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-right whitespace-nowrap">
+                              <Badge variant={rev.status === 'approved' ? 'success' : 'secondary'}>
+                                {rev.status}
+                              </Badge>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -438,67 +445,80 @@ export default function EditContextPage() {
                   Pending review
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Proposed changes waiting for approval or rejection.
+                  Proposed changes waiting for approval or rejection. Click on the diff to view full comparison.
                 </p>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-0">
                 {proposed.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-6 text-center">
-                    No pending proposals. Use “Propose changes” on the Content tab.
+                  <p className="text-sm text-muted-foreground py-6 text-center px-6">
+                    No pending proposals. Use "Propose changes" on the Content tab.
                   </p>
                 ) : (
-                  <ul className="space-y-3">
-                    {proposed.map((rev) => (
-                      <li
-                        key={rev.id}
-                        className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-lg border p-4 bg-muted/30"
-                      >
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-background border">
-                          <GitPullRequest className="h-4 w-4 text-muted-foreground" />
-                        </div>
-                        <div className="min-w-0 flex-1 space-y-2">
-                          <p className="font-medium truncate">{rev.commitMessage || 'No message'}</p>
-                          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                            <div>
-                              <dt className="font-medium text-foreground/80">Created by</dt>
-                              <dd>{rev.createdBy || '—'}</dd>
-                            </div>
-                            <div>
-                              <dt className="font-medium text-foreground/80">Created datetime</dt>
-                              <dd>{formatDate(rev.createdAt)}</dd>
-                            </div>
-                            <div>
-                              <dt className="font-medium text-foreground/80">Last edited by</dt>
-                              <dd>—</dd>
-                            </div>
-                            <div>
-                              <dt className="font-medium text-foreground/80">Last edited datetime</dt>
-                              <dd>—</dd>
-                            </div>
-                          </dl>
-                        </div>
-                        <div className="flex gap-2 shrink-0">
-                          <Button
-                            size="sm"
-                            variant="approve"
-                            onClick={() => handleApproveRevision(rev.id)}
-                          >
-                            <Check className="h-4 w-4 mr-1" />
-                            Approve
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-destructive"
-                            onClick={() => handleRejectRevision(rev.id)}
-                          >
-                            <XCircle className="h-4 w-4 mr-1" />
-                            Reject
-                          </Button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border bg-muted/50">
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Date / time</th>
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Created by</th>
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap w-40">Commit message</th>
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground min-w-[320px] lg:min-w-[480px]">Changes (diff)</th>
+                          <th className="text-right py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {proposed.map((rev) => (
+                          <tr key={rev.id} className="border-b border-border/80 hover:bg-muted/20 align-top">
+                            <td className="py-3 px-4 whitespace-nowrap text-muted-foreground">
+                              {formatDate(rev.createdAt)}
+                            </td>
+                            <td className="py-3 px-4 whitespace-nowrap">{rev.createdBy || '—'}</td>
+                            <td className="py-3 px-4 max-w-[12rem]">
+                              <p className="truncate font-medium text-foreground" title={rev.commitMessage || undefined}>
+                                {rev.commitMessage || 'No message'}
+                              </p>
+                            </td>
+                            <td className="py-2 px-4 min-w-[320px] lg:min-w-[480px]">
+                              {context && (
+                                <div 
+                                  className="rounded border border-border/60 bg-muted/20 overflow-hidden max-h-40 overflow-y-auto cursor-pointer hover:border-primary/50 transition-colors"
+                                  onClick={() => setDiffRevision(rev)}
+                                  title="Click to view full diff"
+                                >
+                                  <ContentDiffView
+                                    oldContent={context.content ?? {}}
+                                    newContent={rev.content}
+                                    oldLabel="Current"
+                                    newLabel="Proposed"
+                                    className="!border-0 !rounded-none text-[11px]"
+                                  />
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-right whitespace-nowrap">
+                              <Button
+                                size="sm"
+                                variant="approve"
+                                className="mr-1"
+                                onClick={() => handleApproveRevision(rev.id)}
+                              >
+                                <Check className="h-4 w-4 mr-1" />
+                                Approve
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-destructive"
+                                onClick={() => handleRejectRevision(rev.id)}
+                              >
+                                <XCircle className="h-4 w-4 mr-1" />
+                                Reject
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </CardContent>
             </Card>

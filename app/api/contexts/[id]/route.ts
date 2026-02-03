@@ -42,12 +42,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       regulatoryHooks,
     } = body as ContextUpdateInput;
 
-    // Validate name format if provided
-    if (name && !/^[a-zA-Z0-9_-]+$/.test(name)) {
+    // Validate name format if provided (lowercase alphanumeric, hyphens, underscores only)
+    if (name && !/^[a-z0-9_-]+$/.test(name)) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Name must contain only letters, numbers, hyphens, and underscores',
+          error: 'Name must be lowercase and contain only letters, numbers, hyphens (-), and underscores (_)',
         },
         { status: 400 }
       );

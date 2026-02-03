@@ -3,7 +3,7 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { Bot, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
-import { formatRelativeTime } from '@/lib/utils';
+import { formatDateTime } from '@/lib/utils';
 import type { A2ALogEntry } from '@/lib/audit';
 
 const POLL_INTERVAL_MS = 4000;
@@ -48,6 +48,7 @@ function generateDemoEntry(): A2ALogEntry {
     actionType: success ? 'INJECT_SUCCESS' : 'INJECT_DENIED',
     contextName: context,
     contextId: null,
+    contextVersionId: success ? `v1.0.${Math.floor(Math.random() * 20)}` : null,
     reason: success ? undefined : (Math.random() > 0.5 ? 'LOB mismatch' : 'Agent not registered'),
     intent: Math.random() > 0.6 ? 'Compliance check before trade' : undefined,
   };
@@ -153,10 +154,14 @@ export function AgentPulseChat({ entries: initialEntries }: AgentPulseChatProps)
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-2 flex-wrap">
                     <span className="font-semibold text-[15px] text-foreground">{entry.agentId}</span>
-                    <span className="text-xs text-muted-foreground">{formatRelativeTime(entry.accessedAt)}</span>
+                    <span className="text-xs text-muted-foreground">{formatDateTime(entry.accessedAt)}</span>
                   </div>
                   <div className="mt-0.5 text-[15px] text-foreground break-words">
-                    Requested context: <span className="font-medium">{entry.contextName || '—'}</span>
+                    {entry.actionType === 'A2A_CALL' ? (
+                      <>A2A call: <span className="font-medium">{entry.contextName || entry.method || '—'}</span></>
+                    ) : (
+                      <>Requested context: <span className="font-medium">{entry.contextName || '—'}</span></>
+                    )}
                     {entry.intent && (
                       <p className="text-sm text-muted-foreground mt-1">Intent: {entry.intent}</p>
                     )}
@@ -171,12 +176,16 @@ export function AgentPulseChat({ entries: initialEntries }: AgentPulseChatProps)
               <div className="flex gap-3 max-w-[85%] ml-12">
                 <div
                   className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white ${
-                    entry.actionType === 'INJECT_SUCCESS'
-                      ? 'bg-[#0b6e4f] dark:bg-emerald-600'
-                      : 'bg-[#c23934] dark:bg-red-600'
+                    entry.actionType === 'A2A_CALL'
+                      ? 'bg-violet-600 dark:bg-violet-500'
+                      : entry.actionType === 'INJECT_SUCCESS'
+                        ? 'bg-[#0b6e4f] dark:bg-emerald-600'
+                        : 'bg-[#c23934] dark:bg-red-600'
                   }`}
                 >
-                  {entry.actionType === 'INJECT_SUCCESS' ? (
+                  {entry.actionType === 'A2A_CALL' ? (
+                    <Bot className="h-4 w-4" aria-hidden />
+                  ) : entry.actionType === 'INJECT_SUCCESS' ? (
                     <ShieldCheck className="h-4 w-4" aria-hidden />
                   ) : (
                     <ShieldAlert className="h-4 w-4" aria-hidden />
@@ -185,19 +194,34 @@ export function AgentPulseChat({ entries: initialEntries }: AgentPulseChatProps)
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-2 flex-wrap">
                     <span className="font-semibold text-[15px] text-foreground">Sandarb</span>
-                    <span className="text-xs text-muted-foreground">{formatRelativeTime(entry.accessedAt)}</span>
+                    <span className="text-xs text-muted-foreground">{formatDateTime(entry.accessedAt)}</span>
                     <span
                       className={`text-[11px] font-medium px-1.5 py-0 rounded ${
-                        entry.actionType === 'INJECT_SUCCESS'
-                          ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-400'
-                          : 'bg-red-500/20 text-red-700 dark:text-red-400'
+                        entry.actionType === 'A2A_CALL'
+                          ? 'bg-violet-500/20 text-violet-700 dark:text-violet-400'
+                          : entry.actionType === 'INJECT_SUCCESS'
+                            ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-400'
+                            : 'bg-red-500/20 text-red-700 dark:text-red-400'
                       }`}
                     >
-                      {entry.actionType === 'INJECT_SUCCESS' ? 'Delivered' : 'Denied'}
+                      {entry.actionType === 'A2A_CALL'
+                        ? (entry.error ? 'Error' : 'OK')
+                        : entry.actionType === 'INJECT_SUCCESS'
+                          ? 'Delivered'
+                          : 'Denied'}
                     </span>
                   </div>
                   <div className="mt-0.5 text-[15px] text-foreground break-words">
-                    {entry.actionType === 'INJECT_SUCCESS' ? (
+                    {entry.actionType === 'A2A_CALL' ? (
+                      <>
+                        {entry.error ?? (entry.resultSummary ?? 'ok')}
+                        {(entry.inputSummary ?? entry.method) && (
+                          <p className="text-sm text-muted-foreground mt-0.5">
+                            {entry.method ?? ''} {entry.inputSummary ?? ''}
+                          </p>
+                        )}
+                      </>
+                    ) : entry.actionType === 'INJECT_SUCCESS' ? (
                       <>Context delivered: <span className="font-medium">{entry.contextName || '—'}</span></>
                     ) : (
                       <>

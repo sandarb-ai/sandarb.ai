@@ -40,6 +40,16 @@ function ensureDeps() {
   }
 }
 
+function runAgentDryRun() {
+  const dryRun = spawn('node', ['scripts/sandarb-develop.js', '--dry-run'], {
+    cwd: ROOT,
+    stdio: 'ignore',
+    detached: true,
+  });
+  dryRun.unref();
+  console.log('  Agent dry run started in background → logs/punjikasthala.log');
+}
+
 function main() {
   checkNode();
   ensureEnv();
@@ -51,6 +61,7 @@ function main() {
   console.log('  UI:  http://localhost:4000');
   console.log('  API: http://localhost:4001');
   console.log('  ---------------------------------');
+  runAgentDryRun();
   console.log('  Press Ctrl+C to stop.');
   console.log('');
 

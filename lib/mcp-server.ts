@@ -23,7 +23,7 @@ export const listResources = async (): Promise<MCPResource[]> => {
   const resources: MCPResource[] = [];
 
   // Add prompts as resources
-  const prompts = getAllPrompts();
+  const prompts = await getAllPrompts();
   for (const prompt of prompts) {
     resources.push({
       uri: `openint://prompts/${prompt.name}`,
@@ -59,10 +59,10 @@ export const readResource = async (uri: string): Promise<{ contents: Array<{ uri
   const [, type, name] = match;
 
   if (type === 'prompts') {
-    const prompt = getPromptByName(name);
+    const prompt = await getPromptByName(name);
     if (!prompt) throw new Error(`Prompt not found: ${name}`);
 
-    const version = getCurrentPromptVersion(prompt.id);
+    const version = await getCurrentPromptVersion(prompt.id);
     const content = version?.content || '';
 
     return {
@@ -206,12 +206,12 @@ export const callTool = async (
 ): Promise<{ content: Array<{ type: 'text'; text: string }> }> => {
   switch (name) {
     case 'get_prompt': {
-      const prompt = getPromptByName(args.name as string);
+      const prompt = await getPromptByName(args.name as string);
       if (!prompt) {
         return { content: [{ type: 'text', text: `Prompt not found: ${args.name}` }] };
       }
 
-      const version = getCurrentPromptVersion(prompt.id);
+      const version = await getCurrentPromptVersion(prompt.id);
       if (!version) {
         return { content: [{ type: 'text', text: `No versions found for prompt: ${args.name}` }] };
       }
@@ -248,7 +248,7 @@ export const callTool = async (
     }
 
     case 'list_prompts': {
-      const prompts = getAllPrompts();
+      const prompts = await getAllPrompts();
       const filtered = args.tags
         ? prompts.filter(p => (args.tags as string[]).some(t => p.tags.includes(t)))
         : prompts;
@@ -314,14 +314,15 @@ export const callTool = async (
 /**
  * List available MCP prompt templates
  */
-export const listMCPPrompts = (): MCPPrompt[] => {
-  const prompts = getAllPrompts();
+export const listMCPPrompts = async (): Promise<MCPPrompt[]> => {
+  const prompts = await getAllPrompts();
 
-  return prompts.map(prompt => {
-    const version = getCurrentPromptVersion(prompt.id);
+  const results: MCPPrompt[] = [];
+  for (const prompt of prompts) {
+    const version = await getCurrentPromptVersion(prompt.id);
     const variables = version?.variables || [];
 
-    return {
+    results.push({
       name: prompt.name,
       description: prompt.description || undefined,
       arguments: variables.map(v => ({
@@ -329,23 +330,24 @@ export const listMCPPrompts = (): MCPPrompt[] => {
         description: v.description,
         required: v.required,
       })),
-    };
-  });
+    });
+  }
+  return results;
 };
 
 /**
  * Get a prompt with messages
  */
-export const getMCPPrompt = (
+export const getMCPPrompt = async (
   name: string,
   args: Record<string, unknown>
-): { messages: MCPPromptMessage[] } => {
-  const prompt = getPromptByName(name);
+): Promise<{ messages: MCPPromptMessage[] }> => {
+  const prompt = await getPromptByName(name);
   if (!prompt) {
     throw new Error(`Prompt not found: ${name}`);
   }
 
-  const version = getCurrentPromptVersion(prompt.id);
+  const version = await getCurrentPromptVersion(prompt.id);
   if (!version) {
     throw new Error(`No versions found for prompt: ${name}`);
   }

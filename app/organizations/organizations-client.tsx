@@ -4,13 +4,15 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { apiUrl } from '@/lib/api';
-import { Plus, Search, Building2, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Search, Building2, ExternalLink, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/empty-state';
 import type { Organization } from '@/types';
+
+// Design pattern: Cards are fully clickable with view icon on hover
 
 interface OrganizationsPageClientProps {
   initialOrgs: Organization[];
@@ -90,36 +92,35 @@ export function OrganizationsPageClient({ initialOrgs }: OrganizationsPageClient
             {filtered.map((org) => (
               <Card
                 key={org.id}
-                className="flex flex-col relative transition-colors hover:bg-muted/50 cursor-pointer"
-                onClick={() => !org.isRoot && router.push(`/organizations/${org.id}`)}
+                className="group flex flex-col relative transition-all hover:shadow-md hover:bg-muted/50 cursor-pointer"
+                onClick={() => router.push(`/organizations/${org.id}`)}
               >
-                <div
-                  className="absolute top-2 right-2 flex items-center gap-1 z-10"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Link href={`/organizations/${org.id}`}>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                  </Link>
-                  {!org.isRoot && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                      onClick={() => handleDelete(org.id, org.isRoot)}
+                <CardHeader className="pb-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Building2 className="h-5 w-5 text-muted-foreground shrink-0" />
+                      <span className="font-semibold truncate">{org.name}</span>
+                      {org.isRoot && (
+                        <Badge variant="secondary" className="text-xs shrink-0">Root</Badge>
+                      )}
+                    </div>
+                    <div
+                      className="flex shrink-0 items-center gap-0.5"
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-                <CardHeader className="pb-2 pr-20">
-                  <div className="flex items-center gap-2">
-                    <Building2 className="h-5 w-5 text-muted-foreground" />
-                    <span className="font-semibold">{org.name}</span>
-                    {org.isRoot && (
-                      <Badge variant="secondary" className="text-xs">Root</Badge>
-                    )}
+                      <ExternalLink className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity mr-1" />
+                      {!org.isRoot && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-70 group-hover:opacity-100 transition-opacity"
+                          aria-label="Delete organization"
+                          onClick={() => handleDelete(org.id, org.isRoot)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="flex-1 flex flex-col">

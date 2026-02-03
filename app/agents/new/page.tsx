@@ -107,17 +107,19 @@ function RegisterAgentForm() {
 
   return (
     <div className="flex flex-col h-full">
-      <header className="flex items-center gap-4 border-b bg-background px-6 py-4">
-        <Link href="/agents">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Register agent</h1>
-          <p className="text-sm text-muted-foreground">
-            Add an A2A agent by URL (we fetch the Agent Card) or add manually.
-          </p>
+      <header className="flex items-center justify-between gap-4 border-b bg-background px-6 py-4">
+        <div className="flex items-center gap-4">
+          <Link href="/agents">
+            <Button variant="ghost" size="icon">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Register agent</h1>
+            <p className="text-sm text-muted-foreground">
+              Add an A2A agent by URL (we fetch the Agent Card) or add manually.
+            </p>
+          </div>
         </div>
       </header>
 

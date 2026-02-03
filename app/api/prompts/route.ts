@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const tags = searchParams.get('tags')?.split(',').filter(Boolean);
 
-    let prompts = getAllPrompts();
+    let prompts = await getAllPrompts();
 
     if (tags && tags.length > 0) {
       prompts = prompts.filter(p =>
@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
       maxTokens,
       systemPrompt,
       commitMessage,
+      autoApprove = true, // Default to true for new prompts (backward compat)
     } = body;
 
     // Validation
@@ -66,19 +67,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check name format
-    if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+    // Check name format (lowercase alphanumeric, hyphens, underscores only)
+    if (!/^[a-z0-9_-]+$/.test(name)) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Name must contain only letters, numbers, hyphens, and underscores',
+          error: 'Name must be lowercase and contain only letters, numbers, hyphens (-), and underscores (_)',
         },
         { status: 400 }
       );
     }
 
     // Check if prompt already exists
-    const existing = getPromptByName(name);
+    const existing = await getPromptByName(name);
     if (existing) {
       return NextResponse.json(
         { success: false, error: 'A prompt with this name already exists' },
@@ -87,7 +88,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create prompt
-    const prompt = createPrompt({
+    const prompt = await createPrompt({
       name,
       description,
       projectId,
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Create initial version
-    const version = createPromptVersion({
+    const version = await createPromptVersion({
       promptId: prompt.id,
       content,
       variables: variables || [],
@@ -104,6 +105,7 @@ export async function POST(request: NextRequest) {
       maxTokens,
       systemPrompt,
       commitMessage: commitMessage || 'Initial version',
+      autoApprove, // Governance: auto-approve or require review
     });
 
     return NextResponse.json(

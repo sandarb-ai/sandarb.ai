@@ -17,58 +17,73 @@ import { getAgentById, getAllAgents, registerByManifest } from './agents';
 import { getProposedRevisions, getAllProposedRevisions } from './revisions';
 import { logAuditEvent, logContextDelivery, getLineage } from './audit';
 import { pollAgentMcp, deriveMcpUrl } from './mcp-client';
-import type { AgentCard, AgentSkill, A2ATask, A2AMessage, A2AMessagePart } from '@/types';
+import type {
+  AgentCard,
+  AgentSkill,
+  A2ATask,
+  A2ATaskSpec,
+  A2AMessage,
+  A2AMessagePart,
+  A2AArtifact,
+  TaskStatus,
+} from '@/types';
 
 // ============================================================================
-// AGENT CARD
+// AGENT CARD (A2A spec: capabilities object, defaultInputModes, defaultOutputModes, skills with tags)
 // ============================================================================
 
 /**
  * Generate the Agent Card that describes Sandarb as a governance A2A agent.
- * Other agents discover and call Sandarb for validation, audit, and compliance.
+ * Aligned with Google A2A spec: https://google.github.io/A2A/specification/
  */
-export const getAgentCard = (baseUrl: string): AgentCard => ({
-  name: 'Sandarb',
-  description: 'Governance agent for AI agents: regulatory, controls, risk management, and compliance. While your teams build agents, Sandarb provides validation, approved context/prompts, audit logging, and pending-review visibility. Talk to Sandarb via A2A for compliance checks and audit trail.',
-  url: baseUrl,
-  version: '0.3.0',
-  capabilities: [
-    {
-      name: 'governance',
-      description: 'Validation, approval checks, and audit logging for regulatory and risk management',
+export const getAgentCard = (baseUrl: string): AgentCard => {
+  const a2aUrl = baseUrl ? `${baseUrl.replace(/\/$/, '')}/api/a2a` : '';
+  return {
+    name: 'Sandarb',
+    description:
+      'Governance agent for AI agents: regulatory, controls, risk management, and compliance. While your teams build agents, Sandarb provides validation, approved context/prompts, audit logging, and pending-review visibility. Talk to Sandarb via A2A for compliance checks and audit trail.',
+    url: a2aUrl,
+    version: '0.3.0',
+    provider: { organization: 'OpenInt', url: 'https://github.com/openint-ai/sandarb' },
+    documentationUrl: baseUrl ? `${baseUrl}/docs` : undefined,
+    capabilities: {
       streaming: false,
+      pushNotifications: false,
+      stateTransitionHistory: false,
     },
-    {
-      name: 'prompt_management',
-      description: 'Versioned prompts with variable interpolation',
-      streaming: false,
+    securitySchemes: {
+      bearer: { type: 'http', scheme: 'bearer', bearerFormat: 'token' },
     },
-    {
-      name: 'context_management',
-      description: 'Approved context configurations and composition',
-      streaming: false,
-    },
-    {
-      name: 'context_composition',
-      description: 'Compose multiple contexts with priority ordering',
-      streaming: false,
-    },
-  ],
-  authentication: {
-    type: 'bearer',
-    schemes: ['Bearer'],
-  },
-  skills: getAgentSkills(),
-});
+    security: [{ bearer: [] }],
+    defaultInputModes: ['application/json', 'text/plain'],
+    defaultOutputModes: ['application/json', 'text/plain'],
+    skills: getAgentSkills(),
+    authentication: { type: 'bearer', schemes: ['Bearer'] },
+  };
+};
+
+/** A2A spec AgentSkill requires tags; optional examples as string[]. */
+function skill(
+  s: Omit<AgentSkill, 'tags'> & { tags?: string[]; examples?: string[] },
+): AgentSkill {
+  return {
+    ...s,
+    tags: s.tags ?? ['governance'],
+    examples: s.examples,
+  };
+}
 
 /**
- * Get all skills this agent supports
+ * Get all skills this agent supports (A2A spec: id, name, description, tags, optional examples/inputModes/outputModes).
  */
 const getAgentSkills = (): AgentSkill[] => [
-  {
+  skill({
     id: 'get_prompt',
     name: 'Get Prompt',
-    description: 'Retrieve a prompt by name with optional variable interpolation. Returns the prompt content along with metadata like model recommendations and system prompt.',
+    description:
+      'Retrieve a prompt by name with optional variable interpolation. Returns the prompt content along with metadata like model recommendations and system prompt.',
+    tags: ['prompts', 'governance'],
+    examples: ['Get prompt by name: customer-support', 'Retrieve prompt with variables for interpolation'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -86,17 +101,15 @@ const getAgentSkills = (): AgentSkill[] => [
         systemPrompt: { type: 'string' },
       },
     },
-    examples: [
-      {
-        input: { name: 'customer-support', variables: { customer_name: 'John' } },
-        output: { content: 'Hello John, how can I help you today?', version: 3 },
-      },
-    ],
-  },
-  {
+    inputModes: ['application/json'],
+    outputModes: ['application/json'],
+  }),
+  skill({
     id: 'get_context',
     name: 'Get Context',
-    description: 'Retrieve a context configuration by name. Sandarb logs who asked and why (lineage). Contexts contain structured data that can be injected into AI agent workflows.',
+    description:
+      'Retrieve a context configuration by name. Sandarb logs who asked and why (lineage). Contexts contain structured data that can be injected into AI agent workflows.',
+    tags: ['context', 'governance', 'lineage'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -115,11 +128,14 @@ const getAgentSkills = (): AgentSkill[] => [
         format: { type: 'string' },
       },
     },
-  },
-  {
+    inputModes: ['application/json'],
+    outputModes: ['application/json'],
+  }),
+  skill({
     id: 'list_prompts',
     name: 'List Prompts',
     description: 'List all available prompts, optionally filtered by tags.',
+    tags: ['prompts', 'discovery'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -137,11 +153,14 @@ const getAgentSkills = (): AgentSkill[] => [
         },
       },
     },
-  },
-  {
+    inputModes: ['application/json'],
+    outputModes: ['application/json'],
+  }),
+  skill({
     id: 'list_contexts',
     name: 'List Contexts',
     description: 'List all available contexts, optionally filtered by environment.',
+    tags: ['context', 'discovery'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -160,11 +179,15 @@ const getAgentSkills = (): AgentSkill[] => [
         },
       },
     },
-  },
-  {
+    inputModes: ['application/json'],
+    outputModes: ['application/json'],
+  }),
+  skill({
     id: 'compose_contexts',
     name: 'Compose Contexts',
-    description: 'Compose multiple contexts together in order. Sandarb logs who asked (lineage). Later contexts override earlier ones.',
+    description:
+      'Compose multiple contexts together in order. Sandarb logs who asked (lineage). Later contexts override earlier ones.',
+    tags: ['context', 'composition', 'lineage'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -182,11 +205,14 @@ const getAgentSkills = (): AgentSkill[] => [
         format: { type: 'string' },
       },
     },
-  },
-  {
+    inputModes: ['application/json'],
+    outputModes: ['application/json'],
+  }),
+  skill({
     id: 'set_context',
     name: 'Set Context',
     description: 'Create or update a context configuration.',
+    tags: ['context', 'governance'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -206,14 +232,15 @@ const getAgentSkills = (): AgentSkill[] => [
         success: { type: 'boolean' },
       },
     },
-  },
-  // -------------------------------------------------------------------------
-  // Governance, controls, risk (Sandarb as governance agent)
-  // -------------------------------------------------------------------------
-  {
+    inputModes: ['application/json'],
+    outputModes: ['application/json'],
+  }),
+  skill({
     id: 'validate_context',
     name: 'Validate Context',
-    description: 'Check that a context exists and return the current approved content. Sandarb logs who asked (lineage). Use before using context in production for compliance.',
+    description:
+      'Check that a context exists and return the current approved content. Sandarb logs who asked (lineage). Use before using context in production for compliance.',
+    tags: ['context', 'governance', 'compliance', 'lineage'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -233,11 +260,15 @@ const getAgentSkills = (): AgentSkill[] => [
         hasPendingRevisions: { type: 'boolean' },
       },
     },
-  },
-  {
+    inputModes: ['application/json'],
+    outputModes: ['application/json'],
+  }),
+  skill({
     id: 'get_approved_context',
     name: 'Get Approved Context',
-    description: 'Get the current approved context content by name. Sandarb logs who asked and why (lineage). For compliance: only returns the approved snapshot.',
+    description:
+      'Get the current approved context content by name. Sandarb logs who asked and why (lineage). For compliance: only returns the approved snapshot.',
+    tags: ['context', 'governance', 'compliance', 'lineage'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -256,11 +287,14 @@ const getAgentSkills = (): AgentSkill[] => [
         format: { type: 'string' },
       },
     },
-  },
-  {
+    inputModes: ['application/json'],
+    outputModes: ['application/json'],
+  }),
+  skill({
     id: 'validate_agent',
     name: 'Validate Agent',
     description: 'Check if an agent is registered and approved. Use before delegating to another agent for controls.',
+    tags: ['agents', 'governance', 'registry'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -276,11 +310,15 @@ const getAgentSkills = (): AgentSkill[] => [
         agent: { type: 'object' },
       },
     },
-  },
-  {
+    inputModes: ['application/json'],
+    outputModes: ['application/json'],
+  }),
+  skill({
     id: 'audit_log',
     name: 'Audit Log',
-    description: 'Log an event for compliance and audit trail. Other agents call this to record actions (e.g. prompt used, context used, agent invoked).',
+    description:
+      'Log an event for compliance and audit trail. Other agents call this to record actions (e.g. prompt used, context used, agent invoked).',
+    tags: ['audit', 'compliance', 'governance'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -300,11 +338,14 @@ const getAgentSkills = (): AgentSkill[] => [
         eventType: { type: 'string' },
       },
     },
-  },
-  {
+    inputModes: ['application/json'],
+    outputModes: ['application/json'],
+  }),
+  skill({
     id: 'list_pending_reviews',
     name: 'List Pending Reviews',
     description: 'List all pending context revisions and agent registrations awaiting approval. For governance and risk oversight.',
+    tags: ['governance', 'reviews', 'compliance'],
     inputSchema: { type: 'object', properties: {} },
     outputSchema: {
       type: 'object',
@@ -313,11 +354,14 @@ const getAgentSkills = (): AgentSkill[] => [
         agents: { type: 'array' },
       },
     },
-  },
-  {
+    inputModes: ['application/json'],
+    outputModes: ['application/json'],
+  }),
+  skill({
     id: 'report_incident',
     name: 'Report Incident',
     description: 'Log a risk or incident event. Other agents call this for risk management and regulatory reporting.',
+    tags: ['incident', 'risk', 'compliance'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -337,17 +381,22 @@ const getAgentSkills = (): AgentSkill[] => [
         eventType: { type: 'string' },
       },
     },
-  },
-  {
+    inputModes: ['application/json'],
+    outputModes: ['application/json'],
+  }),
+  skill({
     id: 'register',
     name: 'Register (Ping)',
-    description: 'Protocol-based registration: send your Sandarb manifest (Agent Card / sandarb.json). When an agent starts up, it pings Sandarb with its manifest via this skill or the /api/agents/ping API. Creates a living registry; unregistered agents should not be granted access to company data.',
+    description:
+      'Protocol-based registration: send your Sandarb manifest (Agent Card / sandarb.json). When an agent starts up, it pings Sandarb with its manifest via this skill or the /api/agents/ping API. Creates a living registry; unregistered agents should not be granted access to company data.',
+    tags: ['registry', 'governance', 'registration'],
     inputSchema: {
       type: 'object',
       properties: {
         manifest: {
           type: 'object',
-          description: 'Sandarb manifest: agent_id, version, owner_team, url; optional: name, description, tools_used, allowed_data_scopes, pii_handling, regulatory_scope',
+          description:
+            'Sandarb manifest: agent_id, version, owner_team, url; optional: name, description, tools_used, allowed_data_scopes, pii_handling, regulatory_scope',
           properties: {
             agent_id: { type: 'string' },
             version: { type: 'string' },
@@ -375,11 +424,15 @@ const getAgentSkills = (): AgentSkill[] => [
         approvalStatus: { type: 'string' },
       },
     },
-  },
-  {
+    inputModes: ['application/json'],
+    outputModes: ['application/json'],
+  }),
+  skill({
     id: 'get_lineage',
     name: 'Get Lineage',
-    description: 'Lineage reporting: who requested which context and when. Single source of truth for "This decision was made using context from Document X, retrieved by Agent Y".',
+    description:
+      'Lineage reporting: who requested which context and when. Single source of truth for "This decision was made using context from Document X, retrieved by Agent Y".',
+    tags: ['lineage', 'audit', 'compliance'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -404,15 +457,22 @@ const getAgentSkills = (): AgentSkill[] => [
         },
       },
     },
-  },
-  {
+    inputModes: ['application/json'],
+    outputModes: ['application/json'],
+  }),
+  skill({
     id: 'mcp_poll_agent',
     name: 'MCP Poll Agent',
-    description: 'Pull-based monitoring: Sandarb (MCP Client) queries an agent (MCP Server) for its tools, resources, and optional state (e.g. last prompts, active tool calls). Lightweight for agents—no push logging required.',
+    description:
+      'Pull-based monitoring: Sandarb (MCP Client) queries an agent (MCP Server) for its tools, resources, and optional state (e.g. last prompts, active tool calls). Lightweight for agents—no push logging required.',
+    tags: ['mcp', 'monitoring', 'governance'],
     inputSchema: {
       type: 'object',
       properties: {
-        agentId: { type: 'string', description: 'Registered agent ID (Sandarb derives MCP URL from agent A2A URL)' },
+        agentId: {
+          type: 'string',
+          description: 'Registered agent ID (Sandarb derives MCP URL from agent A2A URL)',
+        },
         mcpUrl: { type: 'string', description: 'Direct MCP server URL (alternative to agentId)' },
         timeoutMs: { type: 'number', description: 'Timeout in ms (default 15000)' },
       },
@@ -420,33 +480,50 @@ const getAgentSkills = (): AgentSkill[] => [
     outputSchema: {
       type: 'object',
       properties: {
-        tools: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, description: { type: 'string' } } } },
-        resources: { type: 'array', items: { type: 'object', properties: { uri: { type: 'string' }, name: { type: 'string' } } } },
+        tools: {
+          type: 'array',
+          items: { type: 'object', properties: { name: { type: 'string' }, description: { type: 'string' } } },
+        },
+        resources: {
+          type: 'array',
+          items: { type: 'object', properties: { uri: { type: 'string' }, name: { type: 'string' } } },
+        },
         state: { type: 'object' },
         error: { type: 'string' },
       },
     },
-  },
+    inputModes: ['application/json'],
+    outputModes: ['application/json'],
+  }),
 ];
 
 // ============================================================================
-// TASK EXECUTION
+// TASK EXECUTION (A2A spec: Task with contextId, status: { state, message?, timestamp })
 // ============================================================================
 
 // In-memory task storage (in production, use database)
 const tasks = new Map<string, A2ATask>();
+const contextIds = new Map<string, string>();
+
+function now(): string {
+  return new Date().toISOString();
+}
 
 /**
- * Create a new task
+ * Create a new task (A2A spec: id, contextId, status with state/timestamp).
  */
 export const createTask = (skill: string, input: Record<string, unknown>): A2ATask => {
+  const id = uuidv4();
+  const contextId = uuidv4();
+  contextIds.set(id, contextId);
   const task: A2ATask = {
-    id: uuidv4(),
+    id,
+    contextId,
     agentId: 'sandarb',
     skill,
     input,
-    status: 'pending',
-    createdAt: new Date().toISOString(),
+    status: { state: 'submitted', timestamp: now() },
+    createdAt: now(),
   };
 
   tasks.set(task.id, task);
@@ -454,33 +531,74 @@ export const createTask = (skill: string, input: Record<string, unknown>): A2ATa
 };
 
 /**
- * Execute a task
+ * Execute a task; updates status to working then completed/failed (A2A spec TaskState).
  */
 export const executeTask = async (taskId: string): Promise<A2ATask> => {
   const task = tasks.get(taskId);
   if (!task) throw new Error(`Task not found: ${taskId}`);
 
-  task.status = 'running';
+  task.status = { state: 'working', timestamp: now() };
 
   try {
     const result = await executeSkill(task.skill, task.input);
     task.output = result;
-    task.status = 'completed';
-    task.completedAt = new Date().toISOString();
+    task.status = { state: 'completed', timestamp: now() };
+    task.completedAt = now();
   } catch (error) {
     task.error = error instanceof Error ? error.message : 'Unknown error';
-    task.status = 'failed';
-    task.completedAt = new Date().toISOString();
+    task.status = { state: 'failed', message: messageFromText(task.error), timestamp: now() };
+    task.completedAt = now();
   }
 
   return task;
 };
 
+function messageFromText(text: string): A2AMessage {
+  return {
+    role: 'agent',
+    parts: [{ kind: 'text', text }],
+    messageId: uuidv4(),
+    kind: 'message',
+    metadata: { timestamp: now() },
+  };
+}
+
 /**
- * Get task status
+ * Get task by ID (internal A2ATask).
  */
 export const getTask = (taskId: string): A2ATask | undefined => {
   return tasks.get(taskId);
+};
+
+/**
+ * Convert internal A2ATask to A2A spec Task (id, contextId, status, artifacts, metadata).
+ */
+export const taskToSpec = (task: A2ATask): A2ATaskSpec => {
+  const artifacts: A2AArtifact[] = [];
+  if (task.output !== undefined) {
+    artifacts.push({
+      artifactId: uuidv4(),
+      name: `${task.skill}_result`,
+      description: `Result of skill ${task.skill}`,
+      parts: [{ kind: 'data', data: typeof task.output === 'object' && task.output !== null ? (task.output as Record<string, unknown>) : { value: task.output } }],
+      metadata: { skill: task.skill, completedAt: task.completedAt },
+    });
+  }
+  if (task.error) {
+    artifacts.push({
+      artifactId: uuidv4(),
+      name: 'error',
+      description: 'Error details',
+      parts: [{ kind: 'data', data: { error: task.error } }],
+    });
+  }
+  return {
+    id: task.id,
+    contextId: task.contextId,
+    status: task.status,
+    artifacts: artifacts.length > 0 ? artifacts : undefined,
+    metadata: { agentId: task.agentId, skill: task.skill, createdAt: task.createdAt, completedAt: task.completedAt },
+  };
 };
 
 /**
@@ -492,10 +610,10 @@ export const executeSkill = async (
 ): Promise<unknown> => {
   switch (skillId) {
     case 'get_prompt': {
-      const prompt = getPromptByName(input.name as string);
+      const prompt = await getPromptByName(input.name as string);
       if (!prompt) throw new Error(`Prompt not found: ${input.name}`);
 
-      const version = getCurrentPromptVersion(prompt.id);
+      const version = await getCurrentPromptVersion(prompt.id);
       if (!version) throw new Error(`No versions found for prompt: ${input.name}`);
 
       let content = version.content;
@@ -536,7 +654,7 @@ export const executeSkill = async (
     }
 
     case 'list_prompts': {
-      let prompts = getAllPrompts();
+      let prompts = await getAllPrompts();
       if (input.tags && Array.isArray(input.tags)) {
         prompts = prompts.filter(p =>
           (input.tags as string[]).some(t => p.tags.includes(t))
@@ -748,27 +866,67 @@ export const executeSkill = async (
 };
 
 // ============================================================================
-// MESSAGE HANDLING (Streaming)
+// MESSAGE HANDLING (A2A spec: message/send returns Task | Message)
 // ============================================================================
 
+/** Normalize part: A2A spec uses "kind"; accept legacy "type" for backward compat. */
+function partKind(p: A2AMessagePart | { kind?: string; type?: string }): 'text' | 'data' | 'file' {
+  const k = (p as { kind?: string; type?: string }).kind ?? (p as { type?: string }).type;
+  if (k === 'data' || k === 'file') return k;
+  return 'text';
+}
+
+/** Extract text from parts (supports kind or type). */
+function textFromParts(parts: (A2AMessagePart & { type?: string })[]): string {
+  return parts
+    .filter(p => partKind(p) === 'text')
+    .map(p => ('text' in p ? p.text : ''))
+    .join('\n');
+}
+
+/** Extract first DataPart payload (supports kind or type; spec uses kind: "data" with data object). */
+function dataFromParts(parts: (A2AMessagePart | { kind?: string; type?: string; data?: unknown })[]): Record<string, unknown> | null {
+  const dataPart = parts.find(p => partKind(p) === 'data');
+  if (!dataPart) return null;
+  const d = (dataPart as { data?: unknown }).data;
+  if (typeof d === 'object' && d !== null) return d as Record<string, unknown>;
+  if (d !== undefined) return { raw: d };
+  return null;
+}
+
 /**
- * Process an A2A message and generate a response
+ * Process an A2A message/send: returns Task (if skill invoked via DataPart) or Message (conversational).
+ * A2A spec: result is Task | Message.
  */
 export const processMessage = async (
-  message: A2AMessage
-): Promise<A2AMessage> => {
-  // Extract text content from the message
-  const textParts = message.parts.filter(p => p.type === 'text') as Array<{ type: 'text'; text: string }>;
-  const userText = textParts.map(p => p.text).join('\n');
+  params: { message: A2AMessage & { messageId?: string; kind?: string }; configuration?: { blocking?: boolean } },
+): Promise<A2ATaskSpec | A2AMessage> => {
+  const raw = params.message;
+  const messageId = raw.messageId ?? uuidv4();
+  const parts = raw.parts ?? [];
+  const data = dataFromParts(parts);
 
-  // Parse the request (simplified - in production use more robust parsing)
+  // Skill invocation via DataPart: { skillId, input } -> execute and return Task
+  if (data && typeof data.skillId === 'string' && data.input !== undefined) {
+    const skillId = data.skillId as string;
+    const input = (typeof data.input === 'object' && data.input !== null ? data.input : {}) as Record<string, unknown>;
+    const task = createTask(skillId, input);
+    const completed = await executeTask(task.id);
+    return taskToSpec(completed);
+  }
+
+  // Conversational: text (and optional legacy) -> reply as Message
+  const userText = textFromParts(parts) || (data ? JSON.stringify(data) : '');
   const responseText = await handleUserRequest(userText);
 
-  return {
+  const responseMessage: A2AMessage = {
     role: 'agent',
-    parts: [{ type: 'text', text: responseText }],
-    metadata: { timestamp: new Date().toISOString() },
+    parts: [{ kind: 'text', text: responseText }],
+    messageId: uuidv4(),
+    kind: 'message',
+    metadata: { timestamp: now() },
   };
+  return responseMessage;
 };
 
 /**
@@ -779,7 +937,7 @@ const handleUserRequest = async (text: string): Promise<string> => {
 
   // Simple intent detection
   if (lower.includes('list') && lower.includes('prompt')) {
-    const prompts = getAllPrompts();
+    const prompts = await getAllPrompts();
     return `Available prompts:\n${prompts.map(p => `- ${p.name}: ${p.description || 'No description'}`).join('\n')}`;
   }
 
@@ -791,9 +949,9 @@ const handleUserRequest = async (text: string): Promise<string> => {
   if (lower.includes('get prompt')) {
     const match = text.match(/get prompt[:\s]+(\S+)/i);
     if (match) {
-      const prompt = getPromptByName(match[1]);
+      const prompt = await getPromptByName(match[1]);
       if (prompt) {
-        const version = getCurrentPromptVersion(prompt.id);
+        const version = await getCurrentPromptVersion(prompt.id);
         return `Prompt "${prompt.name}" (v${version?.version || 1}):\n${version?.content || 'No content'}`;
       }
       return `Prompt "${match[1]}" not found.`;

@@ -37,13 +37,15 @@ export default function TemplatesPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Templates</h1>
           <p className="text-sm text-muted-foreground">
-            Reusable context structures
+            Reusable schemas and default values for context content. Link contexts to a template for consistent structure and governance. See <a href="/docs#templates" className="text-violet-600 dark:text-violet-400 hover:underline">Docs → Templates for context</a>.
           </p>
         </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          New Template
-        </Button>
+        <div className="flex items-center gap-4">
+          <Button>
+            <Plus className="h-4 w-4 mr-2" />
+            New Template
+          </Button>
+        </div>
       </header>
 
       {/* Content */}
@@ -61,9 +63,9 @@ export default function TemplatesPage() {
           <EmptyState
             icon={FileText}
             title="No templates yet"
-            description="Create templates to define reusable context structures for your AI agents."
-            actionLabel="Create Template"
-            onAction={() => alert('Template creation coming soon!')}
+            description="Templates define a JSON schema and default values for context content so all contexts of the same type (e.g. trading limits) follow the same structure. Run the seed (Load sample data on Dashboard) to add sample templates: compliance policy, trading limits, suitability policy, KYC config, disclosure policy."
+            actionLabel="View docs"
+            actionHref="/docs#templates"
           />
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

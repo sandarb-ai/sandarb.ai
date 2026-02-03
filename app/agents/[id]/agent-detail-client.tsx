@@ -79,11 +79,11 @@ export function AgentDetailClient({ initialAgent }: AgentDetailClientProps) {
         <div className="flex items-center gap-2 flex-1">
           <Bot className="h-6 w-6 text-muted-foreground" />
           <h1 className="text-2xl font-semibold tracking-tight">{agent.name}</h1>
-          <Badge variant={agent.status === 'active' ? 'default' : 'secondary'}>{agent.status}</Badge>
+          <Badge variant={agent.status === 'active' ? 'success' : 'secondary'}>{agent.status}</Badge>
           <Badge
             variant={
               (agent.approvalStatus ?? 'draft') === 'approved'
-                ? 'default'
+                ? 'success'
                 : (agent.approvalStatus ?? 'draft') === 'pending_approval'
                   ? 'secondary'
                   : (agent.approvalStatus ?? 'draft') === 'rejected'
@@ -99,7 +99,7 @@ export function AgentDetailClient({ initialAgent }: AgentDetailClientProps) {
             )}
           </Badge>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
           {(agent.approvalStatus ?? 'draft') === 'pending_approval' && (
             <>
               <Button size="sm" variant="approve" onClick={handleApprove}>
@@ -140,9 +140,16 @@ export function AgentDetailClient({ initialAgent }: AgentDetailClientProps) {
                 <p className="text-sm text-muted-foreground">{card.description}</p>
                 <div className="flex flex-wrap gap-2 text-xs">
                   <Badge variant="outline">v{card.version}</Badge>
-                  {card.capabilities?.map((c) => (
-                    <Badge key={c.name} variant="secondary">{c.name}</Badge>
-                  ))}
+                  {card.capabilities &&
+                    typeof card.capabilities === 'object' &&
+                    !Array.isArray(card.capabilities) &&
+                    Object.entries(card.capabilities)
+                      .filter(([, v]) => v === true)
+                      .map(([k]) => (
+                        <Badge key={k} variant="secondary">
+                          {k}
+                        </Badge>
+                      ))}
                 </div>
               </CardContent>
             </Card>

@@ -57,17 +57,19 @@ export default function NewOrganizationPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <header className="flex items-center gap-4 border-b bg-background px-6 py-4">
-        <Link href="/organizations">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">New organization</h1>
-          <p className="text-sm text-muted-foreground">
-            Create a sub-org under root or another org (e.g. Data, Marketing, Ops).
-          </p>
+      <header className="flex items-center justify-between gap-4 border-b bg-background px-6 py-4">
+        <div className="flex items-center gap-4">
+          <Link href="/organizations">
+            <Button variant="ghost" size="icon">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">New organization</h1>
+            <p className="text-sm text-muted-foreground">
+              Create a sub-org under root or another org (e.g. Data, Marketing, Ops).
+            </p>
+          </div>
         </div>
       </header>
 

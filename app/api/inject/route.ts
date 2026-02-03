@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getContextById, getContextByName, logInjection } from '@/lib/contexts';
+import { getContextById, getContextByName, logInjection, getLatestApprovedVersion } from '@/lib/contexts';
 import { logContextDelivery, logBlockedInjection } from '@/lib/audit';
 import { getAgentByIdentifier } from '@/lib/agents';
 import { checkInjectPolicy } from '@/lib/policy';
@@ -52,6 +52,9 @@ function normalizeVariables(
 
 const AGENT_ID_HEADER = 'x-sandarb-agent-id';
 const TRACE_ID_HEADER = 'x-sandarb-trace-id';
+
+/** When agentId is this value, skip agent registration and policy (for UI "Test API" preview). */
+const PREVIEW_AGENT_ID = 'sandarb-context-preview';
 
 function getInjectAuditIds(
   request: NextRequest,
@@ -135,40 +138,48 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Policy enforcement: agent must be registered; LOB must match context LOB (no cross-contamination)
-    const agent = await getAgentByIdentifier(agentId!);
-    if (!agent) {
-      await logBlockedInjection({
-        agentId: agentId!,
-        traceId,
-        contextId: context.id,
-        contextName: context.name,
-        reason: 'Agent not registered with Sandarb. Only registered agents may pull context.',
-      });
-      return NextResponse.json(
-        { success: false, error: 'Agent not registered with Sandarb. Register this agent to pull context.' },
-        { status: 403 }
-      );
-    }
-    const policy = checkInjectPolicy(agent, context);
-    if (!policy.allowed) {
-      await logBlockedInjection({
-        agentId: agentId!,
-        traceId,
-        contextId: context.id,
-        contextName: context.name,
-        reason: policy.reason ?? 'Policy violation',
-      });
-      return NextResponse.json(
-        { success: false, error: policy.reason ?? 'Policy violation: cross-LOB access not allowed.' },
-        { status: 403 }
-      );
+    // Policy enforcement: agent must be registered; LOB must match context LOB (no cross-contamination).
+    // Preview mode: agentId=sandarb-context-preview skips registration/policy for UI "Test API".
+    const isPreview = agentId === PREVIEW_AGENT_ID;
+    if (!isPreview) {
+      const agent = await getAgentByIdentifier(agentId!);
+      if (!agent) {
+        await logBlockedInjection({
+          agentId: agentId!,
+          traceId,
+          contextId: context.id,
+          contextName: context.name,
+          reason: 'Agent not registered with Sandarb. Only registered agents may pull context.',
+        });
+        return NextResponse.json(
+          { success: false, error: 'Agent not registered with Sandarb. Register this agent to pull context.' },
+          { status: 403 }
+        );
+      }
+      const policy = checkInjectPolicy(agent, context);
+      if (!policy.allowed) {
+        await logBlockedInjection({
+          agentId: agentId!,
+          traceId,
+          contextId: context.id,
+          contextName: context.name,
+          reason: policy.reason ?? 'Policy violation',
+        });
+        return NextResponse.json(
+          { success: false, error: policy.reason ?? 'Policy violation: cross-LOB access not allowed.' },
+          { status: 403 }
+        );
+      }
     }
 
     // Log the injection and lineage (agentId + traceId for dependency graph and trace-back)
     await logInjection(context.name);
     const sourceAgent = request.headers.get('X-Source-Agent') ?? searchParams.get('sourceAgent') ?? agentId;
     const intent = searchParams.get('intent') ?? undefined;
+    
+    // Get version ID for governance tracking ("Agent X used Context version #992")
+    const versionInfo = await getLatestApprovedVersion(context.id);
+    
     await logContextDelivery({
       sourceAgent,
       contextId: context.id,
@@ -176,6 +187,7 @@ export async function GET(request: NextRequest) {
       intent,
       agentId,
       traceId,
+      versionId: versionInfo?.versionId ?? null,
     });
 
     // Variable injection: {{client_name}}, {{portfolio_id}}, etc. from query vars=, header X-Sandarb-Variables, or body variables
@@ -194,14 +206,23 @@ export async function GET(request: NextRequest) {
           ? 'text/yaml'
           : 'text/plain';
 
+    const responseHeaders: Record<string, string> = {
+      'Content-Type': contentType,
+      'X-Context-Name': context.name,
+      'X-Context-ID': context.id,
+      'X-Sandarb-Trace-ID': traceId!,
+    };
+    // Include version info for governance tracking
+    if (versionInfo?.versionId) {
+      responseHeaders['X-Context-Version-ID'] = versionInfo.versionId;
+    }
+    if (versionInfo?.versionLabel) {
+      responseHeaders['X-Context-Version-Label'] = versionInfo.versionLabel;
+    }
+
     return new NextResponse(formattedContent, {
       status: 200,
-      headers: {
-        'Content-Type': contentType,
-        'X-Context-Name': context.name,
-        'X-Context-ID': context.id,
-        'X-Sandarb-Trace-ID': traceId!,
-      },
+      headers: responseHeaders,
     });
   } catch (error) {
     console.error('Failed to inject context:', error);
@@ -301,6 +322,10 @@ export async function POST(request: NextRequest) {
     const sourceAgent =
       request.headers.get('X-Source-Agent') ?? searchParams.get('sourceAgent') ?? bodySourceAgent ?? agentId;
     const intent = searchParams.get('intent') ?? bodyIntent ?? undefined;
+    
+    // Get version ID for governance tracking ("Agent X used Context version #992")
+    const versionInfoPost = await getLatestApprovedVersion(context.id);
+    
     await logContextDelivery({
       sourceAgent,
       contextId: context.id,
@@ -308,6 +333,7 @@ export async function POST(request: NextRequest) {
       intent,
       agentId,
       traceId,
+      versionId: versionInfoPost?.versionId ?? null,
     });
 
     // Variable injection: {{client_name}}, {{portfolio_id}}, etc.
@@ -326,14 +352,23 @@ export async function POST(request: NextRequest) {
           ? 'text/yaml'
           : 'text/plain';
 
+    const responseHeadersPost: Record<string, string> = {
+      'Content-Type': contentType,
+      'X-Context-Name': context.name,
+      'X-Context-ID': context.id,
+      'X-Sandarb-Trace-ID': traceId!,
+    };
+    // Include version info for governance tracking
+    if (versionInfoPost?.versionId) {
+      responseHeadersPost['X-Context-Version-ID'] = versionInfoPost.versionId;
+    }
+    if (versionInfoPost?.versionLabel) {
+      responseHeadersPost['X-Context-Version-Label'] = versionInfoPost.versionLabel;
+    }
+
     return new NextResponse(formattedContent, {
       status: 200,
-      headers: {
-        'Content-Type': contentType,
-        'X-Context-Name': context.name,
-        'X-Context-ID': context.id,
-        'X-Sandarb-Trace-ID': traceId!,
-      },
+      headers: responseHeadersPost,
     });
   } catch (error) {
     console.error('Failed to inject context:', error);

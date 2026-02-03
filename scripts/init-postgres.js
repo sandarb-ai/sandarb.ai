@@ -191,6 +191,46 @@ CREATE TABLE IF NOT EXISTS templates (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Prompts (the "Employee Handbook" for AI agents)
+CREATE TABLE IF NOT EXISTS prompts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT UNIQUE NOT NULL,
+  description TEXT,
+  tags TEXT DEFAULT '[]',
+  current_version_id UUID,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Prompt Versions (versioned history with approval workflow)
+CREATE TABLE IF NOT EXISTS prompt_versions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  prompt_id UUID NOT NULL REFERENCES prompts(id) ON DELETE CASCADE,
+  version INTEGER NOT NULL,
+  content TEXT NOT NULL,
+  system_prompt TEXT,
+  model TEXT DEFAULT 'gpt-4',
+  status TEXT DEFAULT 'proposed' CHECK (status IN ('draft', 'proposed', 'approved', 'rejected', 'archived')),
+  approved_by TEXT,
+  approved_at TIMESTAMP WITH TIME ZONE,
+  parent_version_id UUID REFERENCES prompt_versions(id),
+  sha256_hash TEXT NOT NULL,
+  commit_message TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(prompt_id, version)
+);
+
+CREATE INDEX IF NOT EXISTS idx_prompt_versions_prompt_id ON prompt_versions(prompt_id);
+CREATE INDEX IF NOT EXISTS idx_prompt_versions_status ON prompt_versions(status);
+
+-- Add foreign key for current_version_id after prompt_versions exists
+ALTER TABLE prompts DROP CONSTRAINT IF EXISTS fk_prompts_current_version;
+DO $$ BEGIN
+  ALTER TABLE prompts ADD CONSTRAINT fk_prompts_current_version 
+    FOREIGN KEY (current_version_id) REFERENCES prompt_versions(id) ON DELETE SET NULL;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 `;
 
 async function runSchema(client) {

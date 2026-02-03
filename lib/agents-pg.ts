@@ -92,6 +92,14 @@ export async function getAgentCountPg(orgId?: string): Promise<number> {
   return parseInt(row?.count ?? '0', 10);
 }
 
+export async function getRecentAgentsPg(limit: number = 6): Promise<RegisteredAgent[]> {
+  const rows = await query<Record<string, unknown>>(
+    'SELECT * FROM agents ORDER BY created_at DESC LIMIT $1',
+    [limit]
+  );
+  return rows.map(rowToAgent);
+}
+
 export async function createAgentPg(input: RegisteredAgentCreateInput): Promise<RegisteredAgent> {
   const pool = await getPool();
   if (!pool) throw new Error('Postgres not configured');

@@ -17,16 +17,18 @@ interface OrganizationDetailClientProps {
 export function OrganizationDetailClient({ org, children, agents }: OrganizationDetailClientProps) {
   return (
     <div className="flex flex-col h-full">
-      <header className="flex items-center gap-4 border-b bg-background px-6 py-4">
-        <Link href="/organizations">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-        <div className="flex items-center gap-2">
-          <Building2 className="h-6 w-6 text-muted-foreground" />
-          <h1 className="text-2xl font-semibold tracking-tight">{org.name}</h1>
-          {org.isRoot && <Badge variant="secondary">Root</Badge>}
+      <header className="flex items-center justify-between gap-4 border-b bg-background px-6 py-4">
+        <div className="flex items-center gap-4">
+          <Link href="/organizations">
+            <Button variant="ghost" size="icon">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </Link>
+          <div className="flex items-center gap-2">
+            <Building2 className="h-6 w-6 text-muted-foreground" />
+            <h1 className="text-2xl font-semibold tracking-tight">{org.name}</h1>
+            {org.isRoot && <Badge variant="secondary">Root</Badge>}
+          </div>
         </div>
       </header>
 

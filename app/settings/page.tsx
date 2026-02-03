@@ -17,7 +17,7 @@ export default function SettingsPage() {
   const [apiKey, setApiKey] = useState('sk-openint-xxxxxxxxxxxx');
   const [showApiKey, setShowApiKey] = useState(false);
   const [defaultFormat, setDefaultFormat] = useState('json');
-  const [appearance, setAppearance] = useState<ThemeValue>('system');
+  const [appearance, setAppearance] = useState<ThemeValue>('light');
   const [savingTheme, setSavingTheme] = useState(false);
 
   useEffect(() => {

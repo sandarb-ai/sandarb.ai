@@ -49,7 +49,14 @@ const initSchema = () => {
       commit_message TEXT,
       created_by TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      -- Governance fields (parity with context_revisions)
+      status TEXT NOT NULL DEFAULT 'proposed',
+      approved_by TEXT,
+      approved_at TEXT,
+      parent_version_id TEXT,
+      sha256_hash TEXT,
       FOREIGN KEY (prompt_id) REFERENCES prompts(id) ON DELETE CASCADE,
+      FOREIGN KEY (parent_version_id) REFERENCES prompt_versions(id) ON DELETE SET NULL,
       UNIQUE(prompt_id, version)
     );
 
@@ -286,6 +293,14 @@ const migrateSchema = () => {
   run('ALTER TABLE contexts ADD COLUMN line_of_business TEXT');
   run('ALTER TABLE contexts ADD COLUMN data_classification TEXT');
   run('ALTER TABLE contexts ADD COLUMN regulatory_hooks TEXT NOT NULL DEFAULT \'[]\'');
+  // Prompt governance: approval workflow parity with context_revisions
+  run('ALTER TABLE prompt_versions ADD COLUMN status TEXT NOT NULL DEFAULT \'proposed\'');
+  run('ALTER TABLE prompt_versions ADD COLUMN approved_by TEXT');
+  run('ALTER TABLE prompt_versions ADD COLUMN approved_at TEXT');
+  run('ALTER TABLE prompt_versions ADD COLUMN parent_version_id TEXT');
+  run('ALTER TABLE prompt_versions ADD COLUMN sha256_hash TEXT');
+  // Mark existing prompt versions as approved (backward compatibility)
+  run('UPDATE prompt_versions SET status = \'approved\' WHERE status = \'proposed\'');
   try {
     // Partial unique index: one (org_id, agent_id) per non-null agent_id (allows multiple null agent_id).
     db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_agents_org_agent_id ON agents(org_id, agent_id) WHERE agent_id IS NOT NULL');
@@ -340,15 +355,38 @@ const parseJsonArray = (v: unknown): string[] => {
   }
 };
 
+/** Safe parse for JSON object (context content, etc.). Returns {} on invalid/empty. */
+const parseJsonObject = (v: unknown): Record<string, unknown> => {
+  if (v == null || v === '') return {};
+  if (typeof v === 'object' && v !== null && !Array.isArray(v)) return v as Record<string, unknown>;
+  try {
+    const parsed = JSON.parse(v as string);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+/** Safe parse for tags (array). Returns [] on invalid. */
+const parseJsonTags = (v: unknown): string[] => {
+  if (v == null || v === '') return [];
+  try {
+    const a = JSON.parse(v as string);
+    return Array.isArray(a) ? a : [];
+  } catch {
+    return [];
+  }
+};
+
 // Helper to convert row to Context
 export const rowToContext = (row: Record<string, unknown>) => ({
   id: row.id as string,
   name: row.name as string,
   description: row.description as string | null,
-  content: JSON.parse(row.content as string),
+  content: parseJsonObject(row.content),
   templateId: row.template_id as string | null,
   environment: ((row.environment as string) || 'development') as 'development' | 'staging' | 'production',
-  tags: JSON.parse(row.tags as string),
+  tags: parseJsonTags(row.tags),
   isActive: Boolean(row.is_active),
   priority: (row.priority as number) || 0,
   expiresAt: row.expires_at as string | null,
@@ -386,7 +424,7 @@ export const rowToOrganization = (row: Record<string, unknown>) => ({
 export const rowToContextRevision = (row: Record<string, unknown>) => ({
   id: row.id as string,
   contextId: row.context_id as string,
-  content: JSON.parse(row.content as string),
+  content: parseJsonObject(row.content),
   commitMessage: row.commit_message as string | null,
   createdBy: row.created_by as string | null,
   createdAt: row.created_at as string,

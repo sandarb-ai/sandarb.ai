@@ -6,9 +6,67 @@ Developer integration and usage guide for anyone in the firm. For the full inter
 
 Sandarb is AI governance for your AI agents: a single place for approved prompts and context, audit trail, lineage, and a living agent registry. Integrate via:
 
-- **REST API** – CRUD for organizations, agents, contexts, templates; inject context by name
+- **API** – CRUD for organizations, agents, contexts, templates; inject context by name
 - **A2A protocol** – Discovery (Agent Card) and skills: `get_context`, `validate_context`, `get_lineage`, `register`
 - **Inject API** – `GET /api/inject?name=my-context` returns approved context (JSON/YAML/text) for your agent
+- **Templates** – Reusable schemas and default values for context content; link a context to a template for consistent structure
+
+## Prompts vs Context: Governance Perspective
+
+In AI Governance, **Prompts** and **Context** are two distinct asset classes with different risks, lifecycles, and compliance requirements. Think of an AI Agent as a **digital employee**:
+
+- **Prompts** are the **"Employee Handbook"** (instructions on how to behave, tone, and rules).
+- **Context** is the **"Reference Library"** (the specific files, user data, or reports the agent is allowed to read to do a task).
+
+### 1. Prompts (The "Behavior")
+
+Prompts are **instructions**. They define the agent's persona, logical constraints, and safety boundaries. In governance, prompts are treated like **source code**.
+
+**Governance Focus:** Behavioral Consistency & Safety.
+
+**Goal:** Ensure the agent doesn't sound rude, promise illegal things, or break brand guidelines.
+
+**The Risk:** Drift & Jailbreaks. A developer changes the prompt to "be more creative," and suddenly the agent starts making up features you don't have.
+
+**How it's Governed:**
+
+- **Versioning** – Like software (v1.0, v1.1). You must be able to roll back to a previous prompt if the new one fails.
+- **Approval Workflows** – A junior dev writes a prompt, but a Product Manager or Compliance Officer must "sign off" before it goes to production.
+- **Immutable Testing** – Prompts are tested against "Golden Datasets" (standard questions) to ensure the new version performs as well as the old one.
+
+### 2. Context (The "Knowledge")
+
+Context is **data**. It is the dynamic information injected into the agent at runtime (via RAG - Retrieval Augmented Generation) to answer a specific question. In governance, context is treated like **sensitive database records**.
+
+**Governance Focus:** Access Control & Privacy.
+
+**Goal:** Ensure the "Customer Support Agent" can see Order History but CANNOT see Credit Card Numbers or Employee Salaries.
+
+**The Risk:** Data Leaks & Contamination. If an agent is given the wrong context (e.g., an outdated policy PDF or a confidential internal memo), it will confidently state incorrect or leaked information to the user.
+
+**How it's Governed:**
+
+- **Access Scopes (RBAC)** – Defining strict boundaries (e.g., "This agent can only access documents tagged public-support").
+- **Data Lineage** – Tracking exactly which document chunk was used to generate an answer. If an agent lies, you need to know if it was the prompt's fault or if the source document was wrong.
+- **Sanitization** – Automatically stripping PII (Personally Identifiable Information) from data before it enters the context window.
+
+### Comparison Summary
+
+| Feature | Prompts (Instructions) | Context (Data/Knowledge) |
+|---------|------------------------|--------------------------|
+| **Analogy** | The Job Description | The Files in the Cabinet |
+| **Change Frequency** | Low (Weekly/Monthly updates) | High (Real-time per user query) |
+| **Primary Risk** | Hallucination, Brand Damage, Jailbreaks | Data Leakage, Privacy Violation, Outdated Info |
+| **Governance Tool** | Versioning & Approval Workflows | Access Control Lists (ACLs) & Vector Management |
+| **Audit Question** | "Who approved this behavior?" | "Why did the agent have access to this file?" |
+
+### The Governance Intersection
+
+In Sandarb, these two meet in the **Audit Log**. When an incident occurs (e.g., a user complains about a bad answer), AI Governance requires you to reconstruct the exact state of both:
+
+> "On Feb 1st at 2:00 PM, Agent X used **Prompt v4.2** and accessed **Context Chunk #992 (HR PDF)** to generate this response."
+
+Without governing both, you cannot diagnose whether the error was a failure of **instruction** (bad prompt) or a failure of **information** (bad context). Sandarb is built to govern both asset classes with versioning, approval workflows, and lineage tracking.
 
 ## Quick start
 
@@ -22,7 +80,22 @@ export DATABASE_URL=postgresql://postgres:sandarb@localhost:5432/sandarb-dev  # 
 
 Open the UI at http://localhost:4000. Sign in to see the dashboard. Demo data is seeded on start when `DATABASE_URL` is set.
 
-## REST API (core)
+## Local development with Ollama + Qwen 2.5
+
+To run the **Apsara team** (OpenClaw agents) with a local LLM and no API keys:
+
+1. **Install and run Ollama** (https://ollama.com).
+2. **Run the setup script:**  
+   `./scripts/setup-ollama.sh`  
+   This pulls the default model `qwen2.5:7b` and writes a sample OpenClaw config to `~/.openclaw/openclaw.json.ollama-sample`.
+3. **Configure OpenClaw** to use Ollama: copy or merge the sample into `~/.openclaw/openclaw.json`, then run `openclaw gateway restart`.
+4. **Start the Apsara team:**  
+   `./scripts/start-apsara-team.sh`  
+   (Optional: `./scripts/start-apsara-team.sh --dry-run` for a single-agent test.)
+
+Using Qwen 2.5 locally avoids cloud API credits and rate limits and is the recommended setup for Sandarb.ai agent development.
+
+## API (core)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -54,6 +127,12 @@ Optional headers: `X-Sandarb-Agent-ID`, `X-Sandarb-Trace-ID`, `X-Sandarb-Variabl
 
 ## A2A protocol
 
+**How A2A URLs work in practice (Sandarb AI agent):**
+
+1. **Discovery** – Agent A uses the A2A URL of Agent B to read its capabilities (e.g. `GET /api/a2a` returns the Agent Card: name, description, url, version, capabilities, skills).
+2. **Interaction** – Agent A sends a JSON-RPC 2.0 message over HTTP(S) to that URL to initiate a task (e.g. `POST /api/a2a` with method and params).
+3. **Real-time updates** – For long-running tasks, the A2A server may use Server-Sent Events (SSE) to send updates back to the client. Sandarb currently responds synchronously; SSE may be added for streaming or long-running flows.
+
 - **Discovery:** `GET /api/a2a` returns the Agent Card (name, description, url, version, capabilities, skills).
 - **Skills:** `POST /api/a2a` with body `{ "skill": "get_context", "input": { "name": "my-context" } }`.
   - `get_context` – Retrieve context by name (lineage logged)
@@ -62,6 +141,23 @@ Optional headers: `X-Sandarb-Agent-ID`, `X-Sandarb-Trace-ID`, `X-Sandarb-Variabl
   - `register` – Register an agent (manifest with agent_id, version, owner_team, url)
 
 Spec: [a2a.dev](https://a2a.dev), [a2a-protocol.org](https://a2a-protocol.org).
+
+## Templates for context
+
+**Templates** define a reusable structure for context content. Each template has:
+
+- **Schema** – A JSON Schema (e.g. `type: object`, `properties`, `required`) that describes the shape of the context `content` (e.g. which keys exist, types, descriptions).
+- **Default values** – Optional default key-value pairs so new contexts created from this template start with sensible values.
+
+**Why templates help:**
+
+1. **Consistency** – All contexts of the same type (e.g. “trading limits”) follow the same structure: same fields, types, and optional defaults. Agents and validators can rely on a known shape.
+2. **Governance** – When you link a context to a template (via `templateId`), you document which schema that context conforms to. This supports compliance and audit (“this context is a trading-limits policy”).
+3. **Faster authoring** – Creating a new context from a template pre-fills content with default values and guides editors to include the right fields.
+
+**Usage:** Create templates via API (`POST /api/templates`) or seed data. When creating or editing a context, set `templateId` to the template’s id so the context is associated with that schema. The context `content` should conform to the template’s schema; validation can be enforced in the UI or in your pipelines.
+
+**Sample templates** (seeded when running the seed endpoint): compliance policy, trading limits, suitability policy, KYC config, disclosure policy. See **Templates** in the app UI or `GET /api/templates` for the list.
 
 ## Audit headers
 

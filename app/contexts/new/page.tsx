@@ -14,10 +14,15 @@ import { ContextPreview } from '@/components/context-preview';
 import { ComplianceMetadataFields } from '@/components/compliance-metadata-fields';
 import type { LineOfBusiness, DataClassification, RegulatoryHook } from '@/types';
 
+// Validate name: lowercase alphanumeric, hyphens, underscores only
+const isValidName = (n: string) => /^[a-z0-9_-]+$/.test(n);
+const NAME_ERROR = 'Name must be lowercase and contain only letters, numbers, hyphens (-), and underscores (_)';
+
 export default function NewContextPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState('');
+  const [nameError, setNameError] = useState('');
   const [description, setDescription] = useState('');
   const [tags, setTags] = useState('');
   const [lineOfBusiness, setLineOfBusiness] = useState<LineOfBusiness | null>(null);
@@ -29,8 +34,23 @@ export default function NewContextPage() {
     temperature: 0.7,
   });
 
+  const handleNameChange = (value: string) => {
+    setName(value);
+    if (value && !isValidName(value)) {
+      setNameError(NAME_ERROR);
+    } else {
+      setNameError('');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!name || !isValidName(name)) {
+      setNameError(NAME_ERROR);
+      return;
+    }
+    
     setLoading(true);
 
     try {
@@ -77,17 +97,19 @@ export default function NewContextPage() {
           </Link>
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">
-              New Context
+              New Agent Context
             </h1>
             <p className="text-sm text-muted-foreground">
-              Create a new context configuration
+              The "Reference Library": data and documents the agent can access at runtime.
             </p>
           </div>
         </div>
-        <Button onClick={handleSubmit} disabled={loading || !name}>
-          <Save className="h-4 w-4 mr-2" />
-          {loading ? 'Saving...' : 'Save Context'}
-        </Button>
+        <div className="flex items-center gap-4">
+          <Button onClick={handleSubmit} disabled={loading || !name || !!nameError}>
+            <Save className="h-4 w-4 mr-2" />
+            {loading ? 'Saving...' : 'Save Context'}
+          </Button>
+        </div>
       </header>
 
       {/* Content */}
@@ -106,11 +128,16 @@ export default function NewContextPage() {
                     id="name"
                     placeholder="my-context"
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    onChange={(e) => handleNameChange(e.target.value)}
+                    className={nameError ? 'border-destructive' : ''}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Use lowercase letters, numbers, hyphens, and underscores.
-                  </p>
+                  {nameError ? (
+                    <p className="text-xs text-destructive">{nameError}</p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Lowercase letters, numbers, hyphens (-), and underscores (_) only.
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2">

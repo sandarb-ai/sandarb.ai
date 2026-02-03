@@ -63,6 +63,12 @@ export async function getAgentCount(orgId?: string): Promise<number> {
   return (row as { count: number })?.count ?? 0;
 }
 
+export async function getRecentAgents(limit: number = 6): Promise<RegisteredAgent[]> {
+  if (usePg()) return agentsPg.getRecentAgentsPg(limit);
+  const rows = db.prepare('SELECT * FROM agents ORDER BY created_at DESC LIMIT ?').all(limit);
+  return (rows as Record<string, unknown>[]).map((r) => rowToAgent(r));
+}
+
 export async function createAgent(input: RegisteredAgentCreateInput): Promise<RegisteredAgent> {
   if (usePg()) return agentsPg.createAgentPg(input);
   const id = uuidv4();
@@ -224,22 +230,36 @@ export async function fetchAgentCardFromUrl(baseUrl: string): Promise<AgentCard>
   throw lastError || new Error('Could not fetch Agent Card from any candidate URL');
 }
 
+/** Normalize fetched Agent Card to A2A spec shape (capabilities object, defaultInputModes, defaultOutputModes, skills with tags). */
 function normalizeAgentCard(raw: Record<string, unknown>, url: string): AgentCard {
-  let capabilities: AgentCard['capabilities'] = [];
-  if (Array.isArray(raw.capabilities)) {
-    capabilities = raw.capabilities as AgentCard['capabilities'];
-  } else if (raw.capabilities && typeof raw.capabilities === 'object') {
+  let capabilities: AgentCard['capabilities'] = {
+    streaming: false,
+    pushNotifications: false,
+    stateTransitionHistory: false,
+  };
+  if (raw.capabilities && typeof raw.capabilities === 'object' && !Array.isArray(raw.capabilities)) {
     const cap = raw.capabilities as Record<string, unknown>;
-    if (cap.streaming) capabilities.push({ name: 'streaming', description: 'SSE streaming', streaming: true });
-    if (cap.pushNotifications) capabilities.push({ name: 'pushNotifications', description: 'Push notifications', streaming: false });
+    capabilities = {
+      streaming: Boolean(cap.streaming),
+      pushNotifications: Boolean(cap.pushNotifications),
+      stateTransitionHistory: Boolean(cap.stateTransitionHistory),
+    };
   }
+  const skills = Array.isArray(raw.skills)
+    ? (raw.skills as AgentCard['skills']).map((s) => ({
+        ...s,
+        tags: Array.isArray((s as { tags?: string[] }).tags) ? (s as { tags: string[] }).tags : ['general'],
+      }))
+    : [];
   return {
     name: (raw.name as string) || 'Unknown Agent',
     description: (raw.description as string) || '',
     url: (raw.url as string) || url,
     version: (raw.version as string) || '0.0.0',
     capabilities,
-    skills: Array.isArray(raw.skills) ? (raw.skills as AgentCard['skills']) : [],
+    defaultInputModes: Array.isArray(raw.defaultInputModes) ? (raw.defaultInputModes as string[]) : ['application/json', 'text/plain'],
+    defaultOutputModes: Array.isArray(raw.defaultOutputModes) ? (raw.defaultOutputModes as string[]) : ['application/json', 'text/plain'],
+    skills,
     authentication: raw.authentication as AgentCard['authentication'],
   };
 }

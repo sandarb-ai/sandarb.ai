@@ -3,17 +3,13 @@ import {
   getPromptById,
   getPromptVersions,
   createPromptVersion,
-  updatePrompt,
 } from '@/lib/prompts';
 
-interface RouteParams {
-  params: { id: string };
-}
-
 // GET /api/prompts/:id/versions - List all versions
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const prompt = getPromptById(params.id);
+    const { id } = await params;
+    const prompt = await getPromptById(id);
 
     if (!prompt) {
       return NextResponse.json(
@@ -22,7 +18,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const versions = getPromptVersions(params.id);
+    const versions = await getPromptVersions(id);
 
     return NextResponse.json({
       success: true,
@@ -38,9 +34,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 }
 
 // POST /api/prompts/:id/versions - Create new version
-export async function POST(request: NextRequest, { params }: RouteParams) {
+// Governance: versions are created as 'proposed' by default and require approval.
+// Set autoApprove: true for backward compatibility (immediate approval).
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const prompt = getPromptById(params.id);
+    const { id } = await params;
+    const prompt = await getPromptById(id);
 
     if (!prompt) {
       return NextResponse.json(
@@ -60,7 +59,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       metadata,
       commitMessage,
       createdBy,
-      setAsCurrent,
+      autoApprove, // New: if true, version is immediately approved
+      setAsCurrent, // Deprecated: use autoApprove instead
     } = body;
 
     // Validation
@@ -71,9 +71,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Create the version
-    const version = createPromptVersion({
-      promptId: params.id,
+    // Backward compatibility: setAsCurrent=true implies autoApprove=true
+    const shouldAutoApprove = autoApprove ?? (setAsCurrent !== false);
+
+    // Create the version with governance workflow
+    const version = await createPromptVersion({
+      promptId: id,
       content,
       variables,
       model,
@@ -83,15 +86,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       metadata,
       commitMessage,
       createdBy,
+      autoApprove: shouldAutoApprove,
     });
 
-    // Set as current if requested (default is true)
-    if (setAsCurrent !== false) {
-      updatePrompt(params.id, { currentVersionId: version.id });
-    }
-
     return NextResponse.json(
-      { success: true, data: version },
+      {
+        success: true,
+        data: version,
+        message: shouldAutoApprove
+          ? 'Version created and approved'
+          : 'Version created as proposed. Requires approval before it becomes active.',
+      },
       { status: 201 }
     );
   } catch (error) {

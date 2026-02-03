@@ -72,10 +72,16 @@ function flattenToText(obj: Record<string, unknown>, prefix = ''): string {
   return lines.join('\n');
 }
 
-// Validate context name (alphanumeric, hyphens, underscores)
-export function isValidContextName(name: string): boolean {
-  return /^[a-zA-Z0-9_-]+$/.test(name);
+// Validate resource name (lowercase alphanumeric, hyphens, underscores only)
+export function isValidResourceName(name: string): boolean {
+  return /^[a-z0-9_-]+$/.test(name) && name.length > 0;
 }
+
+// Alias for backward compatibility
+export const isValidContextName = isValidResourceName;
+
+// Error message for invalid names
+export const RESOURCE_NAME_ERROR = 'Name must be lowercase and contain only letters, numbers, hyphens (-), and underscores (_)';
 
 // Generate slug from name
 export function slugify(text: string): string {
@@ -111,6 +117,20 @@ export function formatDate(dateString: string): string {
     hour: '2-digit',
     minute: '2-digit',
   }).format(date);
+}
+
+/** Format full date and time for chat logs (e.g. "Feb 3, 2026, 3:45:12 PM"). */
+export function formatDateTime(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  });
 }
 
 // Format relative time

@@ -16,10 +16,8 @@ export async function GET(request: NextRequest) {
     const entries = await getA2ALog(limit);
     return NextResponse.json({ success: true, data: { entries } });
   } catch (error) {
-    console.error('Failed to fetch A2A log:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch A2A log' },
-      { status: 500 }
-    );
+    console.error('Failed to fetch A2A log (DB may be unavailable):', error);
+    // Return 200 with empty entries so Agent Pulse UI still loads (e.g. when DB not set up or Postgres down)
+    return NextResponse.json({ success: true, data: { entries: [] } });
   }
 }

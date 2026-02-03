@@ -45,7 +45,7 @@ Uniquely, **Sandarb runs as an A2A agent**.
 * **Pending-Review Visibility:** A clear dashboard for Compliance Officers or Engineering Leads to see every prompt change awaiting sign-off.
 * **Incident Resolution:** When an agent hallucinates, check the Audit Trail to pinpoint exactly which prompt version and context source were active at that microsecond.
 
-### 3. Prompt & Context Engineering
+### 3. Prompt & Context themEngineering
 * **Git-Like Versioning:** Roll back instantly. Fork prompts for A/B testing. Merge "Staging" prompts to "Production."
 * **Context Validation:** Sandarb ensures that the context injected (RAG) is not just "semantically relevant" but also "compliance approved" for that specific agent intent.
 
@@ -59,8 +59,14 @@ Sandarb fits into your architecture however you need it to.
 *(Note: Add your screenshot to `docs/images/integrate-your-way.png`)*
 
 * **A2A Protocol:** Sandarb is an AI Agent for AI Governance. Other agents call `POST /api/a2a` with skills like `get_context`, `validate_context`, and `get_lineage`.
-* **REST API:** Standard HTTP endpoints (`GET /api/contexts`, `GET /api/agents`) for traditional integration.
+* **API:** Standard HTTP endpoints (`GET /api/contexts`, `GET /api/agents`) for traditional integration.
 * **Git-like Flow:** Propose edits with commit messages. Contexts and prompts get versioned history. Sandarb tracks approvals and revisions like a lightweight Pull Request flow.
+
+---
+
+## 🦙 Local development (Ollama + Qwen 2.5)
+
+To run the **Apsara agent team** with a local LLM and no API keys, use **Ollama** with **Qwen 2.5**. Run `./scripts/setup-ollama.sh` to pull the model and generate OpenClaw config; then start the team with `./scripts/start-apsara-team.sh`. See [Developer guide – Local development with Ollama](docs/developer-guide.md#local-development-with-ollama--qwen-25) for details.
 
 ---
 

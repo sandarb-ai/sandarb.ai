@@ -26,6 +26,17 @@ function getAllContextsSqlite(): Context[] {
   return (rows as Record<string, unknown>[]).map(rowToContext);
 }
 
+function getContextsPaginatedSqlite(limit: number, offset: number): { contexts: Context[]; total: number } {
+  const total = (db.prepare(`SELECT COUNT(*) as count FROM contexts`).get() as { count: number }).count;
+  const rows = db.prepare(`
+    SELECT * FROM contexts
+    ORDER BY updated_at DESC
+    LIMIT ? OFFSET ?
+  `).all(limit, offset);
+  const contexts = (rows as Record<string, unknown>[]).map(rowToContext);
+  return { contexts, total };
+}
+
 function getActiveContextsSqlite(): Context[] {
   const rows = db.prepare(`
     SELECT * FROM contexts
@@ -216,6 +227,15 @@ function getContextCountSqlite(): { total: number; active: number } {
   return { total: total.count, active: active.count };
 }
 
+function getRecentContextsSqlite(limit: number = 6): Context[] {
+  const rows = db.prepare(`
+    SELECT * FROM contexts
+    ORDER BY created_at DESC
+    LIMIT ?
+  `).all(limit);
+  return (rows as Record<string, unknown>[]).map(rowToContext);
+}
+
 function getContextCountByTagSqlite(tag: string): number {
   const row = db.prepare(`SELECT COUNT(*) as count FROM contexts WHERE tags LIKE ?`).get(`%"${tag}"%`) as { count: number };
   return row?.count ?? 0;
@@ -225,6 +245,10 @@ function getContextCountByTagSqlite(tag: string): number {
 
 export async function getAllContexts(): Promise<Context[]> {
   return usePg() ? contextsPg.getAllContextsPg() : Promise.resolve(getAllContextsSqlite());
+}
+
+export async function getContextsPaginated(limit: number, offset: number): Promise<{ contexts: Context[]; total: number }> {
+  return usePg() ? contextsPg.getContextsPaginatedPg(limit, offset) : Promise.resolve(getContextsPaginatedSqlite(limit, offset));
 }
 
 export async function getActiveContexts(): Promise<Context[]> {
@@ -282,4 +306,22 @@ export async function getContextCount(): Promise<{ total: number; active: number
 
 export async function getContextCountByTag(tag: string): Promise<number> {
   return usePg() ? contextsPg.getContextCountByTagPg(tag) : Promise.resolve(getContextCountByTagSqlite(tag));
+}
+
+export async function getRecentContexts(limit: number = 6): Promise<Context[]> {
+  return usePg() ? contextsPg.getRecentContextsPg(limit) : Promise.resolve(getRecentContextsSqlite(limit));
+}
+
+/** Get the latest approved version info for governance tracking (Postgres only). */
+export async function getLatestApprovedVersion(contextId: string): Promise<{
+  content: Record<string, unknown>;
+  versionId: string | null;
+  versionLabel: string | null;
+} | null> {
+  if (usePg()) {
+    return contextsPg.getLatestApprovedVersionPg(contextId);
+  }
+  // SQLite doesn't have separate version tracking in the same way
+  const context = await getContextById(contextId);
+  return context ? { content: context.content, versionId: null, versionLabel: null } : null;
 }
