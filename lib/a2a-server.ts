@@ -13,9 +13,10 @@ import { v4 as uuidv4 } from 'uuid';
 import { getAllPrompts, getPromptByName, getCurrentPromptVersion, interpolatePrompt } from './prompts';
 import { getAllContexts, getContextByName } from './contexts';
 import { formatContent } from './utils';
-import { getAgentById, getAllAgents, registerByManifest } from './agents';
+import { getAgentById, getAllAgents, getAgentByIdentifier, registerByManifest } from './agents';
 import { getProposedRevisions, getAllProposedRevisions } from './revisions';
 import { logAuditEvent, logContextDelivery, logPromptUsage, getLineage } from './audit';
+import { checkInjectPolicy } from './policy';
 import { pollAgentMcp, deriveMcpUrl } from './mcp-client';
 import type {
   AgentCard,
@@ -119,7 +120,7 @@ const getAgentSkills = (): AgentSkill[] => [
         sourceAgent: { type: 'string', description: 'Calling agent identifier (for audit/lineage)' },
         intent: { type: 'string', description: 'Why this context is needed (for lineage)' },
       },
-      required: ['name'],
+      required: ['name', 'sourceAgent'],
     },
     outputSchema: {
       type: 'object',
@@ -644,11 +645,26 @@ export const executeSkill = async (
     }
 
     case 'get_context': {
+      const sourceAgent = (input.sourceAgent as string)?.trim();
+      if (!sourceAgent) {
+        throw new Error('get_context requires sourceAgent (calling agent identifier). Only registered agents may pull context.');
+      }
+
       const context = await getContextByName(input.name as string);
       if (!context) throw new Error(`Context not found: ${input.name}`);
 
+      const agent = await getAgentByIdentifier(sourceAgent);
+      if (!agent) {
+        throw new Error('Agent not registered with Sandarb. Only registered agents may pull context.');
+      }
+
+      const policy = checkInjectPolicy(agent, context);
+      if (!policy.allowed) {
+        throw new Error(policy.reason ?? 'Policy violation: cross-LOB access not allowed.');
+      }
+
       await logContextDelivery({
-        sourceAgent: (input.sourceAgent as string) ?? null,
+        sourceAgent,
         contextId: context.id,
         contextName: context.name,
         intent: input.intent as string | undefined,
