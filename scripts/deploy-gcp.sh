@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Deploy Sandarb to GCP Cloud Run.
-# Usage: ./scripts/deploy-gcp.sh [PROJECT_ID] [REGION]
-#   PROJECT_ID default: from gcloud config or set GCP_PROJECT_ID
+# Usage: ./scripts/deploy-gcp.sh [PROJECT_ID] [REGION] [--cache]
+#   PROJECT_ID default: sandarb-ai (or GCP_PROJECT_ID or gcloud config)
 #   REGION default: us-central1
+#   Build uses --no-cache by default; pass --cache to use Docker layer cache.
 # Prerequisites: gcloud installed, logged in (e.g. gcloud auth login with sudhir@openint.ai)
 
 set -e
@@ -11,6 +12,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 IMAGE_NAME="sandarb"
 SERVICE_NAME="sandarb"
+
+# Load .env so DATABASE_URL (and other vars) are available for deploy and post-deploy reseed
+if [[ -f "$REPO_ROOT/.env" ]]; then
+  set -a
+  # shellcheck source=/dev/null
+  source "$REPO_ROOT/.env"
+  set +a
+fi
 
 # Find gcloud (PATH or common install locations)
 find_gcloud() {
@@ -38,23 +47,26 @@ if [[ -z "$GCLOUD" ]]; then
   exit 1
 fi
 
-# Parse args (only positional; ignore flags like --help/--no-cache for PROJECT_ID/REGION)
+# Parse args (only positional; ignore flags like --help/--cache for PROJECT_ID/REGION)
 PROJECT_ID=""
 REGION=""
-NO_CACHE=""
+# Build with --no-cache by default so latest code is always used; pass --cache to use layer cache
+NO_CACHE="--no-cache"
 for arg in "$@"; do
   if [[ "$arg" == "--help" || "$arg" == "-h" ]]; then
-    echo "Usage: $0 PROJECT_ID [REGION] [--no-cache]"
-    echo "  or set GCP_PROJECT_ID and run: $0 [REGION] [--no-cache]"
-    echo "  --no-cache: disable Docker layer cache (use if deploy shows old code; may fail if Kaniko is enabled)."
-    echo "Example: $0 191433138534 us-central1"
+    echo "Usage: $0 [PROJECT_ID] [REGION] [--cache]"
+    echo "  PROJECT_ID default: sandarb-ai (or GCP_PROJECT_ID or gcloud config)"
+    echo "  REGION default: us-central1"
+    echo "  Build uses --no-cache by default; pass --cache to use Docker layer cache."
+    echo "  DATABASE_URL is loaded from REPO_ROOT/.env if present."
+    echo "Example: $0 sandarb-ai us-central1"
     exit 0
   fi
-  if [[ "$arg" == "--no-cache" ]]; then
-    NO_CACHE="--no-cache"
+  if [[ "$arg" == "--cache" ]]; then
+    NO_CACHE=""
     continue
   fi
-  # Only use non-flag args as PROJECT_ID / REGION (so --no-cache can appear anywhere)
+  # Only use non-flag args as PROJECT_ID / REGION (so --cache can appear anywhere)
   if [[ "$arg" != -* && -z "$PROJECT_ID" ]]; then
     PROJECT_ID="$arg"
   elif [[ "$arg" != -* && -n "$PROJECT_ID" && -z "$REGION" ]]; then
@@ -69,12 +81,8 @@ fi
 if [[ -z "$PROJECT_ID" ]]; then
   PROJECT_ID=$("$GCLOUD" config get-value project 2>/dev/null || true)
 fi
-
 if [[ -z "$PROJECT_ID" ]]; then
-  echo "Usage: $0 PROJECT_ID [REGION] [--no-cache]"
-  echo "  or set GCP_PROJECT_ID and run: $0 [REGION] [--no-cache]"
-  echo "Example: $0 191433138534 us-central1"
-  exit 1
+  PROJECT_ID="sandarb-ai"
 fi
 
 # Require an active gcloud account before running any commands
@@ -127,7 +135,7 @@ if ! "${BUILD_CMD[@]}" . ; then
   echo "  - 403 ...-compute@developer.gserviceaccount.com storage.objects.get: grant the default Compute SA access to the bucket:"
   echo "    PROJECT_NUMBER=\$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')"
   echo "    gcloud storage buckets add-iam-policy-binding gs://${PROJECT_ID}_cloudbuild --member=\"serviceAccount:\${PROJECT_NUMBER}-compute@developer.gserviceaccount.com\" --role=\"roles/storage.objectViewer\""
-  echo "  - If --no-cache fails with 'Invalid value for [no-cache]', remove it (Kaniko may be enabled)."
+  echo "  - If build fails with 'Invalid value for [no-cache]', run with --cache (Kaniko may be enabled)."
   exit 1
 fi
 

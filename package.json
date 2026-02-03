@@ -40,7 +40,8 @@
     "db:full-reset-pg": "node scripts/full-reset-postgres.js",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:security": "vitest run tests/security"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",

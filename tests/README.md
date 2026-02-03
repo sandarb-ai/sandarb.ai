@@ -8,6 +8,7 @@ An AI governance tool must have a robust test suite so you can trust it to gover
 npm run test           # watch mode (re-runs on file changes)
 npm run test:run       # single run (use in CI)
 npm run test:coverage  # single run with coverage report (lib + app/api)
+npm run test:security  # security ACID tests only (use in security gate / CI)
 ```
 
 Run these before committing. The suite is fast (no DB); typical run is under a second.
@@ -18,6 +19,7 @@ Run these before committing. The suite is fast (no DB); typical run is under a s
 |------------|---------|
 | **`tests/lib/`** | Unit tests for core library code. No DB; pure logic and (when needed) mocked `@/lib/pg`. |
 | **`tests/api/`** | API route tests. Each file tests one route (or related routes). Lib modules are mocked with `vi.mock('@/lib/...')`. |
+| **`tests/security/`** | Security ACID tests. Rigorous assertions that critical security properties hold (inject: audit IDs, unregistered/cross-LOB denied; policy; input validation; approval workflow). Run with `npm run test:security`. |
 
 Test files must be named `*.test.ts` or `*.test.tsx` and live under `tests/`. Vitest is configured in `vitest.config.ts` (Node environment, `@` alias to project root).
 
@@ -42,6 +44,10 @@ Test files must be named `*.test.ts` or `*.test.tsx` and live under `tests/`. Vi
 - **`governance-blocked.test.ts`** — GET /api/governance/blocked-injections: items array, limit param, 500 on error.
 - **`governance-unauthenticated.test.ts`** — GET /api/governance/unauthenticated-agents: items array, limit cap 100, 500 on error.
 
+### Security tests (`tests/security/`)
+
+- **`acid.test.ts`** — Security ACID test: inject route (audit IDs required, unregistered agent 403, cross-LOB 403, inactive context 403, invalid format 400); policy (cross-LOB denied, same-LOB allowed); input validation (isValidResourceName rejects path traversal/SQL-like/empty; substituteVariables only substitutes `{{word}}`, no code execution); approval workflow (only proposed versions can be approved).
+
 ### Behaviors we assert
 
 1. **Governance display** — Approved-by and created-by use `@username`; formatting and normalization (utils).
@@ -50,6 +56,7 @@ Test files must be named `*.test.ts` or `*.test.tsx` and live under `tests/`. Vi
 4. **Resource naming** — Valid/invalid names and slugs for contexts and prompts.
 5. **Approve/reject APIs** — Success (200 + data), 404 when resource not found or not in proposable state, 400 for bad state (e.g. not proposed), 500 when lib returns null or throws; body/header `approvedBy`/`rejectedBy` passed through to lib.
 6. **Health & governance APIs** — Response shape, limit params, 500 on thrown errors.
+7. **Security ACID** — Inject: audit IDs required; unregistered agent and cross-LOB denied; inactive context denied; format/input validation. Policy: cross-LOB blocked. Input: resource names and variable substitution safe (no path traversal, no code execution). Approval: only proposed versions can be approved.
 
 ## Extending the suite
 
@@ -156,6 +163,16 @@ Important details:
 - **Naming** — `tests/lib/<module>.test.ts`, `tests/api/<feature>-<action>.test.ts` (e.g. `agents-approve.test.ts`).
 - **No real DB** — Keep tests fast and CI-friendly by mocking `@/lib/pg` or any module that talks to the DB.
 - **Coverage** — `npm run test:coverage` reports on `lib/**` and `app/api/**`; add tests for new lib functions or API routes you add.
+
+## Security testing
+
+Run the security ACID test as part of your security gate (e.g. in CI):
+
+```bash
+npm run test:security
+```
+
+This runs only `tests/security/**/*.test.ts` and asserts critical security properties (inject audit IDs, unregistered/cross-LOB denial, input validation, approval workflow). Use it in addition to `npm run test:run` when you want a dedicated security pass.
 
 ## Configuration
 

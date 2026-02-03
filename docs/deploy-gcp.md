@@ -76,29 +76,28 @@ Your live URL is still the one printed by the script (e.g. `https://sandarb-7297
 
 ## One-command deploy (Cloud Run)
 
-From the repo root, with your GCP project ID:
+From the repo root:
 
 ```bash
-./scripts/deploy-gcp.sh 191433138534
-# Optional: specify region (default us-central1)
-./scripts/deploy-gcp.sh 191433138534 us-east1
-```
-
-Or set `GCP_PROJECT_ID` and run:
-
-```bash
-export GCP_PROJECT_ID=191433138534
 ./scripts/deploy-gcp.sh
 ```
 
-The script enables APIs, creates an Artifact Registry repo if needed, builds the image with Cloud Build (using a unique tag per build so the latest code is always deployed), and deploys to Cloud Run. The service URL is printed at the end.
+Defaults: **project** `sandarb-ai` (or `GCP_PROJECT_ID` or gcloud config), **region** `us-central1`, **build** with `--no-cache`. The script loads `DATABASE_URL` from `.env` in the repo root if present.
 
-**Deployment not showing latest code?** The script now builds and deploys using a unique image tag (timestamp + optional git SHA) instead of `:latest`, so Cloud Run always uses the image you just built. If you still see stale code (e.g. due to Docker layer caching in Cloud Build), run with `--no-cache`:  
-`./scripts/deploy-gcp.sh PROJECT_ID [REGION] --no-cache`  
-(If `--no-cache` fails with an error about Kaniko, omit it—your project may use Kaniko for builds.)
+Override project/region or use Docker layer cache:
+
+```bash
+./scripts/deploy-gcp.sh sandarb-ai us-central1
+./scripts/deploy-gcp.sh my-project us-east1 --cache
+```
+
+The script enables APIs, creates an Artifact Registry repo if needed, builds the image with Cloud Build (unique tag per build, `--no-cache` by default), and deploys to Cloud Run. The service URL is printed at the end.
+
+**Deployment not showing latest code?** The script uses a unique image tag per build and `--no-cache` by default. If build fails with an error about `--no-cache` (e.g. Kaniko enabled), run with `--cache`:  
+`./scripts/deploy-gcp.sh [PROJECT_ID] [REGION] --cache`
 
 **GCP demo: use Postgres and drive all demo from the DB.**  
-For the live app to use PostgreSQL and show real-world demo data (dashboard, Agent Registry, contexts, prompts), set `DATABASE_URL` to your Cloud SQL connection string **before** running the deploy script. The script will:
+Put `DATABASE_URL` in `.env` (or export it) so the script passes it to Cloud Run and reseeds after deploy. The script will:
 
 1. **Pass `DATABASE_URL` to Cloud Run** so the service uses Postgres (required).
 2. **Attach the Cloud SQL instance** to the service when the URL uses the Unix socket (`host=/cloudsql/PROJECT:REGION:INSTANCE`).
