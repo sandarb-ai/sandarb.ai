@@ -72,7 +72,7 @@ export default function AboutPage() {
             <ul className="text-muted-foreground mt-3 space-y-1.5 list-disc list-inside">
               <li>Approved prompts and context; propose / edit / approve workflows</li>
               <li>Audit trail and lineage: who requested which context, when</li>
-              <li>Sandarb as an agent: other agents call Sandarb for validation and approved context instead of bypassing governance</li>
+              <li>Sandarb AI Governance Agent: Sandarb is an AI agent that participates in A2A (industry standard for agent-to-agent communication); other agents call Sandarb for validation and approved context, and Sandarb communicates with other agents via A2A</li>
             </ul>
           </section>
 
@@ -83,7 +83,7 @@ export default function AboutPage() {
               How it works
             </h2>
             <p className="text-muted-foreground mt-3 leading-relaxed">
-              Agents register with Sandarb (by URL or by pinging with a manifest). When an agent needs context, it calls Sandarb’s API or A2A skill; Sandarb returns the approved content and logs the request. You get organizations, an agent registry, versioned prompts and contexts, and lineage—all exposed as an API and as an A2A agent so other agents can talk to Sandarb directly.
+              Agents register with Sandarb (by URL or by pinging with a manifest). When an agent needs context, it calls Sandarb’s API or A2A skill; Sandarb returns the approved content and logs the request. The Sandarb AI Governance Agent participates in A2A (the industry standard for agent-to-agent communication)—you get organizations, an agent registry, versioned prompts and contexts, and lineage, all exposed as an API and as an A2A participant so other agents can talk to Sandarb directly and Sandarb can communicate with them via A2A.
             </p>
             <p className="text-muted-foreground mt-2 leading-relaxed">
               Optional: Sandarb can also pull state from agents via MCP (Model Context Protocol) for monitoring, so you get visibility without forcing every agent to push logs.

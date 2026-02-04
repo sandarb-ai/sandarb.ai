@@ -93,6 +93,13 @@ Override project/region or disable cache:
 
 The script enables APIs, creates an Artifact Registry repo if needed, builds the image with Cloud Build (unique tag per build), and deploys to Cloud Run. The service URL is printed at the end.
 
+### API base URL (api.sandarb.ai)
+
+When the UI is served at **sandarb.ai** (or a host containing `sandarb.ai`), the app uses **https://api.sandarb.ai** as the API base by default. On **localhost**, it uses **http://localhost:4001**. You can override with `NEXT_PUBLIC_API_URL`. To use api.sandarb.ai on GCP:
+
+1. Point the subdomain **api.sandarb.ai** to your API service (e.g. the same Cloud Run service, or a separate one) via DNS and load balancer / Cloud Run custom domain.
+2. Ensure the UI is served from a host that contains `sandarb.ai` (e.g. sandarb.ai or www.sandarb.ai) so the client picks https://api.sandarb.ai automatically.
+
 **Deployment not showing latest code?** The script uses a unique image tag per build. To disable Docker layer cache, run with `--no-cache` (may fail if Kaniko is disabled in the project).
 
 **GCP demo: use Postgres and drive all demo from the DB.**  
@@ -115,26 +122,34 @@ After deployment, the GCP Postgres database may not have the same real-world sam
 - Templates, settings, scan targets, audit samples
 
 **Option 1 – Use Postgres and reseed as part of deploy (recommended)**  
-Set `DATABASE_URL` to your Cloud SQL connection string and run the deploy script. The script will configure Cloud Run to use Postgres (so all demo is driven from the DB), then run `scripts/full-reset-postgres.js` so the GCP DB has the same real-world data as local:
+Set **`CLOUD_SQL_DATABASE_URL`** in `.env` to your Cloud SQL connection string (or export it). The deploy script uses it for **both** Cloud Run and post-deploy reseed, so the deployed app and the reseed target the **same** DB. If you only set `DATABASE_URL` to localhost (for local dev), Cloud Run would get that and show no data; use `CLOUD_SQL_DATABASE_URL` for GCP.
 
 ```bash
-# Cloud SQL Unix socket (script will add --add-cloudsql-instances automatically)
-export DATABASE_URL="postgresql://USER:PASS@/DB?host=/cloudsql/PROJECT:REGION:INSTANCE"
-# Or public IP (ensure DB allows Cloud Run egress / your IP):
-# export DATABASE_URL="postgresql://USER:PASS@PUBLIC_IP:5432/DB"
+# In .env (recommended): keep DATABASE_URL for local, add CLOUD_SQL_DATABASE_URL for deploy
+# CLOUD_SQL_DATABASE_URL=postgresql://USER:PASS@/DB?host=/cloudsql/PROJECT:REGION:INSTANCE
+# Or public IP (ensure DB allows Cloud Run egress and your machine for reseed):
+# CLOUD_SQL_DATABASE_URL=postgresql://USER:PASS@PUBLIC_IP:5432/DB
 
 ./scripts/deploy-gcp.sh PROJECT_ID [REGION]
 ```
 
+If `CLOUD_SQL_DATABASE_URL` is unset, the script uses `DATABASE_URL`. The script will **fail** with a clear message if the chosen URL contains localhost (Cloud Run cannot reach it).
+
 **Option 2 – Reseed only (no redeploy)**  
-From your machine, point `DATABASE_URL` at the GCP Postgres instance and run the full-reset script:
+From your machine, seed Cloud SQL using the dedicated script (recommended) or npm:
 
 ```bash
+# Recommended: uses CLOUD_SQL_DATABASE_URL from .env, or pass the URL
+./scripts/seed-cloud-sql.sh
+# Or with URL explicitly:
+./scripts/seed-cloud-sql.sh 'postgresql://USER:PASS@HOST:5432/DB'
+
+# Alternative: set DATABASE_URL and run full-reset
 export DATABASE_URL="postgresql://..."   # your Cloud SQL URL
 npm run db:full-reset-pg
 ```
 
-This drops all Sandarb tables, reapplies the schema, and seeds the same sample data as local: 30 orgs, 500+ agents, 3000+ contexts, 2000+ prompts, templates, settings.
+The script `scripts/seed-cloud-sql.sh` loads `CLOUD_SQL_DATABASE_URL` (or `DATABASE_URL`) from `.env`, refuses localhost URLs, and runs a full reset + seed so the GCP DB gets the same sample data as local: 30 orgs, 500+ agents, 3000+ contexts, 2000+ prompts, templates, settings.
 
 ## Build and push the image
 

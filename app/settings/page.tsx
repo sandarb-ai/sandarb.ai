@@ -252,7 +252,7 @@ fetch(apiUrl('/api/settings'), {
                 <CardHeader>
                   <CardTitle>Sandarb</CardTitle>
                   <CardDescription>
-                    Governance for AI agents: regulatory, controls, risk management, and compliance. Sandarb runs as UI, API, and A2A agent so other agents talk to it for validation, audit, and approved context.
+                    The Sandarb AI Governance Agent: regulatory, controls, risk management, and compliance for AI agents. Participates in A2A (industry standard for agent-to-agent communication). Sandarb runs as UI, API, and A2A participant so other agents talk to it for validation, audit, and approved context; Sandarb can also communicate with other agents via A2A.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -279,8 +279,8 @@ fetch(apiUrl('/api/settings'), {
                   </div>
 
                   <p className="text-sm text-muted-foreground">
-                    Sandarb is the governance layer for AI agents: approval workflows, audit logging,
-                    and A2A so other agents call Sandarb for validation and compliance. Built with Next.js,
+                    The Sandarb AI Governance Agent is the governance layer for AI agents: approval workflows, audit logging,
+                    and A2A (industry standard for agent-to-agent communication) so other agents call Sandarb for validation and compliance, and Sandarb can communicate with other agents via A2A. Built with Next.js,
                     TypeScript, and PostgreSQL. All UI actions are exposed via API.
                   </p>
                 </CardContent>

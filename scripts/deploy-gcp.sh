@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # Deploy Sandarb to GCP Cloud Run.
-# Usage: ./scripts/deploy-gcp.sh [PROJECT_ID] [REGION] [--cache]
+# Usage: ./scripts/deploy-gcp.sh [PROJECT_ID] [REGION]
 #   PROJECT_ID default: sandarb-ai (or GCP_PROJECT_ID or gcloud config)
 #   REGION default: us-central1
-#   Build uses Docker layer cache by default; pass --no-cache to disable (may fail if Kaniko is off).
 # Prerequisites: gcloud installed, logged in (e.g. gcloud auth login with sudhir@openint.ai)
 
 set -e
@@ -13,16 +12,22 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 IMAGE_NAME="sandarb"
 SERVICE_NAME="sandarb"
 
-# Load DATABASE_URL from .env (read-only, no sourcing) so deploy and post-deploy reseed see it
+# Load DATABASE_URL and optional CLOUD_SQL_DATABASE_URL from .env (read-only, no sourcing)
+# For GCP deploy: set CLOUD_SQL_DATABASE_URL to your Cloud SQL URL so Cloud Run and post-deploy reseed
+# both use the same DB. If unset, DATABASE_URL is used (must not be localhost for Cloud Run).
 if [[ -f "$REPO_ROOT/.env" ]]; then
   while IFS= read -r line; do
     [[ "$line" =~ ^#.*$ || -z "${line// /}" ]] && continue
     if [[ "$line" == DATABASE_URL=* ]]; then
-      export DATABASE_URL="${line#DATABASE_URL=}"
-      break
+      v="${line#DATABASE_URL=}"; export DATABASE_URL="${v%\"}"; export DATABASE_URL="${DATABASE_URL#\"}"
+    fi
+    if [[ "$line" == CLOUD_SQL_DATABASE_URL=* ]]; then
+      v="${line#CLOUD_SQL_DATABASE_URL=}"; export CLOUD_SQL_DATABASE_URL="${v%\"}"; export CLOUD_SQL_DATABASE_URL="${CLOUD_SQL_DATABASE_URL#\"}"
     fi
   done < "$REPO_ROOT/.env"
 fi
+# DB URL used for Cloud Run and post-deploy reseed (prefer Cloud SQL URL when deploying to GCP)
+DEPLOY_DATABASE_URL="${CLOUD_SQL_DATABASE_URL:-$DATABASE_URL}"
 # Optional: SANDARB_UI_SECRET, SANDARB_API_SECRET, SANDARB_A2A_SECRET in .env so post-deploy seed uses them for service_accounts
 
 # Find gcloud (PATH or common install locations)
@@ -51,26 +56,18 @@ if [[ -z "$GCLOUD" ]]; then
   exit 1
 fi
 
-# Parse args (only positional; ignore flags like --help/--cache for PROJECT_ID/REGION)
+# Parse args (only positional)
 PROJECT_ID=""
 REGION=""
-# Build with layer cache by default; pass --no-cache to disable (requires Kaniko in some projects)
-NO_CACHE=""
 for arg in "$@"; do
   if [[ "$arg" == "--help" || "$arg" == "-h" ]]; then
-    echo "Usage: $0 [PROJECT_ID] [REGION] [--no-cache]"
+    echo "Usage: $0 [PROJECT_ID] [REGION]"
     echo "  PROJECT_ID default: sandarb-ai (or GCP_PROJECT_ID or gcloud config)"
     echo "  REGION default: us-central1"
-    echo "  Build uses Docker layer cache by default; pass --no-cache to disable (may fail if Kaniko is off)."
     echo "  DATABASE_URL is loaded from REPO_ROOT/.env if present."
     echo "Example: $0 sandarb-ai us-central1"
     exit 0
   fi
-  if [[ "$arg" == "--no-cache" ]]; then
-    NO_CACHE="--no-cache"
-    continue
-  fi
-  # Only use non-flag args as PROJECT_ID / REGION (so --no-cache can appear anywhere)
   if [[ "$arg" != -* && -z "$PROJECT_ID" ]]; then
     PROJECT_ID="$arg"
   elif [[ "$arg" != -* && -n "$PROJECT_ID" && -z "$REGION" ]]; then
@@ -102,10 +99,17 @@ echo "Deploying Sandarb to GCP"
 echo "  Project: $PROJECT_ID"
 echo "  Region:  $REGION"
 echo "  Account: $ACTIVE_ACCOUNT"
-if [ -n "$DATABASE_URL" ]; then
-  echo "  DATABASE_URL: set (Cloud Run + post-deploy reseed will use it; service_accounts sandarb-ui/api/a2a will be seeded)."
+if [ -n "$DEPLOY_DATABASE_URL" ]; then
+  echo "  DB for deploy: using CLOUD_SQL_DATABASE_URL (Cloud Run + post-deploy reseed)."
+  if [[ "$DEPLOY_DATABASE_URL" == *"localhost"* || "$DEPLOY_DATABASE_URL" == *"127.0.0.1"* ]]; then
+    echo ""
+    echo "  WARNING: DATABASE_URL/CLOUD_SQL_DATABASE_URL contains localhost. Cloud Run cannot reach it."
+    echo "  Set CLOUD_SQL_DATABASE_URL in .env to your Cloud SQL URL (e.g. postgresql://user:pass@/db?host=/cloudsql/PROJECT:REGION:INSTANCE or public IP)."
+    echo ""
+    exit 1
+  fi
 else
-  echo "  DATABASE_URL: not set (add to .env for Postgres + post-deploy reseed + service account seeding)."
+  echo "  DATABASE_URL / CLOUD_SQL_DATABASE_URL: not set (add CLOUD_SQL_DATABASE_URL to .env for Postgres + post-deploy reseed)."
 fi
 echo ""
 
@@ -126,6 +130,14 @@ fi
 # Configure Docker for Artifact Registry
 "$GCLOUD" auth configure-docker "${REGION}-docker.pkg.dev" --quiet
 
+# Ensure Cloud Build default Compute SA can read the Cloud Build bucket (avoids 403 storage.objects.get)
+echo "Ensuring Cloud Build bucket IAM (objectViewer for default Compute SA)..."
+PROJECT_NUMBER=$("$GCLOUD" projects describe "$PROJECT_ID" --format='value(projectNumber)')
+"$GCLOUD" storage buckets add-iam-policy-binding "gs://${PROJECT_ID}_cloudbuild" \
+  --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+  --role="roles/storage.objectViewer" \
+  --project="$PROJECT_ID" 2>/dev/null || true
+
 # Unique image tag so Cloud Run always deploys the image we just built (avoids :latest cache issues).
 BUILD_TAG="$(date +%Y%m%d-%H%M%S)"
 if (cd "$REPO_ROOT" && git rev-parse --short HEAD &>/dev/null); then
@@ -135,16 +147,11 @@ fi
 # Build and push using Cloud Build (no local Docker required)
 echo "Building and pushing image (tag: ${BUILD_TAG})..."
 cd "$REPO_ROOT"
-BUILD_CMD=("$GCLOUD" builds submit --tag "${REPO}/${IMAGE_NAME}:${BUILD_TAG}" --project="$PROJECT_ID")
-[[ -n "$NO_CACHE" ]] && BUILD_CMD+=(--no-cache)
-if ! "${BUILD_CMD[@]}" . ; then
+if ! "$GCLOUD" builds submit --tag "${REPO}/${IMAGE_NAME}:${BUILD_TAG}" --project="$PROJECT_ID" . ; then
   echo ""
   echo "Build failed."
   echo "  - PERMISSION_DENIED: see docs/deploy-gcp.md (grant your user cloudbuild.builds.editor + storage.objectAdmin)."
-  echo "  - 403 ...-compute@developer.gserviceaccount.com storage.objects.get: grant the default Compute SA access to the bucket:"
-  echo "    PROJECT_NUMBER=\$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')"
-  echo "    gcloud storage buckets add-iam-policy-binding gs://${PROJECT_ID}_cloudbuild --member=\"serviceAccount:\${PROJECT_NUMBER}-compute@developer.gserviceaccount.com\" --role=\"roles/storage.objectViewer\""
-  echo "  - If build fails with 'Invalid value for [no-cache]', omit --no-cache (Kaniko may be disabled)."
+  echo "  - 403 ...-compute@developer.gserviceaccount.com storage.objects.get: run the IAM step above manually (script already ran it)."
   exit 1
 fi
 
@@ -160,12 +167,12 @@ DEPLOY_ARGS=(
   --min-instances 0
   --max-instances 10
 )
-if [ -n "$DATABASE_URL" ]; then
-  echo "Using Postgres (DATABASE_URL set). All demo data will be driven from the DB."
-  DEPLOY_ARGS+=(--set-env-vars "NODE_ENV=production,DATABASE_URL=$DATABASE_URL")
+if [ -n "$DEPLOY_DATABASE_URL" ]; then
+  echo "Using Postgres (CLOUD_SQL_DATABASE_URL / DATABASE_URL). All demo data will be driven from the DB."
+  DEPLOY_ARGS+=(--set-env-vars "NODE_ENV=production,DATABASE_URL=$DEPLOY_DATABASE_URL")
   # If URL uses Cloud SQL Unix socket, attach the instance so the container can connect.
-  if [[ "$DATABASE_URL" == *"/cloudsql/"* ]]; then
-    CLOUDSQL_INSTANCE=$(echo "$DATABASE_URL" | sed -n 's|.*/cloudsql/\([^/?]*\).*|\1|p')
+  if [[ "$DEPLOY_DATABASE_URL" == *"/cloudsql/"* ]]; then
+    CLOUDSQL_INSTANCE=$(echo "$DEPLOY_DATABASE_URL" | sed -n 's|.*/cloudsql/\([^/?]*\).*|\1|p')
     if [ -n "$CLOUDSQL_INSTANCE" ]; then
       DEPLOY_ARGS+=(--add-cloudsql-instances "$CLOUDSQL_INSTANCE")
     fi
@@ -183,18 +190,17 @@ echo "Health: $URL/api/health"
 
 # Post-deploy: clean and reseed GCP Postgres so it has the same real-world data as localhost.
 # Seed scale: 30 orgs, 500+ agents, 3000+ contexts, 2000+ prompts (see docs/deploy-gcp.md).
-# Set DATABASE_URL to your Cloud SQL connection string (e.g. via Cloud SQL Proxy or public IP).
-if [ -n "$DATABASE_URL" ]; then
+# Use the same DB URL as Cloud Run (DEPLOY_DATABASE_URL) so reseed writes to the DB the app reads from.
+if [ -n "$DEPLOY_DATABASE_URL" ]; then
   echo ""
-  echo "Post-deploy: cleaning and reseeding Postgres (DATABASE_URL is set)..."
-  if (cd "$REPO_ROOT" && node scripts/full-reset-postgres.js); then
+  echo "Post-deploy: cleaning and reseeding Postgres (same DB as Cloud Run)..."
+  if (cd "$REPO_ROOT" && DATABASE_URL="$DEPLOY_DATABASE_URL" node scripts/full-reset-postgres.js); then
     echo "Postgres cleaned and reseeded. GCP DB now has: 30 orgs, 500+ agents, 3000+ contexts, 2000+ prompts (same as local)."
   else
-    echo "Warning: post-deploy reseed failed. Run manually: DATABASE_URL=<your-gcp-pg-url> npm run db:full-reset-pg"
+    echo "Warning: post-deploy reseed failed. Run manually: DATABASE_URL=<your-cloud-sql-url> npm run db:full-reset-pg"
     exit 1
   fi
 else
-  echo "Tip: To reseed GCP Postgres with real-world data (500+ agents, 3000+ contexts, 2000+ prompts), run:"
-  echo "  DATABASE_URL=<your-cloud-sql-url> ./scripts/deploy-gcp.sh $PROJECT_ID ${REGION}"
-  echo "  or: DATABASE_URL=<your-cloud-sql-url> npm run db:full-reset-pg"
+  echo "Tip: To reseed GCP Postgres with real-world data (500+ agents, 3000+ contexts, 2000+ prompts), set CLOUD_SQL_DATABASE_URL in .env and re-run deploy, or:"
+  echo "  DATABASE_URL=<your-cloud-sql-url> npm run db:full-reset-pg"
 fi

@@ -1,9 +1,11 @@
 /**
- * A2A (Agent-to-Agent Protocol) Server Implementation
+ * A2A (Agent-to-Agent Protocol) Implementation
  *
- * Sandarb runs as an A2A agent so other agents can talk to it via A2A.
- * Value add: regulatory, controls, risk management, and governance while
- * teams focus on building AI agents.
+ * The Sandarb AI Governance Agent participates in A2A, which is fast becoming
+ * the industry standard for AI agents to discover, communicate, and collaborate.
+ * Sandarb acts as an A2A server so other agents can call it for governance
+ * (validation, approved context, lineage, registry), and Sandarb can communicate
+ * with other agents via A2A as a first-class participant.
  *
  * @see https://github.com/a2aproject/A2A
  * @see https://a2a-protocol.org/
@@ -34,7 +36,10 @@ import type {
 // ============================================================================
 
 /**
- * Generate the Agent Card that describes Sandarb as a governance A2A agent.
+ * Generate the Agent Card that describes the Sandarb AI Governance Agent.
+ * A2A is fast becoming the industry standard for agent-to-agent communication;
+ * Sandarb participates as an AI agent that other agents call for governance
+ * and can communicate with other agents via A2A.
  * Aligned with Google A2A spec: https://google.github.io/A2A/specification/
  */
 export const getAgentCard = (baseUrl: string): AgentCard => {
@@ -42,7 +47,7 @@ export const getAgentCard = (baseUrl: string): AgentCard => {
   return {
     name: 'Sandarb',
     description:
-      'Governance agent for AI agents: regulatory, controls, risk management, and compliance. While your teams build agents, Sandarb provides validation, approved context/prompts, audit logging, and pending-review visibility. Talk to Sandarb via A2A for compliance checks and audit trail.',
+      'Sandarb AI Governance Agent: regulatory, controls, risk management, and compliance for AI agents. Participates in A2A (industry standard for agent-to-agent communication). Other agents call Sandarb for validation, approved context/prompts, audit logging, and pending-review visibility; Sandarb can also communicate with other agents via A2A.',
     url: a2aUrl,
     version: '0.3.0',
     provider: { organization: 'OpenInt', url: 'https://github.com/openint-ai/sandarb' },
@@ -76,8 +81,9 @@ function skill(
 
 /**
  * Get all skills this agent supports (A2A spec: id, name, description, tags, optional examples/inputModes/outputModes).
+ * Exported for docs and tooling.
  */
-const getAgentSkills = (): AgentSkill[] => [
+export const getAgentSkills = (): AgentSkill[] => [
   skill({
     id: 'get_prompt',
     name: 'Get Prompt',

@@ -4,10 +4,11 @@ Developer integration and usage guide for anyone in the firm. For the full inter
 
 ## Overview
 
-Sandarb is AI governance for your AI agents: a single place for approved prompts and context, audit trail, lineage, and a living agent registry. Integrate via:
+Sandarb is AI governance for your AI agents: a single place for approved prompts and context, audit trail, lineage, and a living agent registry. The **Sandarb AI Governance Agent** participates in A2A (fast becoming the industry standard for agent-to-agent communication): other agents call Sandarb for governance, and Sandarb can communicate with other agents via A2A. Integrate via:
 
 - **API** – CRUD for organizations, agents, contexts, templates; inject context by name
-- **A2A protocol** – Discovery (Agent Card) and skills: `get_context`, `validate_context`, `get_lineage`, `register`
+- **A2A protocol** – Discovery (Agent Card) and skills: `get_context`, `validate_context`, `get_lineage`, `register`. Sandarb is an AI agent that participates in A2A as both server and first-class participant.
+- **Sandarb Client SDK** – A small library you drop into your Worker Agents so developers don’t write raw A2A/API calls every time. It handles **Check-in** (register on startup) and **Audit Push** (audit_log after inference) automatically, plus helpers for `getPrompt`, `validateContext`, `getContext`. See `lib/sandarb-client.ts` (TypeScript/Node) and the [Sandarb Client SDK](/docs#sandarb-client-sdk) section in the in-app docs.
 - **Inject API** – `GET /api/inject?name=my-context` returns approved context (JSON/YAML/text) for your agent
 - **Templates** – Reusable schemas and default values for context content; link a context to a template for consistent structure
 
@@ -68,6 +69,16 @@ In Sandarb, these two meet in the **Audit Log**. When an incident occurs (e.g., 
 
 Without governing both, you cannot diagnose whether the error was a failure of **instruction** (bad prompt) or a failure of **information** (bad context). Sandarb is built to govern both asset classes with versioning, approval workflows, and lineage tracking.
 
+## Reference documentation
+
+| Doc | Description |
+|-----|-------------|
+| [The Governance Protocol](reference/protocol.md) | Registry & Observer pattern, handshake (Mermaid), check-in, separation of concerns, data model and lineage. |
+| [A2A Skills (API reference)](reference/api-skills.md) | Every A2A skill from `getAgentSkills()` with request/response examples and required fields. |
+| **Sandarb Client SDK** (in-app docs) | Tiny client wrapper: Check-in and Audit Push automatically; `getPrompt`, `validateContext`, `getContext`. Use `lib/sandarb-client.ts` (TypeScript/Node). |
+| [Python integration](guides/python-integration.md) | Sandarb Python Client SDK (`sdk/python/sandarb_client.py`): check-in, audit, get_prompt, validate_context, get_context. |
+| [Security](reference/security.md) | Manifest-based registration (`sandarb.json`), shadow AI discovery (`runDiscoveryScan`). |
+
 ## Quick start
 
 ```bash
@@ -112,7 +123,7 @@ Optional headers: `X-Sandarb-Agent-ID`, `X-Sandarb-Trace-ID`, `X-Sandarb-Variabl
 
 ## A2A protocol
 
-**How A2A URLs work in practice (Sandarb AI agent):**
+**How A2A URLs work in practice (Sandarb AI Governance Agent; A2A is the industry standard for agent-to-agent communication):**
 
 1. **Discovery** – Agent A uses the A2A URL of Agent B to read its capabilities (e.g. `GET /api/a2a` returns the Agent Card: name, description, url, version, capabilities, skills).
 2. **Interaction** – Agent A sends a JSON-RPC 2.0 message over HTTP(S) to that URL to initiate a task (e.g. `POST /api/a2a` with method and params).
@@ -142,7 +153,17 @@ Spec: [a2a.dev](https://a2a.dev), [a2a-protocol.org](https://a2a-protocol.org).
 
 **Usage:** Create templates via API (`POST /api/templates`) or seed data. When creating or editing a context, set `templateId` to the template’s id so the context is associated with that schema. The context `content` should conform to the template’s schema; validation can be enforced in the UI or in your pipelines.
 
-**Sample templates** (seeded when running the seed endpoint): compliance policy, trading limits, suitability policy, KYC config, disclosure policy. See **Templates** in the app UI or `GET /api/templates` for the list.
+### Example: Trading limits template
+
+A template defines the schema for "trading desk limits" context (e.g. `varLimit`, `singleNameLimit`, `desk`). A context linked to this template (e.g. `ib-trading-limits`) might have content: `{ "varLimit": 5000000, "singleNameLimit": 500000, "desk": "equities" }`. Your agent fetches it via `get_context("ib-trading-limits")` or the Inject API; the returned `content` conforms to the template schema so your agent can safely use `content.varLimit` and `content.singleNameLimit`.
+
+### Example: Prompt + context together
+
+Your prompt (e.g. "finance-bot") instructs the agent to use governed context. The agent fetches the prompt, then fetches context by name; the context content is shaped by its template: (1) `get_prompt("finance-bot")` → prompt says "Use the trading limits context for pre-trade checks"; (2) `get_context("ib-trading-limits")` → returns `content` with known shape; (3) your logic uses e.g. reject if order value exceeds `content.singleNameLimit`.
+
+**Sample templates** (seeded when running the seed endpoint): compliance-policy-template, trading-limits-template. See **Templates** in the app UI or `GET /api/templates` for the list.
+
+> **Feature status:** Templates for context are currently in progress. Full support (e.g. validation of context content against template schema at create/update, template-driven UI for context authoring) will be released in a **future version of Sandarb**. The schema and `templateId` linkage are in place today; enhanced tooling and enforcement are coming next.
 
 ## Audit headers
 

@@ -78,7 +78,7 @@ export default function LandingPage() {
               <li>Single place for approved prompts and context; agents pull via API or A2A</li>
               <li>Audit trail: who requested what, when</li>
               <li>Manifest-based registration; git-like versioning</li>
-              <li>Sandarb runs as an AI Agent and communicates via A2A</li>
+              <li>Sandarb AI Governance Agent: participates in A2A (industry standard for agent-to-agent communication)</li>
             </ol>
           </div>
           <a

@@ -1,13 +1,21 @@
 /**
  * API base URL for client-side fetch calls.
- * When running UI on port 4000 and API on port 4001, set NEXT_PUBLIC_API_URL=http://localhost:4001
- * Leave unset for same-origin (single server).
+ * - Explicit: set NEXT_PUBLIC_API_URL to override (e.g. http://localhost:4001 or https://api.sandarb.ai).
+ * - Local: when UI is on localhost/127.0.0.1, defaults to http://localhost:4001.
+ * - GCP (sandarb.ai): when UI host contains "sandarb.ai", defaults to https://api.sandarb.ai.
+ * - Otherwise: same-origin (empty string).
  */
 export function getApiBase(): string {
+  const explicit = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (explicit) return explicit;
+
   if (typeof window !== 'undefined') {
-    return process.env.NEXT_PUBLIC_API_URL ?? '';
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') return 'http://localhost:4001';
+    if (host.endsWith('sandarb.ai')) return 'https://api.sandarb.ai';
   }
-  return process.env.NEXT_PUBLIC_API_URL ?? '';
+
+  return '';
 }
 
 export function apiUrl(path: string): string {

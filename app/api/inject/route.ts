@@ -227,9 +227,14 @@ export async function GET(request: NextRequest) {
       headers: responseHeaders,
     });
   } catch (error) {
-    logger.error('Failed to inject context', { route: 'GET /api/inject', error: String(error) });
+    const message = error instanceof Error ? error.message : String(error);
+    logger.error('Failed to inject context', { route: 'GET /api/inject', error: message });
     return NextResponse.json(
-      { success: false, error: 'Failed to inject context' },
+      {
+        success: false,
+        error: 'Failed to inject context',
+        ...(process.env.NODE_ENV === 'development' && { detail: message }),
+      },
       { status: 500 }
     );
   }
@@ -375,9 +380,14 @@ export async function POST(request: NextRequest) {
       headers: responseHeadersPost,
     });
   } catch (error) {
-    logger.error('Failed to inject context', { route: 'POST /api/inject', error: String(error) });
+    const message = error instanceof Error ? error.message : String(error);
+    logger.error('Failed to inject context', { route: 'POST /api/inject', error: message });
     return NextResponse.json(
-      { success: false, error: 'Failed to inject context' },
+      {
+        success: false,
+        error: 'Failed to inject context',
+        ...(process.env.NODE_ENV === 'development' && { detail: message }),
+      },
       { status: 500 }
     );
   }

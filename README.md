@@ -42,16 +42,16 @@ We solve the "Black Box" problem of enterprise AI. Instead of scattered prompts 
 * **Audit Trail & Lineage:** Complete tracking of who requested what and when. This provides the lineage required for compliance and incident resolution.
 * **Manifest-Based Registration:** Agents register via strict manifests (using MCP standards where applicable), ensuring every bot in your network is known, authorized, and versioned.
 * **Git-like Versioning:** Prompts and context chunks are treated like code—versioned, branched, and diffable.
-* **Sandarb as an Agent:** Sandarb runs as an A2A agent itself, so other agents can call it for validation and approved context.
+* **Sandarb AI Governance Agent:** Sandarb is an AI agent that participates in A2A (fast becoming the industry standard for agent-to-agent communication). Other agents call Sandarb for validation and approved context; Sandarb also communicates with other agents via A2A as a first-class participant.
 
 ---
 
 ## 🏗 Core Capabilities
 
 ### 1. A2A (Agent-to-Agent) Governance
-Uniquely, **Sandarb runs as an A2A agent**.
-* Other agents in your network communicate with Sandarb to request validation, fetch approved context, or log decisions.
-* Sandarb acts as the "Gatekeeper Agent," verifying that the requesting agent has the correct permissions (via its manifest) before releasing sensitive prompt instructions or context data.
+**The Sandarb AI Governance Agent is crucial.** A2A is fast becoming the industry standard for AI agents to discover, communicate, and collaborate across vendors and frameworks. Sandarb is an AI agent that participates in A2A: it communicates with other agents via A2A and runs as an A2A server so your agents can call it for governance.
+* Other agents in your network communicate with Sandarb (via A2A) to request validation, fetch approved context, or log decisions.
+* Sandarb acts as the governance agent in the agent mesh, verifying that the requesting agent has the correct permissions (via its manifest) before releasing sensitive prompt instructions or context data.
 
 ### 2. Enterprise Workflow & Compliance
 * **Approval Workflows:** Prompts are not deployed until they pass through `Draft` → `Pending Review` → `Approved`.
@@ -71,7 +71,7 @@ Sandarb fits into your architecture however you need it to.
 ![Integrate Your Way](./docs/images/integrate-your-way.png)
 *(Note: Add your screenshot to `docs/images/integrate-your-way.png`)*
 
-* **A2A Protocol:** Sandarb is an AI Agent for AI Governance. Other agents call `POST /api/a2a` with skills like `get_context`, `validate_context`, and `get_lineage`.
+* **A2A Protocol:** The Sandarb AI Governance Agent participates in A2A (the industry standard for agent-to-agent communication). Other agents call `POST /api/a2a` with skills like `get_context`, `validate_context`, and `get_lineage`; Sandarb can also communicate with other agents via A2A.
 * **API:** Standard HTTP endpoints (`GET /api/contexts`, `GET /api/agents`) for traditional integration.
 * **Git-like Flow:** Propose edits with commit messages. Contexts and prompts get versioned history. Sandarb tracks approvals and revisions like a lightweight Pull Request flow.
 

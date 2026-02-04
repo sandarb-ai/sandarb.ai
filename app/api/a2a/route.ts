@@ -1,7 +1,8 @@
 /**
  * A2A (Agent-to-Agent Protocol) HTTP Endpoint
  *
- * How A2A URLs work in practice for the Sandarb AI agent:
+ * The Sandarb AI Governance Agent participates in A2A (industry standard for
+ * agent-to-agent communication). How A2A URLs work in practice:
  * - Discovery: Agent A uses this A2A URL to read Sandarb's capabilities (GET returns Agent Card).
  * - Interaction: Agent A sends JSON-RPC 2.0 over HTTP(S) to this URL to initiate a task (POST).
  * - Real-time updates: For long-running tasks, an A2A server may use SSE to send updates; Sandarb currently responds synchronously.
