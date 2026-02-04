@@ -153,6 +153,12 @@ CREATE INDEX IF NOT EXISTS idx_sandarb_access_logs_accessed_at ON sandarb_access
 CREATE INDEX IF NOT EXISTS idx_sandarb_access_logs_agent_id ON sandarb_access_logs(agent_id);
 CREATE INDEX IF NOT EXISTS idx_sandarb_access_logs_trace_id ON sandarb_access_logs(trace_id);
 
+-- Add columns to existing sandarb_access_logs created with older schema (no-op if already present)
+ALTER TABLE sandarb_access_logs ADD COLUMN IF NOT EXISTS context_id UUID REFERENCES contexts(id);
+ALTER TABLE sandarb_access_logs ADD COLUMN IF NOT EXISTS version_id UUID REFERENCES context_versions(id);
+ALTER TABLE sandarb_access_logs ADD COLUMN IF NOT EXISTS prompt_id UUID REFERENCES prompts(id);
+ALTER TABLE sandarb_access_logs ADD COLUMN IF NOT EXISTS prompt_version_id UUID REFERENCES prompt_versions(id);
+
 CREATE TABLE IF NOT EXISTS activity_log (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   type TEXT NOT NULL,
