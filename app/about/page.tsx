@@ -41,7 +41,7 @@ export default function AboutPage() {
                 Governance for AI agents while your teams build.
               </p>
               <p className="text-muted-foreground mt-1">
-                Sandarb is the regulatory, controls, risk, and compliance layer for AI agents—so teams can ship agents without skipping governance.
+                Sandarb (derived from &quot;Sandarbh&quot; (संदर्भ), a Hindi/Sanskrit word meaning &quot;context,&quot; &quot;reference,&quot; or &quot;connection&quot;) is the regulatory, controls, risk, and compliance layer for AI agents—so teams can ship agents without skipping governance.
               </p>
             </div>
           </section>

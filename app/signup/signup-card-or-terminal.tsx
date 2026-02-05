@@ -81,7 +81,10 @@ export function SignupCardOrTerminal({ from }: { from?: string }) {
 
   useEffect(() => {
     if (bypassCountdown === null || bypassCountdown <= 0) return;
-    const t = setTimeout(() => setBypassCountdown((c) => c - 1), 1000);
+    const t = setTimeout(
+      () => setBypassCountdown((c) => (c === null ? null : c - 1)),
+      1000
+    );
     return () => clearTimeout(t);
   }, [bypassCountdown]);
 
