@@ -43,8 +43,8 @@ const config: Config = {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
-        // OpenInt brand colors (purple/indigo)
-        openint: {
+        // Sandarb brand colors (purple/indigo)
+        sandarb: {
           50: '#faf5ff',
           100: '#f3e8ff',
           200: '#e9d5ff',

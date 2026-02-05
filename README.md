@@ -10,7 +10,7 @@ It serves as the regulatory and compliance backbone for your internal agent ecos
 ### Quick Start (local development)
 
 ```bash
-git clone https://github.com/openint-ai/sandarb.ai.git && cd sandarb.ai
+git clone https://github.com/sandarb-ai/sandarb.ai.git && cd sandarb.ai
 npm install
 docker compose up -d postgres
 ./scripts/start-sandarb.sh

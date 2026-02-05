@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { cookies } from 'next/headers';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { ThemeProvider } from '@/components/theme-provider';
@@ -6,6 +7,7 @@ import { ThemeSync } from '@/components/theme-sync';
 import { AppShell } from '@/components/app-shell';
 import { PublicHeader } from '@/components/public-header';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { DEMO_COOKIE_NAME } from '@/components/signed-in-strip';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
@@ -19,11 +21,14 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const cookieStore = await cookies();
+  const initialSignedIn = !!cookieStore.get(DEMO_COOKIE_NAME);
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`}>
@@ -36,7 +41,7 @@ export default function RootLayout({
           <ThemeSync />
           <TooltipProvider>
             <div className="flex flex-col h-screen min-h-0 w-full">
-              <PublicHeader />
+              <PublicHeader initialSignedIn={initialSignedIn} />
               <AppShell>{children}</AppShell>
             </div>
           </TooltipProvider>

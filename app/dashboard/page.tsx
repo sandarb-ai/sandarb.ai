@@ -11,7 +11,7 @@ import {
   getRecentAgents,
   getRecentPrompts,
 } from '@/lib/api-client';
-import { formatRelativeTime } from '@/lib/utils';
+import { formatDateTime } from '@/lib/utils';
 import type { Prompt, RegisteredAgent } from '@/types';
 
 export const dynamic = 'force-dynamic';
@@ -20,6 +20,7 @@ interface OrgWithCounts {
   id: string;
   name: string;
   slug: string;
+  description?: string | null;
   agentCount: number;
   contextCount: number;
   [key: string]: unknown;
@@ -116,9 +117,9 @@ export default async function DashboardPage() {
                         </div>
                         <ExternalLink className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                       </div>
-                      {org.description && (
+                      {org.description != null && String(org.description) && (
                         <p className="text-sm text-muted-foreground line-clamp-1 mt-1">
-                          {org.description}
+                          {String(org.description)}
                         </p>
                       )}
                     </CardHeader>
@@ -185,7 +186,7 @@ export default async function DashboardPage() {
                           {agent.approvalStatus}
                         </Badge>
                         <span className="text-xs text-muted-foreground">
-                          {formatRelativeTime(agent.createdAt)}
+                          {formatDateTime(agent.createdAt)}
                         </span>
                       </div>
                     </CardContent>
@@ -229,7 +230,7 @@ export default async function DashboardPage() {
                           {prompt.currentVersionId ? 'Active' : 'Draft'}
                         </Badge>
                         <span className="text-xs text-muted-foreground">
-                          {formatRelativeTime(prompt.createdAt)}
+                          {formatDateTime(prompt.createdAt)}
                         </span>
                       </div>
                     </CardContent>

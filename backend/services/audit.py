@@ -74,6 +74,16 @@ def log_prompt_denied(agent_id: str, trace_id: str, prompt_name: str, reason: st
     )
 
 
+def log_activity(agent_id: str, trace_id: str, inputs: dict, outputs: dict) -> None:
+    """Record SDK activity (inputs/outputs) in sandarb_access_logs for audit."""
+    meta = {"action_type": "SDK_ACTIVITY", "inputs": inputs, "outputs": outputs}
+    execute(
+        """INSERT INTO sandarb_access_logs (agent_id, trace_id, metadata)
+           VALUES (%s, %s, %s::jsonb)""",
+        (agent_id, trace_id, json.dumps(meta)),
+    )
+
+
 def get_blocked_injections(limit: int = 50) -> list[dict]:
     rows = query(
         """SELECT log_id AS id, accessed_at AS created_at,

@@ -40,9 +40,9 @@ function RegisterAgentForm() {
       .then((r) => r.json())
       .then((d) => {
         if (d.success) {
-          const nonRoot = (d.data as Organization[]).filter((o) => !o.isRoot);
-          setOrgs(nonRoot);
-          const firstId = nonRoot[0]?.id;
+          const allOrgs = (d.data as Organization[]) ?? [];
+          setOrgs(allOrgs);
+          const firstId = allOrgs[0]?.id;
           if (!orgIdUrl && firstId) setOrgIdUrl(firstId);
           if (!orgIdManual && firstId) setOrgIdManual(firstId);
         }

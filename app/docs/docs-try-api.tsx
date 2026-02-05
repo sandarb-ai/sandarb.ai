@@ -44,8 +44,20 @@ export function DocsTryInject() {
         },
       });
       setStatus(res.status);
-      const data = await res.json().catch(() => ({}));
-      setBody(JSON.stringify(data, null, 2));
+      const raw = await res.text();
+      if (format === 'json' && res.ok) {
+        try {
+          setBody(JSON.stringify(JSON.parse(raw), null, 2));
+        } catch {
+          setBody(raw);
+        }
+      } else {
+        try {
+          setBody(JSON.stringify(JSON.parse(raw), null, 2));
+        } catch {
+          setBody(raw || '{}');
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -54,7 +66,7 @@ export function DocsTryInject() {
   return (
     <div className="space-y-4 rounded-lg border border-border bg-muted/20 p-4">
       <p className="text-sm text-muted-foreground">
-        Requests go to the same origin as this page (no CORS). Use <code className="rounded bg-muted px-1">sandarb-context-preview</code> as Agent ID to skip policy for testing. If you get 500, check that Postgres is running and the DB is initialized and seeded (e.g. <code className="rounded bg-muted px-1">npm run db:init-pg</code> and <code className="rounded bg-muted px-1">npm run db:full-reset-pg</code> or load sample data).
+        Requests go to the <strong className="text-foreground">FastAPI backend</strong> (default <code className="rounded bg-muted px-1">http://localhost:8000</code>). Set <code className="rounded bg-muted px-1">NEXT_PUBLIC_API_URL</code> or <code className="rounded bg-muted px-1">BACKEND_URL</code> so the UI can reach it. Use <code className="rounded bg-muted px-1">sandarb-context-preview</code> as Agent ID to skip registration and link check for testing. Context is normally returned only if it is <strong className="text-foreground">linked to the calling agent</strong> (agent_contexts). Ensure Postgres is running and the DB is seeded (e.g. <code className="rounded bg-muted px-1">./scripts/seed_scale.py</code> or load sample data).
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
@@ -84,6 +96,72 @@ export function DocsTryInject() {
       </div>
       <Button onClick={run} disabled={loading} size="sm">
         {loading ? 'Sending…' : 'Send GET /api/inject'}
+      </Button>
+      {status != null && (
+        <div>
+          <p className="text-xs font-medium text-muted-foreground mb-1">
+            Response {status}
+          </p>
+          <CodeBlock label="Body">{body || '{}'}</CodeBlock>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function DocsTryPromptsPull() {
+  const [name, setName] = useState('retail-customer-support-playbook');
+  const [agentId, setAgentId] = useState('sandarb-prompt-preview');
+  const [traceId, setTraceId] = useState(`docs-try-prompt-${Date.now()}`);
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<number | null>(null);
+  const [body, setBody] = useState<string>('');
+
+  const run = async () => {
+    setLoading(true);
+    setStatus(null);
+    setBody('');
+    try {
+      const url = apiUrl(`/api/prompts/pull?name=${encodeURIComponent(name)}`);
+      const res = await fetch(url, {
+        headers: {
+          'X-Sandarb-Agent-ID': agentId,
+          'X-Sandarb-Trace-ID': traceId,
+        },
+      });
+      setStatus(res.status);
+      const raw = await res.text();
+      try {
+        setBody(JSON.stringify(JSON.parse(raw), null, 2));
+      } catch {
+        setBody(raw || '{}');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4 rounded-lg border border-border bg-muted/20 p-4">
+      <p className="text-sm text-muted-foreground">
+        Pull an approved prompt by name. Uses the same backend as Inject (<code className="rounded bg-muted px-1">http://localhost:8000</code>). Use <code className="rounded bg-muted px-1">sandarb-prompt-preview</code> as Agent ID to skip registration and link check. Prompt is normally returned only if it is <strong className="text-foreground">linked to the calling agent</strong> (agent_prompts).
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <Label className="text-xs">Prompt name</Label>
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="retail-customer-support-playbook" className="mt-1 h-9" />
+        </div>
+        <div>
+          <Label className="text-xs">X-Sandarb-Agent-ID</Label>
+          <Input value={agentId} onChange={(e) => setAgentId(e.target.value)} className="mt-1 h-9 font-mono text-xs" />
+        </div>
+        <div>
+          <Label className="text-xs">X-Sandarb-Trace-ID</Label>
+          <Input value={traceId} onChange={(e) => setTraceId(e.target.value)} className="mt-1 h-9 font-mono text-xs" />
+        </div>
+      </div>
+      <Button onClick={run} disabled={loading} size="sm">
+        {loading ? 'Sending…' : 'Send GET /api/prompts/pull'}
       </Button>
       {status != null && (
         <div>

@@ -1,13 +1,13 @@
 {
-  "name": "openint",
+  "name": "sandarb",
   "version": "0.2.0",
   "private": false,
   "description": "Open-source tool for capturing prompts and context for AI agents. Organizations, A2A agent registry, prompts & contexts, dark/light theme. All UI exposed as API.",
-  "author": "OpenInt",
+  "author": "Sandarb",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/openint-ai/openint"
+    "url": "https://github.com/sandarb-ai/sandarb.ai"
   },
   "keywords": [
     "ai",
@@ -30,6 +30,7 @@
     "dev:ui": "cross-env NEXT_PUBLIC_API_URL=http://localhost:8000 NEXT_PUBLIC_AGENT_URL=http://localhost:8000 next dev -p 3000",
     "dev:backend": "python scripts/run_backend.py",
     "build": "next build",
+    "clean": "rm -rf .next",
     "start": "next start",
     "lint": "next lint",
     "db:init-pg": "python scripts/init_postgres.py",
@@ -46,7 +47,10 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:security": "vitest run tests/lib"
+    "test:security": "vitest run tests/lib",
+    "test:backend": "python -m pytest backend/tests/ -v",
+    "test:backend:cov": "python -m pytest backend/tests/ -v --cov=backend --cov-report=term-missing",
+    "test:all": "npm run test:run && npm run test:backend"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",
@@ -80,13 +84,14 @@
     "pg": "^8.18.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
-    "recharts": "^2.12.0",
+    "d3": "^7.9.0",
     "tailwind-merge": "^2.3.0",
     "uuid": "^9.0.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
+    "@types/d3": "^7.4.3",
     "@types/diff": "^7.0.2",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.0.0",

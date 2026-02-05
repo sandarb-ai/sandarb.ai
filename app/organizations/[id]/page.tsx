@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { getOrganizationById, getChildOrganizations, getAgents } from '@/lib/api-client';
+import type { Organization, RegisteredAgent } from '@/types';
 import { OrganizationDetailClient } from './organization-detail-client';
 
 interface PageProps {
@@ -18,9 +19,9 @@ export default async function OrganizationDetailPage({ params }: PageProps) {
 
   return (
     <OrganizationDetailClient
-      org={org}
-      children={children}
-      agents={agents}
+      org={org as Organization}
+      children={Array.isArray(children) ? (children as Organization[]) : []}
+      agents={Array.isArray(agents) ? (agents as RegisteredAgent[]) : []}
     />
   );
 }

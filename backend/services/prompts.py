@@ -30,6 +30,41 @@ def get_prompt_stats() -> dict[str, int]:
     return {"total": int(row["total"] or 0), "active": int(row["active"] or 0)}
 
 
+def serialize_prompt_list_row(row: dict) -> dict:
+    """Convert a raw prompt row to camelCase for list API. Includes active version info when present."""
+    row_copy = dict(row)
+    pv_version = row_copy.pop("pv_version", None)
+    pv_approved_by = row_copy.pop("pv_approved_by", None)
+    pv_approved_at = row_copy.pop("pv_approved_at", None)
+
+    ctx = _serialize_row(row_copy)
+    if ctx.get("tags") is not None and isinstance(ctx["tags"], str):
+        try:
+            import json
+            ctx["tags"] = json.loads(ctx["tags"]) if ctx["tags"] else []
+        except Exception:
+            ctx["tags"] = []
+
+    if row.get("current_version_id") is not None:
+        ctx["currentVersion"] = {"version": int(pv_version)} if pv_version is not None else None
+        # Never leave approvedBy empty when there is an active version (fallback for legacy data)
+        if pv_approved_by is not None and str(pv_approved_by).strip():
+            ctx["approvedBy"] = str(pv_approved_by).strip()
+        else:
+            ctx["approvedBy"] = (ctx.get("createdBy") or "system").strip() or "system"
+        if pv_approved_at is not None and hasattr(pv_approved_at, "isoformat"):
+            ctx["approvedAt"] = pv_approved_at.isoformat()
+        elif pv_approved_at is not None:
+            ctx["approvedAt"] = str(pv_approved_at)
+        else:
+            ctx["approvedAt"] = ctx.get("createdAt")  # fallback to prompt created_at for display
+    else:
+        ctx["currentVersion"] = None
+        ctx["approvedBy"] = None
+        ctx["approvedAt"] = None
+    return ctx
+
+
 def get_recent_prompts(limit: int = 6) -> list[dict]:
     rows = query(
         "SELECT * FROM prompts ORDER BY created_at DESC LIMIT %s",
@@ -56,6 +91,10 @@ def get_prompt_by_id(prompt_id: str) -> dict | None:
         versions.append(d)
         if str(r.get("id")) == str(row.get("current_version_id")):
             current_version = d
+    # Never leave approvedBy empty on current version (fallback for legacy data)
+    if current_version and (not current_version.get("approvedBy") or not str(current_version.get("approvedBy", "")).strip()):
+        current_version["approvedBy"] = (current_version.get("createdBy") or "system").strip() or "system"
+        current_version["approvedAt"] = current_version.get("approvedAt") or current_version.get("createdAt")
     prompt_dict = _serialize_row(dict(row))
     prompt_dict["versions"] = versions
     prompt_dict["currentVersion"] = current_version
@@ -108,27 +147,38 @@ def create_prompt_version(
     )
     if not row:
         return None
-    d = _serialize_row(dict(row))
-    d["status"] = status
     if auto_approve:
+        approver = (created_by or "system").strip() or "system"
+        execute(
+            "UPDATE prompt_versions SET approved_by = %s, approved_at = NOW() WHERE prompt_id = %s AND version = %s",
+            (approver, prompt_id, next_version),
+        )
         execute(
             "UPDATE prompts SET current_version_id = (SELECT id FROM prompt_versions WHERE prompt_id = %s AND version = %s), updated_at = NOW(), updated_by = %s WHERE id = %s",
-            (prompt_id, next_version, created_by or "system", prompt_id),
+            (prompt_id, next_version, approver, prompt_id),
         )
+        row = query_one(
+            "SELECT * FROM prompt_versions WHERE prompt_id = %s AND version = %s",
+            (prompt_id, next_version),
+        )
+    d = _serialize_row(dict(row)) if row else {}
+    d["status"] = status
     return d
 
 
 def approve_prompt_version(prompt_id: str, version_id: str, approved_by: str | None = None) -> dict | None:
+    """Approve a prompt version. approved_by must be a non-empty username (enforced by router)."""
     ver = query_one("SELECT id, prompt_id, status FROM prompt_versions WHERE id = %s AND prompt_id = %s", (version_id, prompt_id))
     if not ver or str(ver.get("status")).lower() not in ("proposed", "draft"):
         return None
+    approver = (approved_by or "system").strip() or "system"
     execute(
         "UPDATE prompt_versions SET status = 'Approved', approved_by = %s, approved_at = NOW(), updated_at = NOW() WHERE id = %s",
-        (approved_by or "system", version_id),
+        (approver, version_id),
     )
     execute(
         "UPDATE prompts SET current_version_id = %s, updated_at = NOW(), updated_by = %s WHERE id = %s",
-        (version_id, approved_by or "system", prompt_id),
+        (version_id, approver, prompt_id),
     )
     row = query_one("SELECT * FROM prompt_versions WHERE id = %s", (version_id,))
     return _serialize_row(dict(row)) if row else None

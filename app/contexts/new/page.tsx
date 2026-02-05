@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Save } from 'lucide-react';
 import Link from 'next/link';
@@ -13,7 +13,8 @@ import { ContextEditor } from '@/components/context-editor';
 import { ContextPreview } from '@/components/context-preview';
 import { ComplianceMetadataFields } from '@/components/compliance-metadata-fields';
 import { apiUrl } from '@/lib/api';
-import type { LineOfBusiness, DataClassification, RegulatoryHook } from '@/types';
+import type { DataClassification, RegulatoryHook } from '@/types';
+import type { Organization } from '@/types';
 
 // Validate name: lowercase alphanumeric, hyphens, underscores only
 const isValidName = (n: string) => /^[a-z0-9_-]+$/.test(n);
@@ -22,11 +23,12 @@ const NAME_ERROR = 'Name must be lowercase and contain only letters, numbers, hy
 export default function NewContextPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [name, setName] = useState('');
   const [nameError, setNameError] = useState('');
   const [description, setDescription] = useState('');
   const [tags, setTags] = useState('');
-  const [lineOfBusiness, setLineOfBusiness] = useState<LineOfBusiness | null>(null);
+  const [orgId, setOrgId] = useState<string | null>(null);
   const [dataClassification, setDataClassification] = useState<DataClassification | null>(null);
   const [regulatoryHooks, setRegulatoryHooks] = useState<RegulatoryHook[]>([]);
   const [content, setContent] = useState<Record<string, unknown>>({
@@ -34,6 +36,16 @@ export default function NewContextPage() {
     model: 'gpt-4',
     temperature: 0.7,
   });
+
+  useEffect(() => {
+    fetch(apiUrl('/api/organizations'))
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success && Array.isArray(d.data)) {
+          setOrganizations(d.data as Organization[]);
+        }
+      });
+  }, []);
 
   const handleNameChange = (value: string) => {
     setName(value);
@@ -66,7 +78,7 @@ export default function NewContextPage() {
             .split(',')
             .map((t) => t.trim())
             .filter(Boolean),
-          lineOfBusiness,
+          orgId,
           dataClassification,
           regulatoryHooks,
         }),
@@ -164,10 +176,11 @@ export default function NewContextPage() {
                   </p>
                 </div>
                 <ComplianceMetadataFields
-                  lineOfBusiness={lineOfBusiness}
+                  organizations={organizations}
+                  orgId={orgId}
+                  onOrgIdChange={setOrgId}
                   dataClassification={dataClassification}
                   regulatoryHooks={regulatoryHooks}
-                  onLineOfBusinessChange={setLineOfBusiness}
                   onDataClassificationChange={setDataClassification}
                   onRegulatoryHooksChange={setRegulatoryHooks}
                 />

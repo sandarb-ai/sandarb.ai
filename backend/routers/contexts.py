@@ -9,6 +9,8 @@ from backend.services.contexts import (
     get_context_revisions,
     serialize_context_list_row,
     update_context as update_context_svc,
+    create_context as create_context_svc,
+    create_context_revision,
     approve_context_revision,
     reject_context_revision,
     delete_context as delete_context_svc,
@@ -29,14 +31,59 @@ def _safe_list_agents_for_context(context_id: str) -> list:
 def list_contexts(limit: int = 50, offset: int = 0):
     count_row = query_one("SELECT COUNT(*)::int AS count FROM contexts")
     total = int(count_row["count"] or 0) if count_row else 0
-    rows = query("SELECT * FROM contexts ORDER BY created_at DESC LIMIT %s OFFSET %s", (limit, offset))
+    active_row = query_one(
+        "SELECT COUNT(*)::int AS count FROM contexts c "
+        "WHERE EXISTS (SELECT 1 FROM context_versions cv WHERE cv.context_id = c.id AND cv.is_active = true)"
+    )
+    total_active = int(active_row["count"] or 0) if active_row else 0
+    total_draft = total - total_active
+
+    rows = query(
+        "SELECT c.*, o.name AS org_name, o.slug AS org_slug, "
+        "cv.id AS current_version_id, cv.version AS active_version, "
+        "cv.approved_by AS version_approved_by, cv.approved_at AS version_approved_at "
+        "FROM contexts c "
+        "LEFT JOIN organizations o ON c.org_id = o.id "
+        "LEFT JOIN context_versions cv ON cv.context_id = c.id AND cv.is_active = true "
+        "ORDER BY c.created_at DESC LIMIT %s OFFSET %s",
+        (limit, offset),
+    )
     items = []
     for r in rows:
         row = dict(r)
         ctx = serialize_context_list_row(row)
-        ctx["agents"] = _safe_list_agents_for_context(str(row["id"]))
         items.append(ctx)
-    return ApiResponse(success=True, data={"contexts": items, "total": total})
+    return ApiResponse(
+        success=True,
+        data={
+            "contexts": items,
+            "total": total,
+            "totalActive": total_active,
+            "totalDraft": total_draft,
+        },
+    )
+
+
+@router.post("", response_model=ApiResponse, status_code=201)
+def post_context(body: dict = Body(...)):
+    """Create a new context with name, description, content, tags, orgId, compliance fields."""
+    name = (body.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="name is required")
+    org_id = body.get("orgId") or body.get("org_id")
+    ctx = create_context_svc(
+        name=name,
+        description=body.get("description"),
+        content=body.get("content"),
+        tags=body.get("tags"),
+        org_id=org_id,
+        data_classification=body.get("dataClassification") or body.get("data_classification"),
+        regulatory_hooks=body.get("regulatoryHooks") or body.get("regulatory_hooks"),
+        created_by=body.get("createdBy") or body.get("created_by"),
+    )
+    if not ctx:
+        raise HTTPException(status_code=409, detail="Context with this name already exists")
+    return ApiResponse(success=True, data=ctx)
 
 
 @router.get("/{context_id}", response_model=ApiResponse)
@@ -57,12 +104,35 @@ def list_context_revisions(context_id: str):
     return ApiResponse(success=True, data=revisions)
 
 
+@router.post("/{context_id}/revisions", response_model=ApiResponse)
+def post_context_revision(context_id: str, body: dict = Body(...)):
+    """Create a new context revision with commit message and optional auto-approve."""
+    content = body.get("content")
+    commit_message = body.get("commitMessage") or body.get("commit_message") or "Update"
+    auto_approve = body.get("autoApprove", body.get("auto_approve", False))
+    created_by = body.get("createdBy") or body.get("created_by")
+    
+    if content is None:
+        raise HTTPException(status_code=400, detail="Content is required")
+    
+    rev = create_context_revision(
+        context_id,
+        content=content,
+        commit_message=commit_message,
+        auto_approve=auto_approve,
+        created_by=created_by,
+    )
+    if not rev:
+        raise HTTPException(status_code=404, detail="Context not found")
+    return ApiResponse(success=True, data=rev)
+
+
 @router.put("/{context_id}", response_model=ApiResponse)
 def put_context(context_id: str, body: dict = Body(...)):
     description = body.get("description")
     content = body.get("content")
     is_active = body.get("isActive", body.get("is_active"))
-    line_of_business = body.get("lineOfBusiness") or body.get("line_of_business")
+    org_id = body.get("orgId") or body.get("org_id")
     data_classification = body.get("dataClassification") or body.get("data_classification")
     regulatory_hooks = body.get("regulatoryHooks") or body.get("regulatory_hooks")
     updated_by = body.get("updatedBy") or body.get("updated_by")
@@ -71,7 +141,7 @@ def put_context(context_id: str, body: dict = Body(...)):
         description=description,
         content=content,
         is_active=is_active,
-        line_of_business=line_of_business,
+        org_id=org_id,
         data_classification=data_classification,
         regulatory_hooks=regulatory_hooks,
         updated_by=updated_by,

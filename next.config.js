@@ -31,6 +31,10 @@ const nextConfig = {
         source: '/settings',
         headers: [{ key: 'Cache-Control', value: 'no-store, max-age=0' }],
       },
+      {
+        source: '/reports/:path*',
+        headers: [{ key: 'Cache-Control', value: 'no-store, max-age=0' }],
+      },
     ];
   },
 }

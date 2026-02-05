@@ -195,7 +195,7 @@ def main() -> None:
         "-- Scale: {} orgs, {} agents, {} prompts, {} contexts. Regenerate with: python scripts/generate_seed_sql.py".format(
             n_orgs, n_agents, n_prompts, n_contexts
         ),
-        "-- Idempotent: organizations (slug), templates (name), settings (key), agents (org_id+agent_id), context_versions (context_id+version_label), prompt_versions (prompt_id+version).",
+        "-- Idempotent: organizations (slug), templates (name), settings (key), agents (org_id+agent_id), context_versions (context_id+version), prompt_versions (prompt_id+version).",
         "",
         "-- 1. Top-level org (slug 'root' for lookups)",
         "INSERT INTO organizations (id, name, slug, description, is_root)",
@@ -265,8 +265,8 @@ def main() -> None:
 ON CONFLICT (name) DO NOTHING;""")
     lines.append("")
 
-    # 5. Contexts (batched multi-row VALUES)
-    lines.append("-- 5. Contexts")
+    # 5. Contexts (batched; org_id from random non-root org, not Sandarb HQ)
+    lines.append("-- 5. Contexts (org_id = random non-root org per row)")
     BATCH = 500
     for start in range(0, n_contexts, BATCH):
         end = min(start + BATCH, n_contexts)
@@ -275,12 +275,11 @@ ON CONFLICT (name) DO NOTHING;""")
             name = real_world_context_name(k)
             desc = real_world_context_description(k)
             topic = pick(CONTEXT_TOPICS, k)
-            lob = pick(LOB_TAGS, k)
             data_cls = pick(DATA_CLASS, k)
-            tags_json = json.dumps([topic.replace("-", "_"), lob.lower()]).replace("'", "''")
+            tags_json = json.dumps([topic.replace("-", "_")]).replace("'", "''")
             reg_json = json.dumps(["FINRA", "SEC"] if k % 2 == 0 else ["BSA", "Reg E"]).replace("'", "''")
-            rows.append("(gen_random_uuid(), '{}', '{}', '{}', '{}', 'system', '{}', '{}')".format(esc(name), esc(desc), lob, data_cls, tags_json, reg_json))
-        lines.append("INSERT INTO contexts (id, name, description, lob_tag, data_classification, owner_team, tags, regulatory_hooks) VALUES")
+            rows.append("(gen_random_uuid(), '{}', '{}', (SELECT id FROM organizations WHERE is_root = false ORDER BY random() LIMIT 1), '{}', 'system', '{}', '{}')".format(esc(name), esc(desc), data_cls, tags_json, reg_json))
+        lines.append("INSERT INTO contexts (id, name, description, org_id, data_classification, owner_team, tags, regulatory_hooks) VALUES")
         lines.append(",\n".join(rows))
         lines.append("ON CONFLICT (name) DO NOTHING;")
         lines.append("")
@@ -298,11 +297,11 @@ ON CONFLICT (name) DO NOTHING;""")
             h = sha64(content)
             approver_u = pick(REAL_WORLD_USERNAMES, k)
             vals.append("('{}', '{}'::jsonb, '{}', '@{}')".format(esc(name), content, h, esc(approver_u)))
-        lines.append("INSERT INTO context_versions (context_id, version_label, content, sha256_hash, created_by, submitted_by, status, commit_message, approved_by, approved_at, is_active)")
-        lines.append("SELECT c.id, 'v1.0.0', v.content, v.sha256_hash, 'system', 'system', 'Approved', 'Initial version', v.approved_by, NOW(), true")
+        lines.append("INSERT INTO context_versions (context_id, version, content, sha256_hash, created_by, submitted_by, status, commit_message, approved_by, approved_at, is_active)")
+        lines.append("SELECT c.id, 1, v.content, v.sha256_hash, 'system', 'system', 'Approved', 'Initial version', v.approved_by, NOW(), true")
         lines.append("FROM contexts c")
         lines.append("JOIN (VALUES " + ", ".join(vals) + ") AS v(name, content, sha256_hash, approved_by) ON c.name = v.name")
-        lines.append("ON CONFLICT (context_id, version_label) DO NOTHING;")
+        lines.append("ON CONFLICT (context_id, version) DO NOTHING;")
         lines.append("")
     lines.append("")
 
@@ -323,9 +322,9 @@ ON CONFLICT (name) DO NOTHING;""")
             topic = pick(PROMPT_TOPICS, k)
             tags_json = json.dumps([topic, "governance"]).replace("'", "''")
             created_u = pick(REAL_WORLD_USERNAMES, k)
-            rows.append("(gen_random_uuid(), '{}', '{}', '{}', '@{}')".format(esc(name), esc(desc), tags_json, esc(created_u)))
-        lines.append("INSERT INTO prompts (id, name, description, tags, created_by) VALUES")
-        lines.append(",\n".join(rows))
+            rows.append("('{}', '{}', '{}', '@{}')".format(esc(name), esc(desc), tags_json, esc(created_u)))
+        lines.append("INSERT INTO prompts (org_id, id, name, description, tags, created_by)")
+        lines.append("SELECT (SELECT id FROM organizations WHERE is_root = false LIMIT 1), gen_random_uuid(), v.name, v.description, v.tags, v.created_by FROM (VALUES " + ",\n".join(rows) + ") AS v(name, description, tags, created_by)")
         lines.append("ON CONFLICT (name) DO NOTHING;")
         lines.append("")
     lines.append("")

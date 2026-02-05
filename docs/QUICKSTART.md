@@ -21,7 +21,7 @@ For full API and integration details, see [developer-guide.md](./developer-guide
 ## 1. Clone and install
 
 ```bash
-git clone https://github.com/openint-ai/sandarb.ai.git
+git clone https://github.com/sandarb-ai/sandarb.ai.git
 cd sandarb.ai
 npm install
 ```

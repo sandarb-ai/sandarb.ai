@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Plus, Search, Bot, ExternalLink, Trash2, Table2, LayoutGrid, RefreshCw, CheckCircle2, Clock, FileEdit, XCircle } from 'lucide-react';
-import { formatApprovedBy, formatRelativeTime } from '@/lib/utils';
+import { Plus, Search, Bot, ExternalLink, Trash2, Table2, LayoutGrid, CheckCircle2, Clock, FileEdit, XCircle, Building2 } from 'lucide-react';
+import { formatApprovedBy, formatDateTime } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -39,21 +39,21 @@ function normalizeAgentList(raw: unknown[]): RegisteredAgent[] {
     return {
       id: str(o.id) ?? '',
       orgId: str(o.orgId ?? o.org_id) ?? '',
-      agentId: (o.agentId ?? o.agent_id) != null ? str(o.agentId ?? o.agent_id) : null,
+      agentId: (o.agentId ?? o.agent_id) != null ? (str(o.agentId ?? o.agent_id) ?? null) : null,
       name: str(o.name) ?? '',
-      description: o.description != null ? str(o.description) : null,
+      description: o.description != null ? (str(o.description) ?? null) : null,
       a2aUrl: str(o.a2aUrl ?? o.a2a_url) ?? '',
       agentCard: ((o.agentCard ?? o.agent_card) as RegisteredAgent['agentCard']) ?? null,
       status: (str(o.status) || 'active') as RegisteredAgent['status'],
       approvalStatus: (str(o.approvalStatus ?? o.approval_status) || 'draft') as RegisteredAgent['approvalStatus'],
-      approvedBy: (o.approvedBy ?? o.approved_by) != null ? str(o.approvedBy ?? o.approved_by) : null,
-      approvedAt: (o.approvedAt ?? o.approved_at) != null ? str(o.approvedAt ?? o.approved_at) : null,
-      submittedBy: (o.submittedBy ?? o.submitted_by) != null ? str(o.submittedBy ?? o.submitted_by) : null,
-      createdBy: (o.createdBy ?? o.created_by) != null ? str(o.createdBy ?? o.created_by) : null,
+      approvedBy: (o.approvedBy ?? o.approved_by) != null ? (str(o.approvedBy ?? o.approved_by) ?? null) : null,
+      approvedAt: (o.approvedAt ?? o.approved_at) != null ? (str(o.approvedAt ?? o.approved_at) ?? null) : null,
+      submittedBy: (o.submittedBy ?? o.submitted_by) != null ? (str(o.submittedBy ?? o.submitted_by) ?? null) : null,
+      createdBy: (o.createdBy ?? o.created_by) != null ? (str(o.createdBy ?? o.created_by) ?? null) : null,
       createdAt: str(o.createdAt ?? o.created_at) ?? '',
       updatedAt: str(o.updatedAt ?? o.updated_at) ?? '',
-      updatedBy: (o.updatedBy ?? o.updated_by) != null ? str(o.updatedBy ?? o.updated_by) : null,
-      ownerTeam: (o.ownerTeam ?? o.owner_team) != null ? str(o.ownerTeam ?? o.owner_team) : null,
+      updatedBy: (o.updatedBy ?? o.updated_by) != null ? (str(o.updatedBy ?? o.updated_by) ?? null) : null,
+      ownerTeam: (o.ownerTeam ?? o.owner_team) != null ? (str(o.ownerTeam ?? o.owner_team) ?? null) : null,
       toolsUsed: arr(o.toolsUsed ?? o.tools_used),
       allowedDataScopes: arr(o.allowedDataScopes ?? o.allowed_data_scopes),
       piiHandling: bool(o.piiHandling ?? o.pii_handling),
@@ -140,7 +140,6 @@ export function AgentsPageClient({ initialAgents, initialOrgs, initialStats }: A
   const [search, setSearch] = useState('');
   const [orgFilter, setOrgFilter] = useState<string>('');
   const [viewMode, setViewMode] = useState<ViewMode>('table');
-  const [reseedLoading, setReseedLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(null);
   const [statusFilterLoading, setStatusFilterLoading] = useState(false);
 
@@ -192,29 +191,6 @@ export function AgentsPageClient({ initialAgents, initialOrgs, initialStats }: A
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={reseedLoading}
-                onClick={async () => {
-                  setReseedLoading(true);
-                  try {
-                    const res = await fetch(apiUrl('/api/seed?reseed_agents=1'), { method: 'POST' });
-                    if (res.ok) {
-                      const listRes = await fetch(apiUrl('/api/agents'));
-                      const listData = await listRes.json();
-                      if (listData?.data) setAgents(normalizeAgentList(listData.data));
-                      setStatusFilter(null);
-                      router.refresh();
-                    }
-                  } finally {
-                    setReseedLoading(false);
-                  }
-                }}
-              >
-                {reseedLoading ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-                Reseed
-              </Button>
               <Link href="/agents/new">
                 <Button>
                   <Plus className="h-4 w-4 mr-2" />
@@ -291,7 +267,7 @@ export function AgentsPageClient({ initialAgents, initialOrgs, initialStats }: A
                 <option key={o.id} value={o.id}>{o.name}</option>
               ))}
             </select>
-            <div className="flex rounded-md border border-input bg-background p-0.5 h-9" role="group" aria-label="View mode">
+            <div className="flex rounded-md border border-input bg-background p-0.5 h-9 ml-auto" role="group" aria-label="View mode">
               <button
                 type="button"
                 onClick={() => setViewMode('table')}
@@ -343,8 +319,8 @@ export function AgentsPageClient({ initialAgents, initialOrgs, initialStats }: A
                     <th className="text-left py-3 px-4 font-medium text-muted-foreground w-[22%]">Agent</th>
                     <th className="text-left py-3 px-4 font-medium text-muted-foreground w-[14%]">Organization</th>
                     <th className="text-left py-3 px-4 font-medium text-muted-foreground w-[18%]">Status</th>
-                    <th className="text-left py-3 px-4 font-medium text-muted-foreground w-[24%]">Service URL</th>
                     <th className="text-left py-3 px-4 font-medium text-muted-foreground w-[14%]">Updated</th>
+                    <th className="text-left py-3 px-4 font-medium text-muted-foreground w-[24%]">Service URL</th>
                     <th className="text-right py-3 px-4 font-medium text-muted-foreground w-[8%]">Actions</th>
                   </tr>
                 </thead>
@@ -367,14 +343,19 @@ export function AgentsPageClient({ initialAgents, initialOrgs, initialStats }: A
                       <td className="py-3 px-4">
                         <Link
                           href={`/organizations/${agent.orgId}`}
-                          className="font-medium text-primary hover:underline truncate block"
+                          className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-900/50 transition-colors text-xs font-medium"
                           onClick={(e) => e.stopPropagation()}
                         >
+                          <Building2 className="h-3 w-3" />
                           {getOrgName(agent.orgId, initialOrgs)}
                         </Link>
                       </td>
                       <td className="py-3 px-4">
                         <AgentStatusBadge approvalStatus={agent.approvalStatus ?? 'draft'} />
+                      </td>
+                      <td className="py-3 px-4 text-muted-foreground text-xs whitespace-nowrap">
+                        {formatDateTime(agent.updatedAt)}
+                        {agent.updatedBy && <span className="block truncate mt-0.5">{formatApprovedBy(agent.updatedBy)}</span>}
                       </td>
                       <td className="py-3 px-4 min-w-0">
                         <a
@@ -387,10 +368,6 @@ export function AgentsPageClient({ initialAgents, initialOrgs, initialStats }: A
                         >
                           {agent.a2aUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}
                         </a>
-                      </td>
-                      <td className="py-3 px-4 text-muted-foreground text-xs whitespace-nowrap">
-                        {formatRelativeTime(agent.updatedAt)}
-                        {agent.updatedBy && <span className="block truncate mt-0.5">{formatApprovedBy(agent.updatedBy)}</span>}
                       </td>
                       <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-0.5">
@@ -425,22 +402,24 @@ export function AgentsPageClient({ initialAgents, initialOrgs, initialStats }: A
                 onClick={() => router.push(`/agents/${agent.id}`)}
               >
                 <CardContent className="p-5 flex flex-col gap-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex flex-col gap-1.5 min-w-0 flex-1">
-                      <Link
-                        href={`/organizations/${agent.orgId}`}
-                        className="text-xs font-medium text-primary hover:underline truncate w-fit"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {getOrgName(agent.orgId, initialOrgs)}
-                      </Link>
-                      <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                        <Bot className="h-5 w-5 text-muted-foreground shrink-0" />
-                        <span className="font-semibold truncate">{agent.name}</span>
-                      </div>
-                    </div>
+                  {/* Organization banner */}
+                  <div className="flex items-center justify-between gap-2 -mx-5 -mt-5 px-4 py-2.5 bg-violet-50 dark:bg-violet-900/20 border-b border-violet-100 dark:border-violet-800/30">
+                    <Link
+                      href={`/organizations/${agent.orgId}`}
+                      className="inline-flex items-center gap-1.5 text-violet-700 dark:text-violet-300 hover:text-violet-900 dark:hover:text-violet-100 transition-colors text-sm font-medium"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Building2 className="h-4 w-4" />
+                      {getOrgName(agent.orgId, initialOrgs)}
+                    </Link>
                     <div className="flex shrink-0" onClick={(e) => e.stopPropagation()}>
                       <AgentStatusBadge approvalStatus={agent.approvalStatus ?? 'draft'} />
+                    </div>
+                  </div>
+                  <div className="flex items-start justify-between gap-2 pt-1">
+                    <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                      <Bot className="h-5 w-5 text-muted-foreground shrink-0" />
+                      <span className="font-semibold truncate">{agent.name}</span>
                     </div>
                   </div>
                   {agent.description && (
@@ -449,9 +428,8 @@ export function AgentsPageClient({ initialAgents, initialOrgs, initialStats }: A
                   <p className="text-xs text-muted-foreground truncate" title={agent.a2aUrl}>
                     {agent.a2aUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}
                   </p>
-                  <div className="text-xs text-muted-foreground flex items-center justify-between mt-auto pt-2 border-t border-border/60">
-                    <span className="font-medium text-foreground">{getOrgName(agent.orgId, initialOrgs)}</span>
-                    <span>{formatRelativeTime(agent.updatedAt)}{agent.updatedBy ? ` · ${formatApprovedBy(agent.updatedBy)}` : ''}</span>
+                  <div className="text-xs text-muted-foreground flex items-center justify-end mt-auto pt-2 border-t border-border/60">
+                    <span>{formatDateTime(agent.updatedAt)}{agent.updatedBy ? ` · ${formatApprovedBy(agent.updatedBy)}` : ''}</span>
                   </div>
                   <div className="flex justify-end gap-0.5 -mb-1" onClick={(e) => e.stopPropagation()}>
                     <a href={agent.a2aUrl} target="_blank" rel="noopener noreferrer">

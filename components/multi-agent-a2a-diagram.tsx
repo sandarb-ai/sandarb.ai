@@ -17,10 +17,11 @@ const DUR = '2.5';
 
 export function MultiAgentA2ADiagram() {
   return (
-    <div className="relative w-full max-w-sm mx-auto text-foreground">
+    <div className="relative w-full max-w-xl mx-auto text-foreground">
       <svg
         viewBox="0 0 400 400"
-        className="w-full h-auto a2a-diagram-svg"
+        className="w-full h-auto a2a-diagram-svg min-h-[280px]"
+        preserveAspectRatio="xMidYMid meet"
         aria-hidden
       >
         <defs>

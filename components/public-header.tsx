@@ -3,16 +3,24 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
+import { Settings } from 'lucide-react';
+import { SignedInStrip } from '@/components/signed-in-strip';
 
 const navLink =
   'text-sm font-medium rounded-md px-3 py-2 transition-colors hover:bg-muted/60 hover:text-foreground';
 const navLinkActive = 'text-violet-600 dark:text-violet-400 bg-violet-100/60 dark:bg-violet-900/20';
 const navLinkInactive = 'text-muted-foreground';
 
-export function PublicHeader() {
+export function PublicHeader({
+  initialSignedIn,
+}: {
+  /** Server-rendered sign-in state so header is consistent on first paint */
+  initialSignedIn?: boolean;
+} = {}) {
   const pathname = usePathname();
   const isHome = pathname === '/';
   const isDocs = pathname?.startsWith('/docs');
+  const isSettings = pathname === '/settings';
 
   return (
     <header className="flex shrink-0 items-center justify-between border-b border-border bg-background px-4 sm:px-6 py-2">
@@ -41,6 +49,17 @@ export function PublicHeader() {
             Docs
           </Link>
         </nav>
+      </div>
+      <div className="flex items-center gap-2">
+        <Link
+          href="/settings"
+          className={`${navLink} flex items-center gap-1.5 ${isSettings ? navLinkActive : navLinkInactive}`}
+          aria-label="Settings"
+        >
+          <Settings className="h-4 w-4" />
+          Settings
+        </Link>
+        <SignedInStrip variant="header" initialSignedIn={initialSignedIn} />
       </div>
     </header>
   );

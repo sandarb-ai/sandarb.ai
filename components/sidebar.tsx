@@ -6,9 +6,9 @@ import { usePathname, useRouter } from 'next/navigation';
 import { apiUrl } from '@/lib/api';
 import {
   LayoutDashboard,
+  LayoutGrid,
   FileJson,
   FileText,
-  Settings,
   Plus,
   Building2,
   Bot,
@@ -16,16 +16,19 @@ import {
   FolderOpen,
   Activity,
   MessageSquareText,
+  BarChart3,
+  ShieldCheck,
+  AlertTriangle,
+  FileCheck,
+  Scale,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
   TooltipProvider,
 } from '@/components/ui/tooltip';
-import { SignedInStrip } from '@/components/signed-in-strip';
 
 const contentNav = [
   { title: 'Agent Registry', href: '/agents', icon: Bot },
@@ -40,23 +43,42 @@ const workspaceNav = [
   { title: 'Organizations', href: '/organizations', icon: Building2 },
 ];
 
+const reportsNav = [
+  { title: 'Overview', href: '/reports', icon: LayoutGrid },
+  { title: 'Risk & Controls', href: '/reports/risk-controls', icon: ShieldCheck },
+  { title: 'Un-Registered Agents', href: '/reports/unregistered', icon: AlertTriangle },
+  { title: 'Regulatory', href: '/reports/regulatory', icon: Scale },
+  { title: 'Compliance', href: '/reports/compliance', icon: FileCheck },
+];
+
 export function Sidebar() {
   const pathname = usePathname();
   const isActive = (href: string) =>
-    pathname === href || (href !== '/' && pathname.startsWith(href));
+    pathname === href || (href !== '/' && pathname.startsWith(href + '/'));
+  // Reports: only the longest-matching href is active so "Overview" (/reports) isn't active on /reports/risk-controls
+  const reportsActiveHref = (() => {
+    const matches = reportsNav.filter(
+      (item) => pathname === item.href || pathname.startsWith(item.href + '/')
+    );
+    if (matches.length === 0) return pathname === '/reports' ? '/reports' : null;
+    return matches.sort((a, b) => b.href.length - a.href.length)[0]?.href ?? null;
+  })();
+  const isReportsActive = (href: string) => reportsActiveHref === href;
 
   const NavItem = ({
     href,
     icon: Icon,
     title,
     badge,
+    useActive,
   }: {
     href: string;
     icon: React.ComponentType<{ className?: string }>;
     title: string;
     badge?: React.ReactNode;
+    useActive?: (href: string) => boolean;
   }) => {
-    const active = isActive(href);
+    const active = (useActive ?? isActive)(href);
     return (
       <Link
         href={href}
@@ -161,12 +183,18 @@ export function Sidebar() {
               />
             ))}
           </Section>
-        </div>
 
-        {/* Bottom - Settings, then signed-in + sign out */}
-        <div className="shrink-0 border-t border-border/80 py-2 px-2 dark:border-border/60">
-          <NavItem href="/settings" icon={Settings} title="Settings" />
-          <SignedInStrip variant="sidebar" />
+          <Section label="Reports" icon={BarChart3}>
+            {reportsNav.map((item) => (
+              <NavItem
+                key={item.href}
+                href={item.href}
+                icon={item.icon}
+                title={item.title}
+                useActive={isReportsActive}
+              />
+            ))}
+          </Section>
         </div>
       </aside>
     </TooltipProvider>

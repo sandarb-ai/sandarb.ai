@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { LogOut, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-const DEMO_COOKIE_NAME = 'sandarb_demo';
+export const DEMO_COOKIE_NAME = 'sandarb_demo';
 const DEMO_PROVIDER_COOKIE = 'sandarb_demo_provider';
 
 function getProviderFromCookie(): string {
@@ -56,9 +56,19 @@ function ProviderIcon({ provider }: { provider: string }) {
   }
 }
 
-export function SignedInStrip({ variant = 'header' }: { variant?: 'header' | 'sidebar' }) {
-  const router = useRouter();
-  const [isSignedIn, setIsSignedIn] = useState(false);
+const navLink =
+  'text-sm font-medium rounded-md px-3 py-2 transition-colors hover:bg-muted/60 hover:text-foreground';
+const navLinkInactive = 'text-muted-foreground';
+
+export function SignedInStrip({
+  variant = 'header',
+  initialSignedIn,
+}: {
+  variant?: 'header' | 'sidebar';
+  /** Server-rendered sign-in state to avoid flash; still synced from cookie in useEffect */
+  initialSignedIn?: boolean;
+}) {
+  const [isSignedIn, setIsSignedIn] = useState(initialSignedIn ?? false);
   const [provider, setProvider] = useState('Demo');
 
   useEffect(() => {
@@ -71,11 +81,22 @@ export function SignedInStrip({ variant = 'header' }: { variant?: 'header' | 'si
     document.cookie = `${DEMO_COOKIE_NAME}=; path=/; max-age=0`;
     document.cookie = `${DEMO_PROVIDER_COOKIE}=; path=/; max-age=0`;
     setIsSignedIn(false);
-    router.push('/');
-    router.refresh();
+    window.location.href = '/';
   };
 
-  if (!isSignedIn) return null;
+  if (!isSignedIn) {
+    if (variant === 'header') {
+      return (
+        <Link
+          href="/signup"
+          className={`${navLink} flex items-center gap-1.5 ${navLinkInactive}`}
+        >
+          Try the demo
+        </Link>
+      );
+    }
+    return null;
+  }
 
   if (variant === 'sidebar') {
     return (

@@ -14,7 +14,7 @@ type ThemeValue = 'light' | 'dark' | 'system';
 
 export default function SettingsPage() {
   const { theme, setTheme: setThemeLocal } = useTheme();
-  const [apiKey, setApiKey] = useState('sk-openint-xxxxxxxxxxxx');
+  const [apiKey, setApiKey] = useState('sk-sandarb-xxxxxxxxxxxx');
   const [showApiKey, setShowApiKey] = useState(false);
   const [defaultFormat, setDefaultFormat] = useState('json');
   const [appearance, setAppearance] = useState<ThemeValue>('light');
@@ -48,7 +48,7 @@ fetch(apiUrl('/api/settings'), {
 
   const generateNewApiKey = () => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    const key = 'sk-openint-' + Array(24)
+    const key = 'sk-sandarb-' + Array(24)
       .fill(0)
       .map(() => chars[Math.floor(Math.random() * chars.length)])
       .join('');
@@ -62,7 +62,7 @@ fetch(apiUrl('/api/settings'), {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
           <p className="text-sm text-muted-foreground">
-            Configure your OpenInt instance
+            Configure Sandarb AI Governance
           </p>
         </div>
       </header>
@@ -268,7 +268,7 @@ fetch(apiUrl('/api/settings'), {
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Repository</span>
                       <a
-                        href="https://github.com/openint-ai/openint"
+                        href="https://github.com/sandarb-ai/sandarb.ai"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-primary hover:underline"

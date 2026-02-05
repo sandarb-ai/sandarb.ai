@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { AlertCircle, CheckCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import yaml from 'js-yaml';
 
@@ -87,53 +88,55 @@ export function ContextEditor({
   };
 
   return (
-    <div className={cn('space-y-2', className)}>
-      <div className="flex items-center justify-between">
+    <div className={cn('flex flex-col h-full min-w-0', className)}>
+      <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30 shrink-0">
         <Tabs
           value={format}
           onValueChange={(v) => handleFormatChange(v as 'json' | 'yaml')}
         >
-          <TabsList>
-            <TabsTrigger value="json">JSON</TabsTrigger>
-            <TabsTrigger value="yaml">YAML</TabsTrigger>
+          <TabsList className="h-8">
+            <TabsTrigger value="json" className="text-xs px-3 h-7">JSON</TabsTrigger>
+            <TabsTrigger value="yaml" className="text-xs px-3 h-7">YAML</TabsTrigger>
           </TabsList>
         </Tabs>
 
-        <div className="flex items-center gap-2 text-sm">
-          {isValid ? (
-            <span className="flex items-center gap-1 text-green-600">
-              <CheckCircle className="h-4 w-4" />
-              Valid
-            </span>
-          ) : (
-            <span className="flex items-center gap-1 text-destructive">
-              <AlertCircle className="h-4 w-4" />
-              Invalid
-            </span>
-          )}
-        </div>
+        {isValid ? (
+          <Badge variant="success" className="gap-1.5 py-1 px-3 text-sm">
+            <CheckCircle2 className="h-4 w-4" />
+            Valid
+          </Badge>
+        ) : (
+          <Badge variant="destructive" className="gap-1.5 py-1 px-3 text-sm">
+            <AlertCircle className="h-4 w-4" />
+            {error || 'Invalid'}
+          </Badge>
+        )}
       </div>
 
-      <Textarea
-        value={text}
-        onChange={(e) => handleTextChange(e.target.value)}
-        className={cn(
-          'min-h-[300px] font-mono text-sm',
-          !isValid && 'border-destructive focus-visible:ring-destructive'
-        )}
-        placeholder={
-          format === 'json'
-            ? '{\n  "key": "value"\n}'
-            : 'key: value\n'
-        }
-      />
-
-      {error && (
-        <p className="text-sm text-destructive flex items-center gap-1">
-          <AlertCircle className="h-4 w-4" />
-          {error}
-        </p>
-      )}
+      <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
+        <textarea
+          value={text}
+          onChange={(e) => handleTextChange(e.target.value)}
+          wrap="soft"
+          className={cn(
+            'context-editor-textarea flex-1 w-full min-w-0 min-h-[300px] p-4 font-mono text-sm leading-relaxed resize-none focus:outline-none border-0 rounded-b-xl bg-transparent',
+            !isValid && 'bg-destructive/5'
+          )}
+          style={{
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+            overflowWrap: 'anywhere',
+            overflowX: 'hidden',
+            maxWidth: '100%',
+            boxSizing: 'border-box',
+          }}
+          placeholder={
+            format === 'json'
+              ? '{\n  "key": "value"\n}'
+              : 'key: value\n'
+          }
+        />
+      </div>
     </div>
   );
 }

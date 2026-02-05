@@ -13,9 +13,11 @@ from backend.services.prompts import (
     approve_prompt_version,
     reject_prompt_version,
     delete_prompt as delete_prompt_svc,
+    serialize_prompt_list_row,
 )
 from backend.services.agents import get_agent_by_identifier
-from backend.services.agent_links import is_prompt_linked_to_agent, list_agents_for_prompt
+from backend.services.agent_links import is_prompt_linked_to_agent, list_agents_for_prompt, list_organizations_for_prompt
+from backend.services.organizations import get_organization_by_id
 from backend.services.audit import log_prompt_usage, log_prompt_denied
 
 router = APIRouter(prefix="/prompts", tags=["prompts"])
@@ -79,14 +81,38 @@ def _safe_list_agents_for_prompt(prompt_id: str) -> list:
         return []
 
 
+def _safe_list_organizations_for_prompt(prompt_id: str) -> list:
+    try:
+        return list_organizations_for_prompt(prompt_id)
+    except Exception:
+        return []
+
+
+def _organizations_for_prompt(prompt_id: str, owning_org_id: str | None) -> list[dict]:
+    """Organizations for a prompt: from agent links, or owning org (prompt.org_id) so it is never empty when org_id is set."""
+    orgs = _safe_list_organizations_for_prompt(prompt_id)
+    if orgs:
+        return orgs
+    if owning_org_id:
+        org = get_organization_by_id(owning_org_id)
+        if org:
+            return [{"id": org.id, "name": org.name, "slug": org.slug}]
+    return []
+
+
 @router.get("", response_model=ApiResponse)
 def list_prompts():
-    rows = query("SELECT * FROM prompts ORDER BY updated_at DESC")
-    data = []
-    for r in rows:
-        row = dict(r)
-        row["agents"] = _safe_list_agents_for_prompt(str(row["id"]))
-        data.append(row)
+    rows = query(
+        "SELECT p.*, pv.version AS pv_version, pv.approved_by AS pv_approved_by, pv.approved_at AS pv_approved_at "
+        "FROM prompts p "
+        "LEFT JOIN prompt_versions pv ON pv.id = p.current_version_id "
+        "ORDER BY p.updated_at DESC"
+    )
+    data = [serialize_prompt_list_row(dict(r)) for r in rows]
+    for i, row in enumerate(rows):
+        prompt_id = str(row["id"])
+        owning_org_id = str(row["org_id"]) if row.get("org_id") else None
+        data[i]["organizations"] = _organizations_for_prompt(prompt_id, owning_org_id)
     return ApiResponse(success=True, data=data)
 
 
@@ -96,6 +122,8 @@ def get_prompt(prompt_id: str):
     if not p:
         raise HTTPException(status_code=404, detail="Prompt not found")
     p["agents"] = _safe_list_agents_for_prompt(prompt_id)
+    owning_org_id = p.get("orgId") or p.get("org_id")
+    p["organizations"] = _organizations_for_prompt(prompt_id, str(owning_org_id) if owning_org_id else None)
     return ApiResponse(success=True, data=p)
 
 
@@ -125,6 +153,12 @@ def post_prompt_version(prompt_id: str, body: dict = Body(...)):
 @router.post("/{prompt_id}/versions/{version_id}/approve", response_model=ApiResponse)
 def post_approve_version(prompt_id: str, version_id: str, body: dict | None = Body(None)):
     approved_by = (body or {}).get("approvedBy") or (body or {}).get("approved_by")
+    if not approved_by or not str(approved_by).strip():
+        raise HTTPException(
+            status_code=400,
+            detail="approvedBy is required and must be a non-empty username when approving a prompt version.",
+        )
+    approved_by = str(approved_by).strip()
     v = approve_prompt_version(prompt_id, version_id, approved_by=approved_by)
     if not v:
         raise HTTPException(status_code=404, detail="Version not found or not pending approval")

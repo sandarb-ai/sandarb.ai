@@ -2,6 +2,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
+import { StickyNote } from 'lucide-react';
 import { SignupForm } from './signup-form';
 import { Button } from '@/components/ui/button';
 
@@ -33,7 +34,8 @@ export default async function SignupPage() {
           role="alert"
           aria-label="Demo information"
         >
-          <p className="text-sm font-semibold text-violet-900 dark:text-violet-100 text-center mb-2">
+          <p className="text-sm font-semibold text-violet-900 dark:text-violet-100 text-center mb-2 flex items-center justify-center gap-2">
+            <StickyNote className="h-4 w-4 shrink-0" aria-hidden />
             Demo only — no account is created
           </p>
           <p className="text-xs text-violet-800 dark:text-violet-200 text-center leading-relaxed mb-3">

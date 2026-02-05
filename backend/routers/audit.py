@@ -1,11 +1,28 @@
-"""Audit router (blocked-injections, lineage, agent-pulse log)."""
+"""Audit router (blocked-injections, lineage, agent-pulse log, activity)."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Request
 
 from backend.schemas.common import ApiResponse
-from backend.services.audit import get_blocked_injections, get_lineage, get_a2a_log, get_governance_intersection_log
+from backend.services.audit import get_blocked_injections, get_lineage, get_a2a_log, get_governance_intersection_log, log_activity
 
-router = APIRouter(tags=["audit"])
+router = APIRouter(prefix="/audit", tags=["audit"])
+
+
+@router.post("/activity", response_model=ApiResponse)
+async def post_activity(request: Request):
+    """SDK log_activity: write agent_id, trace_id, inputs, outputs to sandarb_access_logs."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    agent_id = body.get("agent_id") or (request.headers.get("X-Sandarb-Agent-ID") or "").strip()
+    trace_id = body.get("trace_id") or (request.headers.get("X-Sandarb-Trace-ID") or "").strip()
+    inputs = body.get("inputs") or {}
+    outputs = body.get("outputs") or {}
+    if not agent_id or not trace_id:
+        raise HTTPException(status_code=400, detail="agent_id and trace_id are required")
+    log_activity(agent_id, trace_id, inputs, outputs)
+    return ApiResponse(success=True, data={"logged": True})
 
 
 @router.get("/blocked-injections", response_model=ApiResponse)

@@ -1,16 +1,36 @@
-# Sandarb test suite
+# Sandarb Test Suite
 
-This folder contains **unit tests** for the Next.js frontend and shared lib. All tests use **Vitest**. API and security behavior are tested in the FastAPI backend.
+Sandarb has comprehensive test coverage for both **frontend** (Next.js) and **backend** (FastAPI).
 
-## Running tests
+## Quick Start
 
 ```bash
-npm run test           # watch mode (re-runs on file changes)
-npm run test:run       # single run (use in CI)
-npm run test:coverage  # single run with coverage report
+# Run all tests (frontend + backend)
+npm run test:all
+
+# Frontend tests only (Vitest)
+npm run test           # watch mode
+npm run test:run       # single run (CI)
+npm run test:coverage  # with coverage
+
+# Backend tests only (Pytest)
+npm run test:backend        # run backend tests
+npm run test:backend:cov    # with coverage
 ```
 
-Run these before committing. The suite is fast (no DB).
+## Test Summary
+
+| Suite | Framework | Tests | Coverage |
+|-------|-----------|-------|----------|
+| Frontend | Vitest | 67 tests | lib/, API client |
+| Backend | Pytest | 53 tests | All API endpoints |
+| **Total** | | **120 tests** | |
+
+---
+
+## Frontend Tests (Vitest)
+
+This folder (`tests/`) contains unit tests for the Next.js frontend and shared lib.
 
 ## Test structure
 
@@ -146,3 +166,80 @@ Important details:
 - **Coverage** — v8 provider; includes `lib/**/*.ts`; excludes types, configs, node_modules, and `tests/**`.
 
 If you add a new lib module, consider adding a corresponding test file so the suite stays the single place to validate behavior.
+
+---
+
+## Backend Tests (Pytest)
+
+Backend API tests are in `backend/tests/` and use **Pytest** with FastAPI's `TestClient`.
+
+### Running Backend Tests
+
+```bash
+npm run test:backend              # run all backend tests
+npm run test:backend:cov          # with coverage report
+
+# Or directly with pytest
+cd backend
+python -m pytest tests/ -v
+```
+
+### Test Structure
+
+| File | Coverage |
+|------|----------|
+| `test_agents.py` | CRUD, approval workflow, context linking |
+| `test_contexts.py` | CRUD, pagination, revisions, compliance fields |
+| `test_prompts.py` | CRUD, versions, approval/rejection, pull API |
+| `test_organizations.py` | CRUD, hierarchy, agent associations |
+| `test_health.py` | Health check, dashboard, settings |
+| `conftest.py` | Shared fixtures (client, DB, sample data) |
+
+### Adding Backend Tests
+
+1. Create `backend/tests/test_<module>.py`
+2. Use the shared `client` fixture for API calls
+3. Clean up test data in fixtures
+
+Example:
+
+```python
+import pytest
+
+class TestMyFeature:
+    @pytest.fixture(autouse=True)
+    def setup(self, client):
+        self.client = client
+        yield
+        # cleanup
+
+    def test_list_items(self):
+        response = self.client.get("/api/my-endpoint")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+
+    def test_create_item(self):
+        response = self.client.post("/api/my-endpoint", json={"name": "test"})
+        assert response.status_code in [200, 201]
+```
+
+### Backend Test Configuration
+
+- **pytest.ini** — Test paths, patterns, options
+- **conftest.py** — Fixtures: `client`, `db_connection`, sample data
+- **Requirements** — `pytest`, `pytest-asyncio`, `httpx` (in `backend/requirements.txt`)
+
+---
+
+## CI Integration
+
+Both test suites can run in CI:
+
+```yaml
+# Example GitHub Actions
+- name: Run all tests
+  run: npm run test:all
+```
+
+The combined `test:all` script runs frontend tests first, then backend tests.

@@ -43,15 +43,15 @@ export async function getAgentById(id: string) {
 export async function getAgentStats(orgId?: string): Promise<{ total: number; active: number; draft: number; pending_approval: number; approved: number; rejected: number }> {
   const agents = await getAgents(orgId);
   const total = agents.length;
-  const byStatus = agents.reduce(
-    (acc, a: Record<string, unknown>) => {
+  const byStatus = (agents as Record<string, unknown>[]).reduce<Record<string, number>>(
+    (acc, a) => {
       const s = (a.approvalStatus as string) || 'draft';
-      acc[s] = (acc[s] || 0) + 1;
+      acc[s] = (acc[s] ?? 0) + 1;
       return acc;
     },
-    {} as Record<string, number>
+    {}
   );
-  const active = agents.filter((a: Record<string, unknown>) => a.status === 'active').length;
+  const active = (agents as Record<string, unknown>[]).filter((a) => a.status === 'active').length;
   return {
     total,
     active,
@@ -90,10 +90,17 @@ export async function getChildOrganizations(parentId: string) {
 
 // Contexts
 export async function getContextsPaginated(limit: number, offset: number) {
-  const r = await fetchApi<{ contexts: unknown[]; total: number }>(
+  const r = await fetchApi<{ contexts: unknown[]; total: number; totalActive?: number; totalDraft?: number }>(
     `/api/contexts?limit=${limit}&offset=${offset}`
   );
-  return r.success && r.data ? { contexts: r.data.contexts, total: r.data.total } : { contexts: [], total: 0 };
+  if (!r.success || !r.data) return { contexts: [], total: 0, totalActive: 0, totalDraft: 0 };
+  const d = r.data as Record<string, unknown>;
+  return {
+    contexts: (d.contexts as unknown[]) ?? [],
+    total: Number(d.total) ?? 0,
+    totalActive: Number(d.totalActive) ?? 0,
+    totalDraft: Number(d.totalDraft) ?? 0,
+  };
 }
 
 // Prompts
@@ -110,18 +117,23 @@ function normalizePromptList(raw: unknown[]): import('@/types').Prompt[] {
     const str = (v: unknown) => (v == null ? undefined : String(v));
     const tagsRaw = o.tags;
     const tagList = Array.isArray(tagsRaw) ? tagsRaw.map((x) => String(x)) : (typeof tagsRaw === 'string' ? (() => { try { const p = JSON.parse(tagsRaw); return Array.isArray(p) ? p.map(String) : []; } catch { return []; } })() : []);
+    const currentVersion = o.currentVersion as { version: number } | undefined;
     return {
       id: str(o.id) ?? '',
       name: str(o.name) ?? '',
-      description: o.description != null ? str(o.description) : null,
-      currentVersionId: (o.currentVersionId ?? o.current_version_id) != null ? str(o.currentVersionId ?? o.current_version_id) : null,
-      projectId: (o.projectId ?? o.project_id) != null ? str(o.projectId ?? o.project_id) : null,
+      description: o.description != null ? (str(o.description) ?? null) : null,
+      currentVersionId: (o.currentVersionId ?? o.current_version_id) != null ? (str(o.currentVersionId ?? o.current_version_id) ?? null) : null,
+      projectId: (o.projectId ?? o.project_id) != null ? (str(o.projectId ?? o.project_id) ?? null) : null,
       tags: tagList,
-      createdBy: (o.createdBy ?? o.created_by) != null ? str(o.createdBy ?? o.created_by) : null,
+      createdBy: (o.createdBy ?? o.created_by) != null ? (str(o.createdBy ?? o.created_by) ?? null) : null,
       createdAt: str(o.createdAt ?? o.created_at) ?? '',
       updatedAt: str(o.updatedAt ?? o.updated_at) ?? '',
-      updatedBy: (o.updatedBy ?? o.updated_by) != null ? str(o.updatedBy ?? o.updated_by) : null,
+      updatedBy: (o.updatedBy ?? o.updated_by) != null ? (str(o.updatedBy ?? o.updated_by) ?? null) : null,
       agents: (o.agents as import('@/types').LinkedAgent[] | undefined) ?? [],
+      organizations: (o.organizations as { id: string; name: string; slug: string }[] | undefined) ?? [],
+      currentVersion: currentVersion ?? null,
+      approvedBy: (o.approvedBy ?? o.approved_by) != null ? (str(o.approvedBy ?? o.approved_by) ?? null) : null,
+      approvedAt: (o.approvedAt ?? o.approved_at) != null ? (str(o.approvedAt ?? o.approved_at) ?? null) : null,
     };
   });
 }
@@ -192,4 +204,32 @@ export async function getPromptStats(): Promise<{ total: number; active: number 
 export async function getTemplateCount(): Promise<number> {
   const d = await getDashboard();
   return (d?.templateCount as number) ?? 0;
+}
+
+// Reports (AI Governance & Insights)
+export async function getReports(unregisteredLimit = 50): Promise<import('@/types').ReportsPayload | null> {
+  const r = await fetchApi<import('@/types').ReportsPayload>(
+    `/api/reports?unregistered_limit=${unregisteredLimit}`
+  );
+  return r.success && r.data ? r.data : null;
+}
+
+export async function getReportsOverview(): Promise<import('@/types').ReportsOverview | null> {
+  const r = await fetchApi<import('@/types').ReportsOverview>('/api/reports/overview');
+  return r.success && r.data ? r.data : null;
+}
+
+export async function getReportsUnregisteredAgents(limit = 50): Promise<import('@/types').UnauthenticatedDetection[]> {
+  const r = await fetchApi<unknown[]>(`/api/reports/unregistered-agents?limit=${limit}`);
+  return r.success && Array.isArray(r.data) ? (r.data as import('@/types').UnauthenticatedDetection[]) : [];
+}
+
+export async function getReportsRegulatory(): Promise<import('@/types').ReportsRegulatory | null> {
+  const r = await fetchApi<import('@/types').ReportsRegulatory>('/api/reports/regulatory');
+  return r.success && r.data ? r.data : null;
+}
+
+export async function getReportsCompliance(): Promise<import('@/types').ReportsCompliance | null> {
+  const r = await fetchApi<import('@/types').ReportsCompliance>('/api/reports/compliance');
+  return r.success && r.data ? r.data : null;
 }

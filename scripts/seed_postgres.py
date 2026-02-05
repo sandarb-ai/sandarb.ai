@@ -185,7 +185,7 @@ def main() -> None:
                     ),
                 )
 
-        # 4. Contexts (with one version each)
+        # 4. Contexts (with one version each) — use org_id from non-root org (by slug), not lob_tag
         for i, c in enumerate(CONTEXTS):
             cur.execute("SELECT id FROM contexts WHERE name = %s", (c["name"],))
             if cur.fetchone():
@@ -193,17 +193,20 @@ def main() -> None:
             ctx_id = str(uuid.uuid4())
             tags = json.dumps([c["slug"]])
             reg_hooks = json.dumps(c["regulatoryHooks"])
+            ctx_org_id = org_ids.get(c["slug"])  # map slug to non-root org
+            if not ctx_org_id:
+                ctx_org_id = org_ids.get(ORGS[0]["slug"]) or list(org_ids.values())[0]
             cur.execute(
-                """INSERT INTO contexts (id, name, description, lob_tag, data_classification, owner_team, tags, regulatory_hooks, created_at, updated_at)
+                """INSERT INTO contexts (id, name, description, org_id, data_classification, owner_team, tags, regulatory_hooks, created_at, updated_at)
                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                (ctx_id, c["name"], c["description"], lob_db(c["lob"]), data_class_db(c["dataClass"]), owner_team, tags, reg_hooks, now, now),
+                (ctx_id, c["name"], c["description"], ctx_org_id, data_class_db(c["dataClass"]), owner_team, tags, reg_hooks, now, now),
             )
             content_json = json.dumps(c["content"])
             h = sha256_hash(c["content"])
             approver = seed_approver(i)
             cur.execute(
-                """INSERT INTO context_versions (id, context_id, version_label, content, sha256_hash, created_by, created_at, submitted_by, status, commit_message, approved_by, approved_at, updated_at, updated_by, is_active)
-                   VALUES (gen_random_uuid(), %s, 'v1.0.0', %s::jsonb, %s, %s, %s, %s, 'Approved', 'Initial version', %s, %s, %s, %s, true)""",
+                """INSERT INTO context_versions (id, context_id, version, content, sha256_hash, created_by, created_at, submitted_by, status, commit_message, approved_by, approved_at, updated_at, updated_by, is_active)
+                   VALUES (gen_random_uuid(), %s, 1, %s::jsonb, %s, %s, %s, %s, 'Approved', 'Initial version', %s, %s, %s, %s, true)""",
                 (ctx_id, content_json, h, approver, now, approver, approver, now, now, approver),
             )
             cur.execute(
@@ -211,7 +214,10 @@ def main() -> None:
                 (ctx_id, c["name"], now),
             )
 
-        # 5. Prompts with one version each
+        # 5. Prompts with one version each (org_id so organization is never empty)
+        default_org_id = org_ids.get(ORGS[0]["slug"]) if ORGS else None
+        if not default_org_id and org_ids:
+            default_org_id = next(iter(org_ids.values()))
         for i, p in enumerate(PROMPTS):
             cur.execute("SELECT id FROM prompts WHERE name = %s", (p["name"],))
             if cur.fetchone():
@@ -219,9 +225,9 @@ def main() -> None:
             prompt_id = str(uuid.uuid4())
             tags = json.dumps(p["tags"])
             cur.execute(
-                """INSERT INTO prompts (id, name, description, tags, created_by, created_at, updated_at, updated_by)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
-                (prompt_id, p["name"], p["description"], tags, seed_approver(i), now, now, seed_approver(i)),
+                """INSERT INTO prompts (id, org_id, name, description, tags, created_by, created_at, updated_at, updated_by)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                (prompt_id, default_org_id, p["name"], p["description"], tags, seed_approver(i), now, now, seed_approver(i)),
             )
             version_id = str(uuid.uuid4())
             h = sha256_hash({"content": p["content"], "systemPrompt": p["system_prompt"], "model": p["model"]})

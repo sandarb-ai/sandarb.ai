@@ -20,7 +20,7 @@ services:
       timeout: 5s
       retries: 5
 
-  openint-sandarb:
+  sandarb:
     build:
       context: .
       dockerfile: Dockerfile

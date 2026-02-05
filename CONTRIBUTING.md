@@ -1,6 +1,6 @@
-# Contributing to OpenInt Sandarb
+# Contributing to Sandarb
 
-Thank you for your interest in contributing to OpenInt Sandarb! This document provides guidelines and information for contributors.
+Thank you for your interest in contributing to Sandarb! This document provides guidelines and information for contributors.
 
 ## Code of Conduct
 
@@ -10,7 +10,7 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 ### Reporting Bugs
 
-1. Check if the bug has already been reported in [Issues](https://github.com/openint/openint-sandarb/issues)
+1. Check if the bug has already been reported in [Issues](https://github.com/sandarb-ai/sandarb.ai/issues)
 2. If not, create a new issue with:
    - Clear, descriptive title
    - Steps to reproduce
@@ -38,8 +38,8 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 ```bash
 # Clone your fork
-git clone https://github.com/YOUR_USERNAME/openint-sandarb.git
-cd openint-sandarb
+git clone https://github.com/YOUR_USERNAME/sandarb.ai.git
+cd sandarb.ai
 
 # Install dependencies
 npm install
@@ -136,4 +136,4 @@ Contributors will be recognized in:
 - GitHub contributors list
 - Release notes for significant contributions
 
-Thank you for helping make OpenInt Sandarb better!
+Thank you for helping make Sandarb better!

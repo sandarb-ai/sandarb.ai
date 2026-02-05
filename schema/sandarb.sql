@@ -3,12 +3,33 @@
 -- Source: lib/pg.ts (SCHEMA_SQL)
 -- Usage: psql $DATABASE_URL -f schema/sandarb.sql
 
+-- Organizations (must exist before contexts and agents)
+CREATE TABLE IF NOT EXISTS organizations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL UNIQUE,
+  slug TEXT NOT NULL UNIQUE,
+  description TEXT,
+  parent_id UUID REFERENCES organizations(id),
+  is_root BOOLEAN DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS org_members (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL,
+  role TEXT DEFAULT 'member',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(org_id, user_id)
+);
+
 -- Core Context Definition
 CREATE TABLE IF NOT EXISTS contexts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT UNIQUE NOT NULL,
   description TEXT,
-  lob_tag TEXT NOT NULL CHECK (lob_tag IN ('Wealth-Management', 'Investment-Banking', 'Retail-Banking', 'Legal-Compliance')),
+  org_id UUID REFERENCES organizations(id),
   data_classification TEXT DEFAULT 'Internal' CHECK (data_classification IN ('Public', 'Internal', 'Confidential', 'Restricted', 'MNPI')),
   owner_team TEXT NOT NULL,
   created_by TEXT,
@@ -24,10 +45,10 @@ CREATE TABLE IF NOT EXISTS contexts (
 CREATE TABLE IF NOT EXISTS context_versions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   context_id UUID NOT NULL REFERENCES contexts(id) ON DELETE CASCADE,
-  version_label TEXT NOT NULL,
+  version INTEGER NOT NULL,
   content JSONB NOT NULL,
   sha256_hash TEXT NOT NULL,
-  status TEXT DEFAULT 'Pending' CHECK (status IN ('Draft', 'Pending', 'Approved', 'Archived')),
+  status TEXT DEFAULT 'Pending' CHECK (status IN ('Draft', 'Pending', 'Approved', 'Rejected', 'Archived')),
   created_by TEXT NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   submitted_by TEXT,
@@ -37,7 +58,7 @@ CREATE TABLE IF NOT EXISTS context_versions (
   updated_by TEXT,
   is_active BOOLEAN DEFAULT FALSE,
   commit_message TEXT,
-  UNIQUE(context_id, version_label)
+  UNIQUE(context_id, version)
 );
 
 CREATE INDEX IF NOT EXISTS idx_context_versions_context_id ON context_versions(context_id);
@@ -46,6 +67,7 @@ CREATE INDEX IF NOT EXISTS idx_context_versions_status ON context_versions(statu
 -- Prompts (Employee Handbook / Behavior Instructions)
 CREATE TABLE IF NOT EXISTS prompts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id UUID REFERENCES organizations(id) ON DELETE SET NULL,
   name TEXT UNIQUE NOT NULL,
   description TEXT,
   current_version_id UUID,
@@ -56,6 +78,8 @@ CREATE TABLE IF NOT EXISTS prompts (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_by TEXT
 );
+
+CREATE INDEX IF NOT EXISTS idx_prompts_org_id ON prompts(org_id);
 
 -- Prompt Versioning & Regulatory Approval
 CREATE TABLE IF NOT EXISTS prompt_versions (
@@ -117,28 +141,6 @@ CREATE TABLE IF NOT EXISTS activity_log (
 );
 
 CREATE INDEX IF NOT EXISTS idx_activity_log_created_at ON activity_log(created_at);
-
--- Organizations (name and slug must be unique; each org has its own agents via org_id)
-CREATE TABLE IF NOT EXISTS organizations (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL UNIQUE,
-  slug TEXT NOT NULL UNIQUE,
-  description TEXT,
-  parent_id UUID REFERENCES organizations(id),
-  is_root BOOLEAN DEFAULT false,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Org members
-CREATE TABLE IF NOT EXISTS org_members (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  user_id TEXT NOT NULL,
-  role TEXT DEFAULT 'member',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(org_id, user_id)
-);
 
 -- Agents (registry)
 CREATE TABLE IF NOT EXISTS agents (

@@ -99,6 +99,20 @@ def list_agents_for_prompt(prompt_id: str) -> list[dict]:
     ]
 
 
+def list_organizations_for_prompt(prompt_id: str) -> list[dict]:
+    """Organizations that have at least one agent linked to this prompt (id, name, slug for display)."""
+    rows = query(
+        """SELECT DISTINCT o.id, o.name, o.slug
+           FROM organizations o
+           INNER JOIN agents a ON a.org_id = o.id
+           INNER JOIN agent_prompts ap ON ap.agent_id = a.id
+           WHERE ap.prompt_id = %s
+           ORDER BY o.name""",
+        (prompt_id,),
+    )
+    return [{"id": str(r["id"]), "name": str(r["name"] or ""), "slug": str(r["slug"] or "")} for r in rows]
+
+
 def list_agents_for_context(context_id: str) -> list[dict]:
     """Agents linked to this context (id, name, agentId for display)."""
     rows = query(
@@ -157,3 +171,28 @@ def unlink_prompt_from_agent(agent_uuid: str, prompt_id: str) -> bool:
         (agent_uuid, prompt_id),
     )
     return True
+
+
+def get_agent_last_accessed_at(agent_identifier: str) -> str | None:
+    """
+    Get the most recent accessed_at timestamp from sandarb_access_logs for this agent.
+    The agent_id in sandarb_access_logs is the external identifier (agents.agent_id), not UUID.
+    """
+    row = query_one(
+        """SELECT accessed_at FROM sandarb_access_logs
+           WHERE agent_id = %s
+           ORDER BY accessed_at DESC LIMIT 1""",
+        (agent_identifier,),
+    )
+    return str(row["accessed_at"]) if row else None
+
+
+def get_agent_last_accessed_at_by_uuid(agent_uuid: str) -> str | None:
+    """
+    Get the most recent accessed_at for an agent by its UUID.
+    First looks up the agent's external agent_id, then queries sandarb_access_logs.
+    """
+    agent_row = query_one("SELECT agent_id FROM agents WHERE id = %s", (agent_uuid,))
+    if not agent_row or not agent_row.get("agent_id"):
+        return None
+    return get_agent_last_accessed_at(str(agent_row["agent_id"]))

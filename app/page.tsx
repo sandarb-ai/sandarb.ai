@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 export const metadata = {
   title: 'Sandarb - AI Governance for AI Agents',
   description:
-    'Manage and govern your AI Agents prompts and context in a protocol first approach workflows (think A2A, API and Git). Every request logged; lineage and audit built in.',
+    'Manage and govern your AI Agents prompts and context in a protocol first approach (think A2A, API and Git). Every request tracked; lineage and audit built in and automated reports for AI Governance.',
 };
 
 /** Landing page. Home links here. After login (e.g. Try the demo), users go to Dashboard. */
@@ -35,8 +35,8 @@ export default function LandingPage() {
             AI Governance for your AI Agents.
           </h1>
           <p className="text-base text-muted-foreground mt-2 max-w-2xl mx-auto leading-relaxed">
-            Manage and govern your AI Agents <span className="bg-violet-100 text-violet-900 dark:bg-violet-900/40 dark:text-violet-100 px-1 rounded font-medium">prompts</span> and <span className="bg-violet-100 text-violet-900 dark:bg-violet-900/40 dark:text-violet-100 px-1 rounded font-medium">context</span> in a protocol first approach workflows (think <span className="font-medium text-violet-600 dark:text-violet-400">A2A</span>, <span className="font-medium text-violet-600 dark:text-violet-400">API</span> and <span className="font-medium text-violet-600 dark:text-violet-400">Git-like</span>).{' '}
-            Every request logged; lineage and audit built in.
+            Manage and govern your AI Agents <span className="bg-violet-100 text-violet-900 dark:bg-violet-900/40 dark:text-violet-100 px-1 rounded font-medium">prompts</span> and <span className="bg-violet-100 text-violet-900 dark:bg-violet-900/40 dark:text-violet-100 px-1 rounded font-medium">context</span> in a protocol first approach (think <span className="font-medium text-violet-600 dark:text-violet-400">A2A</span>, <span className="font-medium text-violet-600 dark:text-violet-400">API</span> and <span className="font-medium text-violet-600 dark:text-violet-400">Git-like</span>).{' '}
+            Every request tracked; lineage and audit built in and automated reports for AI Governance.
           </p>
           <div className="mt-5 flex flex-wrap justify-center items-center gap-3">
             <Link href="/docs">
@@ -52,9 +52,6 @@ export default function LandingPage() {
               </Button>
             </Link>
           </div>
-          <p className="text-sm text-muted-foreground mt-3 text-center max-w-md mx-auto">
-            <strong className="text-foreground">Demo only.</strong> No account is created; you get full access to the Sandarb UI and features for evaluation.
-          </p>
         </div>
       </section>
 
@@ -85,7 +82,7 @@ export default function LandingPage() {
             </ol>
           </div>
           <a
-            href="https://github.com/openint-ai/sandarb.ai"
+            href="https://github.com/sandarb-ai/sandarb.ai"
             target="_blank"
             rel="noopener noreferrer"
             className="rounded-lg border border-border/80 bg-background/50 p-4 block hover:border-violet-200/80 dark:hover:border-violet-800/40 transition-colors"
@@ -98,7 +95,7 @@ export default function LandingPage() {
               Run it yourself, extend the API, or contribute. Protocol-first.
             </p>
             <span className="text-sm text-violet-600 dark:text-violet-400 font-medium">
-              github.com/openint-ai/sandarb.ai
+              github.com/sandarb-ai/sandarb.ai
             </span>
           </a>
         </div>

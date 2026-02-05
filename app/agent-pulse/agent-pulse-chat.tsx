@@ -49,7 +49,7 @@ function generateDemoEntry(): A2ALogEntry {
     contextName: context,
     contextId: null,
     contextVersionId: success ? `v1.0.${Math.floor(Math.random() * 20)}` : null,
-    reason: success ? undefined : (Math.random() > 0.5 ? 'LOB mismatch' : 'Agent not registered'),
+    reason: success ? undefined : (Math.random() > 0.5 ? 'Context not linked to agent' : 'Agent not registered'),
     intent: Math.random() > 0.6 ? 'Compliance check before trade' : undefined,
   };
 }

@@ -1,4 +1,4 @@
-// Core types for OpenInt Sandarb
+// Core types for Sandarb
 // An open-source prompt & context management platform for AI agents
 
 // ============================================================================
@@ -23,6 +23,7 @@ export interface Prompt {
   description: string | null;
   currentVersionId: string | null;       // Active (approved) version
   projectId: string | null;              // Group prompts by project
+  orgId?: string | null;                 // Owning organization (so organization is never empty)
   tags: string[];
   createdBy: string | null;
   createdAt: string;
@@ -30,6 +31,14 @@ export interface Prompt {
   updatedBy: string | null;
   /** Agents this prompt is linked to (from agent_prompts). Shown as "Used by: …". */
   agents?: LinkedAgent[];
+  /** Organizations for this prompt (from agent links or owning org). Never empty when orgId is set. */
+  organizations?: { id: string; name: string; slug: string }[];
+  /** Active version number for list display. */
+  currentVersion?: { version: number } | null;
+  /** Who approved the active version (from prompt_versions). */
+  approvedBy?: string | null;
+  /** When the active version was approved. */
+  approvedAt?: string | null;
 }
 
 export interface PromptVersion {
@@ -84,16 +93,12 @@ export interface PromptVersionCreateInput {
 // CONTEXT MANAGEMENT
 // ============================================================================
 
-/** System-enforced: Line of Business for compliance search. */
-export type LineOfBusiness = 'retail' | 'investment_banking' | 'wealth_management';
-
 /** System-enforced: Data classification for MNPI and access control. */
 export type DataClassification = 'public' | 'internal' | 'confidential' | 'restricted';
 
 /** System-enforced: Regulatory frameworks that require logging/audit for this context. */
 export type RegulatoryHook = 'FINRA' | 'SEC' | 'GDPR';
 
-export const LINE_OF_BUSINESS_OPTIONS: LineOfBusiness[] = ['retail', 'investment_banking', 'wealth_management'];
 export const DATA_CLASSIFICATION_OPTIONS: DataClassification[] = ['public', 'internal', 'confidential', 'restricted'];
 export const REGULATORY_HOOK_OPTIONS: RegulatoryHook[] = ['FINRA', 'SEC', 'GDPR'];
 
@@ -112,14 +117,24 @@ export interface Context {
   createdAt: string;
   updatedAt: string;
   updatedBy: string | null;
-  /** Compliance: Line of Business (Retail, Investment Banking, Wealth Management). */
-  lineOfBusiness: LineOfBusiness | null;
+  /** Organization this context belongs to (for filtering and display). */
+  orgId: string | null;
+  /** Organization details (from organizations table). */
+  organization?: { id: string; name: string; slug: string } | null;
   /** Compliance: Data classification (Public, Internal, Confidential, Restricted). */
   dataClassification: DataClassification | null;
   /** Compliance: Subject to FINRA, SEC, or GDPR logging requirements. */
   regulatoryHooks: RegulatoryHook[];
   /** Agents this context is linked to (from agent_contexts). Shown as "Used by: …". */
   agents?: LinkedAgent[];
+  /** Active (approved) version id; present when context has an active revision. */
+  currentVersionId?: string | null;
+  /** Active version number for list display. */
+  currentVersion?: { version: number } | null;
+  /** Who approved the active version (from context_versions). */
+  approvedBy?: string | null;
+  /** When the active version was approved. */
+  approvedAt?: string | null;
 }
 
 export interface ContextCreateInput {
@@ -131,7 +146,7 @@ export interface ContextCreateInput {
   tags?: string[];
   priority?: number;
   expiresAt?: string;
-  lineOfBusiness?: LineOfBusiness | null;
+  orgId?: string | null;
   dataClassification?: DataClassification | null;
   regulatoryHooks?: RegulatoryHook[] | null;
 }
@@ -147,7 +162,7 @@ export interface ContextUpdateInput {
   priority?: number;
   expiresAt?: string;
   updatedBy?: string | null;
-  lineOfBusiness?: LineOfBusiness | null;
+  orgId?: string | null;
   dataClassification?: DataClassification | null;
   regulatoryHooks?: RegulatoryHook[] | null;
 }
@@ -158,6 +173,8 @@ export type RevisionStatus = 'proposed' | 'approved' | 'rejected';
 export interface ContextRevision {
   id: string;
   contextId: string;
+  /** Semantic version number (from context_versions.version). */
+  version?: number;
   content: Record<string, unknown>;
   commitMessage: string | null;
   createdBy: string | null;
@@ -610,6 +627,12 @@ export interface RegisteredAgent {
   regulatoryScope: string[];
   /** Organization this agent belongs to (included in GET /agents/:id for display). */
   organization?: { id: string; name: string; slug: string } | null;
+  /** Contexts linked to this agent (from agent_contexts). */
+  linkedContexts?: { id: string; name: string }[];
+  /** Prompts linked to this agent (from agent_prompts). */
+  linkedPrompts?: { id: string; name: string }[];
+  /** Last time this agent communicated with Sandarb AI Governance Agent (from sandarb_access_logs). */
+  lastAccessedAt?: string | null;
 }
 
 export interface RegisteredAgentCreateInput {
@@ -714,4 +737,45 @@ export interface ActivityItem {
   resourceName: string;
   timestamp: string;
   metadata?: Record<string, unknown>;
+}
+
+// ============================================================================
+// REPORTS (AI Governance & Insights)
+// ============================================================================
+
+export interface ReportsOverview {
+  registeredAgentsCount: number;
+  unregisteredAgentsCount: number;
+  blockedInjectionsCount: number;
+  approvedContextsCount: number;
+  approvedPromptsCount: number;
+  accessTimeSeries: { date: string; success: number; denied: number }[];
+  agentStatusBreakdown: Record<string, number>;
+}
+
+export interface ReportsRegulatory {
+  contextVersionsByStatus: Record<string, number>;
+  promptVersionsByStatus: Record<string, number>;
+  dataClassificationCounts: Record<string, number>;
+  /** Agents count by regulatory scope tag (e.g. GDPR, FINRA). */
+  agentsByRegulatoryScope?: Record<string, number>;
+  /** Distinct agents linked to contexts by data classification. */
+  agentsByDataClassification?: Record<string, number>;
+}
+
+export interface ReportsCompliance {
+  totalAccessEvents: number;
+  successCount: number;
+  deniedCount: number;
+  promptUsedCount: number;
+  complianceTimeSeries: { date: string; total: number }[];
+  /** Agents count by PII handling (keys: "true" | "false"). */
+  agentsByPiiHandling?: Record<string, number>;
+}
+
+export interface ReportsPayload {
+  overview: ReportsOverview;
+  unregisteredAgents: UnauthenticatedDetection[];
+  regulatory: ReportsRegulatory;
+  compliance: ReportsCompliance;
 }

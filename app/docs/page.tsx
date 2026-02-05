@@ -187,7 +187,7 @@ export default async function DocsPage() {
 
   return (
     <DocsLayout tocGroups={tocGroups}>
-          <div className="w-full max-w-[65ch] mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-10">
+          <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-10">
             {/* Hero */}
             <div className="mb-10">
               <div className="flex items-center gap-3 mb-3">
@@ -349,14 +349,14 @@ export default async function DocsPage() {
 
           <H3WithAnchor>The Handshake (sequence)</H3WithAnchor>
           <P>Canonical flow from boot to inference and audit. The diagram below is rendered with Mermaid and shows the full handshake: check-in → get_prompt → validate_context → inference → audit_log.</P>
-          <div className="my-6 w-full">
+          <div className="w-full">
             <MermaidDiagram chart={HANDSHAKE_MERMAID} title="A2A handshake: Worker Agent, Sandarb, LLM" />
           </div>
 
           <H3WithAnchor>A2A flow: Example agents → Sandarb AI Governance Agent</H3WithAnchor>
           <P>Multiple Worker Agents (e.g. Support Bot, Trading Bot, Finance Bot) call the Sandarb AI Governance Agent via A2A for prompts, context validation, and audit. Below: an animated view of agents connecting to Sandarb, then the sequence of A2A calls.</P>
-          <div className="my-6 flex flex-col items-center gap-6 w-full">
-            <div className="w-full max-w-[280px] sm:max-w-xs">
+          <div className="flex flex-col gap-6 w-full">
+            <div className="w-full">
               <MultiAgentA2ADiagram />
             </div>
             <div className="w-full">
@@ -457,11 +457,11 @@ export default async function DocsPage() {
         <section id="sdks-python-node-go" className="scroll-mt-24 pt-6 border-t border-border/40">
           <H2WithAnchor id="sdks-python-node-go">SDKs (Python, Node, Go)</H2WithAnchor>
           <P>
-            The <InlineCode>sdks/</InlineCode> directory in the repo contains unified SDKs for Python, TypeScript/Node, and Go. Each implements the same interface (see <a href="#unified-sdk-interface" className="text-violet-600 dark:text-violet-400 hover:underline underline-offset-2">Unified SDK interface</a>). Additional SDKs (Java/Kotlin, C#/.NET) and REST/OpenAPI specs can be added under <InlineCode>sdks/</InlineCode> following the same contract.
+            The <InlineCode>sdk/</InlineCode> directory in the repo contains unified SDKs for Python, TypeScript/Node, and Go. Each implements the same interface (see <a href="#unified-sdk-interface" className="text-violet-600 dark:text-violet-400 hover:underline underline-offset-2">Unified SDK interface</a>). Additional SDKs (Java/Kotlin, C#/.NET) and REST/OpenAPI specs can be added under <InlineCode>sdk/</InlineCode> following the same contract.
           </P>
 
           <H3WithAnchor>Project structure</H3WithAnchor>
-          <DocsCodeBlock label="sdks/">{`sdks/
+          <DocsCodeBlock label="sdk/">{`sdk/
 ├── UNIFIED_INTERFACE.md   # Abstract interface all SDKs implement
 ├── README.md              # Build, test, usage
 ├── python/                # Python SDK (pydantic)
@@ -485,18 +485,18 @@ export default async function DocsPage() {
 
           <H3WithAnchor>Build and test</H3WithAnchor>
           <P><strong className="text-foreground">Prerequisites:</strong> Python 3.10+, Node 18+, Go 1.21+.</P>
-          <DocsCodeBlock label="Python">{`cd sdks/python
+          <DocsCodeBlock label="Python">{`cd sdk/python
 pip install -e .
 # Tests: pytest`}</DocsCodeBlock>
-          <DocsCodeBlock label="Node (TypeScript)">{`cd sdks/node
+          <DocsCodeBlock label="Node (TypeScript)">{`cd sdk/node
 npm install
 npm run build
 # Tests: npm test`}</DocsCodeBlock>
-          <DocsCodeBlock label="Go">{`cd sdks/go
+          <DocsCodeBlock label="Go">{`cd sdk/go
 go mod tidy
 go build ./...
 # Tests: go test ./...`}</DocsCodeBlock>
-          <P>From repo root, run all: <InlineCode>pip install -e sdks/python</InlineCode>; <InlineCode>(cd sdks/node &amp;&amp; npm install &amp;&amp; npm run build)</InlineCode>; <InlineCode>(cd sdks/go &amp;&amp; go mod tidy &amp;&amp; go build ./...)</InlineCode>.</P>
+          <P>From repo root, run all: <InlineCode>pip install -e sdk/python</InlineCode>; <InlineCode>(cd sdk/node &amp;&amp; npm install &amp;&amp; npm run build)</InlineCode>; <InlineCode>(cd sdk/go &amp;&amp; go mod tidy &amp;&amp; go build ./...)</InlineCode>.</P>
 
           <H3WithAnchor>Environment variables</H3WithAnchor>
           <div className="overflow-x-auto mb-4">
@@ -554,7 +554,7 @@ client.LogActivity("my-agent-id", "trace-123", map[string]interface{}{"query": "
             <li><strong className="text-foreground">Prompts pull</strong> – <InlineCode>GET /api/prompts/pull?name={'{prompt_name}'}</InlineCode> (optional <InlineCode>vars</InlineCode> for variables). Headers: <InlineCode>X-Sandarb-Agent-ID</InlineCode>, <InlineCode>X-Sandarb-Trace-ID</InlineCode>.</li>
             <li><strong className="text-foreground">Activity</strong> – <InlineCode>POST /api/audit/activity</InlineCode> with JSON body <InlineCode>{'{ agent_id, trace_id, inputs, outputs }'}</InlineCode>. Writes to <InlineCode>sandarb_access_logs</InlineCode> with <InlineCode>metadata = {'{ inputs, outputs }'}</InlineCode>.</li>
           </Ul>
-          <P>See <InlineCode>sdks/UNIFIED_INTERFACE.md</InlineCode> and <InlineCode>sdks/README.md</InlineCode> in the repo for the full contract and schema reference.</P>
+          <P>See <InlineCode>sdk/UNIFIED_INTERFACE.md</InlineCode> and <InlineCode>sdk/README.md</InlineCode> in the repo for the full contract and schema reference.</P>
         </section>
 
         <section id="quick-start" className="scroll-mt-24 pt-6 border-t border-border/40">

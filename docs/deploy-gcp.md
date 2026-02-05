@@ -7,7 +7,7 @@ Sandarb is containerized and can run on **Cloud Run** (serverless) or **GKE** (K
 ## Prerequisites
 
 - [Google Cloud SDK](https://cloud.google.com/sdk/docs/install) (`gcloud`) installed
-- Log in with your Google account (e.g. `sudhir@openint.ai`):  
+- Log in with your Google account (e.g. `you@example.com`):  
   `gcloud auth login`
 - A GCP project with billing enabled
 
@@ -16,9 +16,9 @@ Sandarb is containerized and can run on **Cloud Run** (serverless) or **GKE** (K
 If `gcloud builds submit` fails with **PERMISSION_DENIED**, your user needs these roles on the project. A project owner can grant them:
 
 ```bash
-# Replace PROJECT_ID (e.g. sandarb-ai) and USER (e.g. sudhir@openint.ai)
+# Replace PROJECT_ID (e.g. sandarb-ai) and USER (e.g. you@example.com)
 export PROJECT_ID=sandarb-ai
-export USER=sudhir@openint.ai
+export USER=you@example.com
 
 # Allow submitting Cloud Build jobs and uploading source
 gcloud projects add-iam-policy-binding $PROJECT_ID \

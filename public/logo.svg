@@ -9,7 +9,7 @@
   <!-- Background Circle -->
   <circle cx="60" cy="60" r="56" fill="url(#grad)"/>
 
-  <!-- OpenInt "O" with integration dots -->
+  <!-- Sandarb logo: O with integration dots -->
   <circle cx="60" cy="60" r="24" stroke="white" stroke-width="8" fill="none"/>
 
   <!-- Integration connection points -->

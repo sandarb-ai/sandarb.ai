@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { getAgentById } from '@/lib/api-client';
+import type { RegisteredAgent } from '@/types';
 import dynamic from 'next/dynamic';
 
 const AgentDetailClient = dynamic(
@@ -17,5 +18,5 @@ export default async function AgentDetailPage({ params }: PageProps) {
 
   if (!agent) notFound();
 
-  return <AgentDetailClient initialAgent={agent} />;
+  return <AgentDetailClient initialAgent={agent as RegisteredAgent} />;
 }

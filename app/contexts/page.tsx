@@ -15,10 +15,14 @@ export default async function ContextsPage({
   const offset = (page - 1) * PAGE_SIZE;
   let contexts: Context[] = [];
   let total = 0;
+  let totalActive = 0;
+  let totalDraft = 0;
   try {
     const result = await getContextsPaginated(PAGE_SIZE, offset);
     contexts = (result.contexts ?? []) as Context[];
     total = result.total ?? 0;
+    totalActive = result.totalActive ?? 0;
+    totalDraft = result.totalDraft ?? 0;
   } catch {
     // Fallback: empty list if backend not ready
   }
@@ -27,6 +31,8 @@ export default async function ContextsPage({
     <ContextsListClient
       initialContexts={contexts}
       total={total}
+      totalActive={totalActive}
+      totalDraft={totalDraft}
       page={page}
       pageSize={PAGE_SIZE}
     />

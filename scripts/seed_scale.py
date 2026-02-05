@@ -643,19 +643,19 @@ def main() -> None:
         existing_ctx = cur.fetchone()[0]
         contexts_to_add = max(0, n_contexts - existing_ctx)
         if contexts_to_add > 0:
-            lobs = LOB_TAGS
             for k in range(contexts_to_add):
                 name = real_world_context_name(k)
                 desc = real_world_context_description(k)
-                lob = pick(lobs, k)
+                topic = pick(CONTEXT_TOPICS, k)
+                org_id, org_slug = org_rows[k % len(org_rows)]
                 data_cls = pick(DATA_CLASS, k)
-                tags_json = json.dumps([topic.replace("-", "_"), lob.lower()])
+                tags_json = json.dumps([topic.replace("-", "_"), org_slug])
                 reg_json = json.dumps(["FINRA", "SEC"] if k % 2 == 0 else ["BSA", "Reg E"])
                 cur.execute("""
-                    INSERT INTO contexts (id, name, description, lob_tag, data_classification, owner_team, tags, regulatory_hooks)
+                    INSERT INTO contexts (id, name, description, org_id, data_classification, owner_team, tags, regulatory_hooks)
                     VALUES (%s, %s, %s, %s, %s, 'system', %s, %s)
                     ON CONFLICT (name) DO NOTHING
-                """, (str(uuid.uuid4()), name, desc, lob, data_cls, tags_json, reg_json))
+                """, (str(uuid.uuid4()), name, desc, org_id, data_cls, tags_json, reg_json))
             conn.commit()
             # Context versions (one v1.0.0 per context we just care about; do for all contexts for simplicity)
             cur.execute("SELECT c.id, c.name FROM contexts c WHERE NOT EXISTS (SELECT 1 FROM context_versions cv WHERE cv.context_id = c.id)")
@@ -666,16 +666,19 @@ def main() -> None:
                 h = sha64(content_json)
                 approver_u = pick(REAL_WORLD_USERNAMES, hash(ctx_name) % (2**31))
                 cur.execute("""
-                    INSERT INTO context_versions (id, context_id, version_label, content, sha256_hash, created_by, submitted_by, status, commit_message, approved_by, approved_at, is_active)
-                    VALUES (%s, %s, 'v1.0.0', %s::jsonb, %s, 'system', 'system', 'Approved', 'Initial version', %s, NOW(), true)
-                    ON CONFLICT (context_id, version_label) DO NOTHING
+                    INSERT INTO context_versions (id, context_id, version, content, sha256_hash, created_by, submitted_by, status, commit_message, approved_by, approved_at, is_active)
+                    VALUES (%s, %s, 1, %s::jsonb, %s, 'system', 'system', 'Approved', 'Initial version', %s, NOW(), true)
+                    ON CONFLICT (context_id, version) DO NOTHING
                 """, (str(uuid.uuid4()), ctx_id, content_json, h, f"@{approver_u}"))
             conn.commit()
             print(f"Contexts: added {contexts_to_add} with versions (target {n_contexts})")
         else:
             print(f"Contexts: already {existing_ctx}")
 
-        # 4. Prompts (real-world names and one approved version each)
+        # 4. Prompts (real-world names and one approved version each; org_id so organization is never empty)
+        cur.execute("SELECT id FROM organizations LIMIT 1")
+        default_org_row = cur.fetchone()
+        default_org_id = default_org_row[0] if default_org_row else None
         cur.execute("SELECT COUNT(*) FROM prompts")
         existing_pr = cur.fetchone()[0]
         prompts_to_add = max(0, n_prompts - existing_pr)
@@ -686,10 +689,10 @@ def main() -> None:
                 tags_json = json.dumps([topic, "governance"])
                 created_u = pick(REAL_WORLD_USERNAMES, k)
                 cur.execute("""
-                    INSERT INTO prompts (id, name, description, tags, created_by)
-                    VALUES (%s, %s, %s, %s, %s)
+                    INSERT INTO prompts (id, org_id, name, description, tags, created_by)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                     ON CONFLICT (name) DO NOTHING
-                """, (str(uuid.uuid4()), name, desc, tags_json, f"@{created_u}"))
+                """, (str(uuid.uuid4()), default_org_id, name, desc, tags_json, f"@{created_u}"))
             conn.commit()
             cur.execute("SELECT p.id, p.name FROM prompts p WHERE NOT EXISTS (SELECT 1 FROM prompt_versions pv WHERE pv.prompt_id = p.id)")
             new_prompts = cur.fetchall()

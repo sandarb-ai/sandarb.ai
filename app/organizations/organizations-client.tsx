@@ -4,13 +4,16 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { apiUrl } from '@/lib/api';
-import { Plus, Search, Building2, ExternalLink, Trash2 } from 'lucide-react';
+import { Plus, Search, Building2, ExternalLink, Trash2, Table2, LayoutGrid, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/empty-state';
+import { formatDateTime, cn } from '@/lib/utils';
 import type { Organization } from '@/types';
+
+type ViewMode = 'table' | 'card';
 
 // Design pattern: Cards are fully clickable with view icon on hover
 
@@ -22,6 +25,7 @@ export function OrganizationsPageClient({ initialOrgs }: OrganizationsPageClient
   const router = useRouter();
   const [orgs, setOrgs] = useState<Organization[]>(initialOrgs);
   const [search, setSearch] = useState('');
+  const [viewMode, setViewMode] = useState<ViewMode>('table');
 
   const handleDelete = async (id: string, isRoot: boolean) => {
     if (isRoot) {
@@ -38,9 +42,8 @@ export function OrganizationsPageClient({ initialOrgs }: OrganizationsPageClient
 
   const filtered = orgs.filter(
     (o) =>
-      !o.isRoot &&
-      (o.name.toLowerCase().includes(search.toLowerCase()) ||
-        o.slug.toLowerCase().includes(search.toLowerCase()))
+      o.name.toLowerCase().includes(search.toLowerCase()) ||
+      o.slug.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -52,15 +55,39 @@ export function OrganizationsPageClient({ initialOrgs }: OrganizationsPageClient
             Root org and sub-orgs. Create orgs under root for teams (data, marketing, ops, etc.).
           </p>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <div className="flex items-center gap-3">
+          <div className="relative shrink-0">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <Input
               placeholder="Search organizations..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-64 pl-9"
+              className="w-44 pl-9 h-9"
             />
+          </div>
+          <div className="flex rounded-md border border-input bg-background p-0.5 h-9 ml-auto" role="group">
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              className={cn(
+                'flex items-center gap-1.5 rounded px-2.5 text-sm font-medium transition-colors',
+                viewMode === 'table' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+              )}
+            >
+              <Table2 className="h-4 w-4" />
+              Table
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('card')}
+              className={cn(
+                'flex items-center gap-1.5 rounded px-2.5 text-sm font-medium transition-colors',
+                viewMode === 'card' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+              )}
+            >
+              <LayoutGrid className="h-4 w-4" />
+              Cards
+            </button>
           </div>
           <Link href="/organizations/new">
             <Button>
@@ -87,6 +114,69 @@ export function OrganizationsPageClient({ initialOrgs }: OrganizationsPageClient
               actionHref="/organizations/new"
             />
           )
+        ) : viewMode === 'table' ? (
+          <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/40">
+                    <th className="text-left py-3 px-4 font-medium text-muted-foreground">Organization</th>
+                    <th className="text-left py-3 px-4 font-medium text-muted-foreground w-24">Type</th>
+                    <th className="text-left py-3 px-4 font-medium text-muted-foreground w-32">Slug</th>
+                    <th className="text-left py-3 px-4 font-medium text-muted-foreground w-28">Updated</th>
+                    <th className="text-right py-3 px-4 font-medium text-muted-foreground w-20">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((org) => (
+                    <tr
+                      key={org.id}
+                      className="border-b border-border/60 last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
+                      onClick={() => router.push(`/organizations/${org.id}`)}
+                    >
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          <span className="font-medium truncate">{org.name}</span>
+                        </div>
+                        {(org.description || org.slug) && (
+                          <p className="text-xs text-muted-foreground truncate mt-0.5 pl-6 max-w-md">
+                            {org.description || `Slug: ${org.slug}`}
+                          </p>
+                        )}
+                      </td>
+                      <td className="py-3 px-4">
+                        {org.isRoot ? (
+                          <Badge variant="secondary" className="text-xs">Root</Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Sub-org</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-xs text-muted-foreground">
+                        {org.slug}
+                      </td>
+                      <td className="py-3 px-4 text-xs text-muted-foreground whitespace-nowrap">
+                        {formatDateTime(org.updatedAt)}
+                      </td>
+                      <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
+                        {!org.isRoot && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            aria-label="Delete organization"
+                            onClick={() => handleDelete(org.id, org.isRoot)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {filtered.map((org) => (
@@ -127,6 +217,10 @@ export function OrganizationsPageClient({ initialOrgs }: OrganizationsPageClient
                   <p className="text-sm text-muted-foreground line-clamp-2">
                     {org.description || `Slug: ${org.slug}`}
                   </p>
+                  <div className="mt-auto pt-2 border-t border-border/60 flex items-center gap-1 text-xs text-muted-foreground">
+                    <Clock className="h-3 w-3" />
+                    {formatDateTime(org.updatedAt)}
+                  </div>
                 </CardContent>
               </Card>
             ))}

@@ -23,6 +23,7 @@ from backend.services.agent_links import (
     link_prompt_to_agent,
     unlink_context_from_agent,
     unlink_prompt_from_agent,
+    get_agent_last_accessed_at_by_uuid,
 )
 
 router = APIRouter(prefix="/agents", tags=["agents"])
@@ -46,16 +47,26 @@ def post_agent(body: RegisteredAgentCreate):
 
 @router.get("/{agent_id}", response_model=ApiResponse)
 def get_agent(agent_id: str):
-    """GET /agents/:id - Get agent by id. Includes organization (id, name, slug) for display."""
+    """GET /agents/:id - Get agent by id. Includes organization, linked prompts/contexts, and last accessed."""
     agent = get_agent_by_id(agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
     data = agent.model_dump(by_alias=True)
+    
+    # Organization
     org = get_organization_by_id(agent.org_id)
     if org:
         data["organization"] = {"id": org.id, "name": org.name, "slug": org.slug}
     else:
         data["organization"] = None
+    
+    # Linked contexts and prompts
+    data["linkedContexts"] = list_contexts_for_agent(agent_id)
+    data["linkedPrompts"] = list_prompts_for_agent(agent_id)
+    
+    # Last communicated with Sandarb (from sandarb_access_logs)
+    data["lastAccessedAt"] = get_agent_last_accessed_at_by_uuid(agent_id)
+    
     return ApiResponse(success=True, data=data)
 
 

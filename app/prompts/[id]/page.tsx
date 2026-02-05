@@ -13,20 +13,12 @@ import {
   Check,
   XCircle,
   FileEdit,
-  MessageSquare,
-  Plus,
-  Shield,
-  Clock,
-  Hash,
   Copy,
   ExternalLink,
   Bot,
+  Building2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -55,47 +47,6 @@ const STATUS_LABELS: Record<PromptVersionStatus, string> = {
   archived: 'Archived',
 };
 
-function PullApiBar({ promptName }: { promptName: string }) {
-  const [copied, setCopied] = useState(false);
-  const agentId = 'sandarb-prompt-preview';
-  const traceId = 'test-1';
-  const apiPath = `/api/prompts/pull?name=${encodeURIComponent(promptName)}&agentId=${encodeURIComponent(agentId)}&traceId=${encodeURIComponent(traceId)}`;
-  const fullUrl = typeof window !== 'undefined' ? `${window.location.origin}${apiPath}` : apiPath;
-
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(fullUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleTest = () => {
-    if (typeof window !== 'undefined') window.open(fullUrl, '_blank', 'noopener');
-  };
-
-  return (
-    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border/80 bg-muted/30 px-4 py-2.5 mt-4">
-      <span className="inline-flex items-center gap-2 text-sm font-medium">
-        <span className="inline-flex items-center rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
-          Live
-        </span>
-        What your agent receives
-      </span>
-      <code className="flex-1 min-w-0 truncate rounded bg-muted/80 px-2 py-1 text-xs font-mono" title={fullUrl}>
-        GET {apiPath}
-      </code>
-      <div className="flex items-center gap-1.5">
-        <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={handleCopy}>
-          {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
-          {copied ? 'Copied' : 'Copy URL'}
-        </Button>
-        <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={handleTest}>
-          <ExternalLink className="h-3.5 w-3.5" />
-          Test API
-        </Button>
-      </div>
-    </div>
-  );
-}
 
 export default function PromptDetailPage() {
   const router = useRouter();
@@ -115,6 +66,7 @@ export default function PromptDetailPage() {
   const [autoApprove, setAutoApprove] = useState(true);
   const [activeTab, setActiveTab] = useState('content');
   const [diffVersion, setDiffVersion] = useState<PromptVersion | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (id) fetchPrompt();
@@ -181,16 +133,22 @@ export default function PromptDetailPage() {
   };
 
   const handleApprove = async (versionId: string) => {
+    const approvedBy = window.prompt('Enter your name (for Approved By):');
+    if (approvedBy == null || !approvedBy.trim()) return;
     try {
       const res = await fetch(apiUrl(`/api/prompts/${id}/versions/${versionId}/approve`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ approvedBy: approvedBy.trim() }),
       });
       if (res.ok) {
         fetchPrompt();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err?.detail || 'Failed to approve version');
       }
     } catch {
+      alert('Failed to approve version');
     }
   };
 
@@ -249,385 +207,348 @@ export default function PromptDetailPage() {
     );
   }
 
+  const apiPath = `/api/prompts/pull?name=${encodeURIComponent(prompt?.name || '')}&agentId=preview&traceId=test`;
+  const fullUrl = apiUrl(apiPath);
+
+  const handleCopyApi = async () => {
+    await navigator.clipboard.writeText(fullUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
-    <div className="flex flex-col h-full">
-      <header className="sticky top-0 z-10 flex items-center justify-between border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-6 py-3">
+    <div className="flex flex-col h-full bg-background">
+      {/* Clean header */}
+      <header className="flex items-center justify-between border-b px-6 py-4 bg-background shrink-0">
         <div className="flex items-center gap-4">
           <Link href="/prompts">
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground">
               <ArrowLeft className="h-4 w-4" />
+              Prompts
             </Button>
           </Link>
+          <div className="h-6 w-px bg-border" />
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-semibold tracking-tight font-mono">{prompt?.name}</h1>
-              {currentVersion ? (
-                <Badge variant="success">v{currentVersion.version}</Badge>
-              ) : (
-                <Badge variant="secondary">Draft</Badge>
+            <div className="flex items-center gap-3">
+              <h1 className="text-lg font-semibold font-mono">{prompt?.name}</h1>
+              {currentVersion && (
+                <Badge variant="outline" className="font-mono">v{currentVersion.version}</Badge>
               )}
             </div>
             {description && (
-              <p className="text-sm text-muted-foreground truncate max-w-md">{description}</p>
+              <p className="text-sm text-muted-foreground mt-0.5">{description}</p>
             )}
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {currentVersion ? (
+            <Badge variant="success" className="h-8 px-3 text-xs">Active</Badge>
+          ) : (
+            <Badge variant="secondary" className="h-8 px-3 text-xs">Draft</Badge>
+          )}
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
-            className="text-destructive hover:text-destructive"
+            className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
             onClick={handleDelete}
           >
             <Trash2 className="h-4 w-4" />
           </Button>
-          <Button size="sm" onClick={handleCreateVersion} disabled={creatingVersion || !newContent.trim()}>
-            <Save className="h-4 w-4 mr-1" />
-            {creatingVersion ? 'Saving...' : 'Save'}
-          </Button>
         </div>
       </header>
 
-      <div className="flex-1 p-6 overflow-auto flex flex-col min-h-0">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
-          <TabsList className="mb-4 shrink-0">
-            <TabsTrigger value="content" className="gap-2">
-              <FileEdit className="h-4 w-4" />
-              Edit
-            </TabsTrigger>
-            <TabsTrigger value="history" className="gap-2">
-              <History className="h-4 w-4" />
-              History ({history.length})
-            </TabsTrigger>
-            <TabsTrigger value="pending" className="gap-2">
-              <GitPullRequest className="h-4 w-4" />
-              Pending ({proposed.length})
-            </TabsTrigger>
-          </TabsList>
+      {/* Main content area */}
+      <div className="flex-1 flex min-h-0">
+        {/* Left: Editor and tabs */}
+        <div className="flex-1 flex flex-col min-h-0 min-w-0">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
+            <div className="flex items-center gap-1 px-6 py-3 border-b bg-muted/30 shrink-0">
+              <TabsList className="h-8 bg-transparent p-0 gap-1">
+                <TabsTrigger value="content" className="h-8 px-3 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">
+                  <FileEdit className="h-3.5 w-3.5 mr-1.5" />
+                  Edit
+                </TabsTrigger>
+                <TabsTrigger value="history" className="h-8 px-3 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">
+                  <History className="h-3.5 w-3.5 mr-1.5" />
+                  History
+                  {history.length > 0 && <span className="ml-1.5 text-xs text-muted-foreground">({history.length})</span>}
+                </TabsTrigger>
+                <TabsTrigger value="pending" className="h-8 px-3 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">
+                  <GitPullRequest className="h-3.5 w-3.5 mr-1.5" />
+                  Pending
+                  {proposed.length > 0 && <span className="ml-1.5 text-xs text-muted-foreground bg-amber-100 dark:bg-amber-900/50 px-1.5 py-0.5 rounded-full">{proposed.length}</span>}
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
-          <TabsContent value="content" className="mt-0 flex-1 min-h-0 flex flex-col">
-            <div className="grid gap-6 lg:grid-cols-[1fr,minmax(300px,360px)] min-h-0 h-[calc(100vh-160px)]">
-              {/* Left: Prompt editor + New version bar */}
-              <div className="flex flex-col gap-4 min-h-0 overflow-hidden">
-                <div className="flex flex-col min-h-0 flex-1">
-                  <div className="flex items-center justify-between mb-2 shrink-0">
-                    <h3 className="text-sm font-semibold text-foreground">Edit Prompt</h3>
-                    <p className="text-xs text-muted-foreground">
-                      Instructions on behavior, tone, and safety. Versioned and auditable.
-                    </p>
+            {/* Edit tab */}
+            <TabsContent value="content" className="mt-0 flex-1 flex flex-col min-h-0 m-0">
+              <div className="flex-1 min-h-0 p-6">
+                <textarea
+                  value={newContent}
+                  onChange={(e) => setNewContent(e.target.value)}
+                  className="w-full h-full p-5 font-mono text-sm leading-relaxed resize-none rounded-lg border bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                  placeholder="You are a helpful assistant..."
+                />
+              </div>
+              {/* Version & Commit section */}
+              <div className="border-t bg-muted/20 px-6 py-4 shrink-0">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-sm font-semibold">Save Changes</h3>
+                    <span className="text-xs text-amber-600 dark:text-amber-500 font-medium">* Change documentation required</span>
                   </div>
-                  <div className="flex-1 min-h-0 flex flex-col rounded-xl border border-border/80 overflow-hidden bg-background shadow-sm ring-1 ring-black/5 dark:ring-white/5">
-                    <textarea
-                      value={newContent}
-                      onChange={(e) => setNewContent(e.target.value)}
-                      className="flex-1 min-h-0 w-full p-4 font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring rounded-xl"
-                      placeholder="You are a helpful assistant. Follow company guidelines..."
-                    />
-                  </div>
+                  {currentVersion && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>Current:</span>
+                      <Badge variant="outline" className="font-mono">v{currentVersion.version}</Badge>
+                      <span>→</span>
+                      <Badge variant="secondary" className="font-mono">v{currentVersion.version + 1}</Badge>
+                    </div>
+                  )}
                 </div>
-                {/* New version: commit message + auto-approve + Save */}
-                <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border/80 bg-muted/30 px-4 py-3 shrink-0">
+                <div className="flex items-center gap-4">
                   <input
                     type="text"
                     value={newCommitMessage}
                     onChange={(e) => setNewCommitMessage(e.target.value)}
-                    placeholder="Commit message (required)"
-                    className="flex-1 min-w-[200px] h-9 rounded-md border border-input bg-background px-3 text-sm"
+                    placeholder="Describe your changes (required)..."
+                    className="flex-1 h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                   />
-                  <label className="flex items-center gap-2 cursor-pointer shrink-0">
+                  <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-muted-foreground">
                     <input
                       type="checkbox"
-                      id="autoApprove"
                       checked={autoApprove}
                       onChange={(e) => setAutoApprove(e.target.checked)}
-                      className="rounded border-input"
+                      className="rounded border-input h-4 w-4"
                     />
-                    <span className="text-xs text-muted-foreground">Auto-approve (skip review)</span>
+                    Auto-approve
                   </label>
                   <Button
-                    size="sm"
                     onClick={handleCreateVersion}
                     disabled={creatingVersion || !newContent.trim() || !newCommitMessage.trim()}
                   >
-                    <Save className="h-4 w-4 mr-1" />
-                    {creatingVersion ? 'Saving...' : 'Save new version'}
+                    <Save className="h-4 w-4 mr-2" />
+                    {creatingVersion ? 'Saving...' : 'Save version'}
                   </Button>
                 </div>
               </div>
+            </TabsContent>
 
-              {/* Right: Governance sidebar — current version, workflow, model */}
-              <div className="flex flex-col min-h-0 lg:sticky lg:top-[57px] lg:self-start lg:max-h-[calc(100vh-100px)] overflow-auto">
-                <Card className="border-l-4 border-l-primary shadow-sm">
-                  <CardHeader className="py-3 px-4">
-                    <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-                      <Shield className="h-3.5 w-3.5 text-primary" />
-                      Governance
-                    </CardTitle>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Versioning and approval for AI governance. All changes are auditable.
-                    </p>
-                  </CardHeader>
-                  <CardContent className="px-4 pb-4 pt-0 space-y-4">
-                    {/* Current active version */}
-                    <div>
-                      <h4 className="text-xs font-medium text-muted-foreground mb-1.5">Current active version</h4>
-                      {currentVersion ? (
-                        <div className="rounded-lg border border-border/60 bg-muted/30 p-3 space-y-1">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="success">v{currentVersion.version}</Badge>
-                            {currentVersion.model && (
-                              <span className="text-xs text-muted-foreground font-mono">{currentVersion.model}</span>
-                            )}
+            {/* History tab */}
+            <TabsContent value="history" className="mt-0 flex-1 min-h-0 m-0 overflow-auto">
+              <div className="p-6">
+                {history.length === 0 ? (
+                  <div className="text-center py-16">
+                    <History className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
+                    <p className="text-muted-foreground">No version history yet</p>
+                    <p className="text-sm text-muted-foreground mt-1">Save a version to see it here</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-w-4xl">
+                    {historyByVersion.map((v, idx) => {
+                      const isActive = v.status === 'approved' && idx === 0;
+                      return (
+                        <div 
+                          key={v.id} 
+                          className={`rounded-lg border p-4 transition-all hover:shadow-sm ${isActive ? 'border-primary/50 bg-primary/5' : 'bg-card'}`}
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="font-mono font-semibold">v{v.version}</span>
+                                <Badge variant={STATUS_COLORS[v.status]}>{STATUS_LABELS[v.status]}</Badge>
+                                {isActive && <Badge variant="outline" className="border-primary/50 text-primary">Active</Badge>}
+                              </div>
+                              <p className="text-sm font-medium mb-2">{v.commitMessage || 'No commit message'}</p>
+                              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                                <span>{formatDate(v.createdAt)}</span>
+                                {v.approvedBy && (
+                                  <span className="flex items-center gap-1">
+                                    <Check className="h-3 w-3 text-green-600" />
+                                    {formatApprovedBy(v.approvedBy)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <Button variant="outline" size="sm" onClick={() => setDiffVersion(v)}>
+                              View diff
+                            </Button>
                           </div>
-                          {currentVersion.approvedBy && (
-                            <p className="text-xs text-muted-foreground">Approved by {formatApprovedBy(currentVersion.approvedBy)}</p>
-                          )}
-                          {currentVersion.approvedAt && (
-                            <p className="text-xs text-muted-foreground">{formatDate(currentVersion.approvedAt)}</p>
-                          )}
-                          <pre className="text-xs font-mono whitespace-pre-wrap max-h-24 overflow-hidden mt-2 border-t border-border/40 pt-2">
-                            {currentVersion.content.slice(0, 400)}{currentVersion.content.length > 400 ? '...' : ''}
-                          </pre>
                         </div>
-                      ) : (
-                        <p className="text-sm text-muted-foreground rounded-lg border border-dashed border-border/60 p-3">
-                          No active version yet. Save a version with Auto-approve or submit for review.
-                        </p>
-                      )}
-                    </div>
-                    {/* Approval workflow */}
-                    <div>
-                      <h4 className="text-xs font-medium text-muted-foreground mb-1.5">Approval workflow</h4>
-                      <p className="text-xs text-muted-foreground">
-                        Draft → Pending Review → Approved. The latest approved version is what agents use. Require sign-off for production (uncheck Auto-approve).
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-                {/* Linked agents: which agent(s) this prompt belongs to */}
-                <Card className="border-l-4 border-l-muted shadow-sm">
-                  <CardHeader className="py-3 px-4">
-                    <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-                      <Bot className="h-3.5 w-3.5 text-muted-foreground" />
-                      Linked agents
-                    </CardTitle>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      This prompt is available to these agents when they pull by name.
-                    </p>
-                  </CardHeader>
-                  <CardContent className="px-4 pb-4 pt-0">
-                    {(prompt?.agents?.length ?? 0) > 0 ? (
-                      <ul className="space-y-1.5">
-                        {prompt.agents!.map((a) => (
-                          <li key={a.id}>
-                            <Link
-                              href={`/agents/${a.id}`}
-                              className="text-sm font-medium text-primary hover:underline"
-                            >
-                              {a.name}
-                              {a.agentId && (
-                                <span className="text-muted-foreground font-normal ml-1 font-mono text-xs">
-                                  ({a.agentId})
-                                </span>
-                              )}
-                            </Link>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-sm text-muted-foreground italic">Not linked to any agent</p>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* What your agent receives: pull API */}
-                {prompt?.name && (
-                  <PullApiBar promptName={prompt.name} />
+                      );
+                    })}
+                  </div>
                 )}
               </div>
-            </div>
-          </TabsContent>
+            </TabsContent>
 
-          <TabsContent value="history" className="mt-0">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <History className="h-4 w-4" />
-                  Version History
-                </CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  All approved, rejected, and archived versions. The latest approved version is active. Click &quot;View diff&quot; to compare with the previous version.
-                </p>
-              </CardHeader>
-              <CardContent className="p-0">
-                {history.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-6 text-center px-6">
-                    No version history yet. Create and approve a version to see history.
-                  </p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-border bg-muted/50">
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">Version</th>
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">Status</th>
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">Created</th>
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">Created by</th>
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">Submitted by</th>
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">Approved by</th>
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">Modified</th>
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">Modified by</th>
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">Commit Message</th>
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground max-w-md">Content Preview</th>
-                          <th className="text-right py-3 px-4 font-medium text-muted-foreground">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {history.map((v) => (
-                          <tr key={v.id} className="border-b border-border/80 hover:bg-muted/20 align-top">
-                            <td className="py-3 px-4 font-mono">v{v.version}</td>
-                            <td className="py-3 px-4">
-                              <Badge variant={STATUS_COLORS[v.status]}>
-                                {STATUS_LABELS[v.status]}
-                              </Badge>
-                            </td>
-                            <td className="py-3 px-4 whitespace-nowrap text-muted-foreground">
-                              {formatDate(v.createdAt)}
-                            </td>
-                            <td className="py-3 px-4 whitespace-nowrap">{formatApprovedBy(v.createdBy)}</td>
-                            <td className="py-3 px-4 whitespace-nowrap">{formatApprovedBy(v.submittedBy)}</td>
-                            <td className="py-3 px-4 whitespace-nowrap">
-                              {formatApprovedBy(v.approvedBy)}
-                              {v.approvedAt && <span className="block text-xs text-muted-foreground">{formatDate(v.approvedAt)}</span>}
-                            </td>
-                            <td className="py-3 px-4 whitespace-nowrap text-muted-foreground">
-                              {v.updatedAt ? formatDate(v.updatedAt) : '—'}
-                            </td>
-                            <td className="py-3 px-4 whitespace-nowrap">{formatApprovedBy(v.updatedBy)}</td>
-                            <td className="py-3 px-4 max-w-[12rem]">
-                              <p className="truncate" title={v.commitMessage || undefined}>
-                                {v.commitMessage || 'No message'}
-                              </p>
-                            </td>
-                            <td className="py-3 px-4 max-w-md">
-                              <pre className="text-xs font-mono bg-muted rounded p-2 overflow-hidden max-h-20 whitespace-pre-wrap">
-                                {v.content.slice(0, 200)}{v.content.length > 200 ? '...' : ''}
-                              </pre>
-                            </td>
-                            <td className="py-3 px-4 text-right">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setDiffVersion(v)}
-                              >
-                                View diff
-                              </Button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-        {/* Version diff dialog: compare selected version with previous */}
-        <Dialog open={!!diffVersion} onOpenChange={(open) => !open && setDiffVersion(null)}>
-          <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
-            <DialogHeader>
-              <DialogTitle>Version diff</DialogTitle>
-            </DialogHeader>
-            {diffVersion && (
-              <TextDiffView
-                oldText={getPreviousVersionInHistory(diffVersion)?.content ?? ''}
-                newText={diffVersion.content}
-                oldLabel={getPreviousVersionInHistory(diffVersion) ? `v${getPreviousVersionInHistory(diffVersion)!.version}` : '(none)'}
-                newLabel={`v${diffVersion.version}`}
-                className="flex-1 min-h-0"
-              />
-            )}
-          </DialogContent>
-        </Dialog>
-          </TabsContent>
-
-          <TabsContent value="pending" className="mt-0">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <GitPullRequest className="h-4 w-4" />
-                  Pending Review
-                </CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Proposed versions waiting for approval. Review and approve or reject.
-                </p>
-              </CardHeader>
-              <CardContent className="p-0">
+            {/* Pending tab */}
+            <TabsContent value="pending" className="mt-0 flex-1 min-h-0 m-0 overflow-auto">
+              <div className="p-6">
                 {proposed.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-6 text-center px-6">
-                    No pending versions. Use "Create New Version" on the Edit tab to propose changes.
-                  </p>
+                  <div className="text-center py-16">
+                    <GitPullRequest className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
+                    <p className="text-muted-foreground">No pending versions</p>
+                    <p className="text-sm text-muted-foreground mt-1">Uncheck auto-approve when saving to create a pending version</p>
+                  </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-border bg-muted/50">
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">Version</th>
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">Created</th>
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">Commit Message</th>
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground max-w-md">Content</th>
-                          <th className="text-right py-3 px-4 font-medium text-muted-foreground">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {proposed.map((v) => (
-                          <tr key={v.id} className="border-b border-border/80 hover:bg-muted/20 align-top">
-                            <td className="py-3 px-4 font-mono">v{v.version}</td>
-                            <td className="py-3 px-4 whitespace-nowrap text-muted-foreground">
-                              {formatDate(v.createdAt)}
-                              {v.createdBy && <span className="block text-xs">by {v.createdBy}</span>}
-                            </td>
-                            <td className="py-3 px-4 max-w-[12rem]">
-                              <p className="truncate font-medium" title={v.commitMessage || undefined}>
-                                {v.commitMessage || 'No message'}
-                              </p>
-                            </td>
-                            <td className="py-3 px-4 max-w-md">
-                              <pre className="text-xs font-mono bg-muted rounded p-2 overflow-hidden max-h-32 whitespace-pre-wrap">
-                                {v.content}
-                              </pre>
-                            </td>
-                            <td className="py-3 px-4 text-right whitespace-nowrap">
-                              <Button
-                                size="sm"
-                                variant="approve"
-                                className="mr-1"
-                                onClick={() => handleApprove(v.id)}
-                              >
-                                <Check className="h-4 w-4 mr-1" />
-                                Approve
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="text-destructive"
-                                onClick={() => handleReject(v.id)}
-                              >
-                                <XCircle className="h-4 w-4 mr-1" />
-                                Reject
-                              </Button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="space-y-3 max-w-4xl">
+                    {proposed.map((v) => (
+                      <div 
+                        key={v.id} 
+                        className="rounded-lg border border-amber-200 dark:border-amber-800/50 bg-amber-50/50 dark:bg-amber-950/20 p-4"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="font-mono font-semibold">v{v.version}</span>
+                              <Badge variant="pending_review">Pending</Badge>
+                            </div>
+                            <p className="text-sm font-medium mb-2">{v.commitMessage || 'No commit message'}</p>
+                            <p className="text-xs text-muted-foreground">{formatDate(v.createdAt)}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button variant="outline" size="sm" onClick={() => setDiffVersion(v)}>
+                              Diff
+                            </Button>
+                            <Button size="sm" variant="approve" onClick={() => handleApprove(v.id)}>
+                              <Check className="h-4 w-4 mr-1" />
+                              Approve
+                            </Button>
+                            <Button size="sm" variant="outline" className="text-destructive" onClick={() => handleReject(v.id)}>
+                              <XCircle className="h-4 w-4 mr-1" />
+                              Reject
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </div>
+
+        {/* Right sidebar - minimal and clean */}
+        <aside className="w-72 border-l bg-muted/10 p-5 overflow-auto shrink-0 hidden lg:block">
+          <div className="space-y-6">
+            {/* Active version */}
+            {currentVersion && (
+              <section>
+                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">Active Version</h3>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="success" className="font-mono">v{currentVersion.version}</Badge>
+                    {currentVersion.model && (
+                      <span className="text-xs font-mono text-muted-foreground">{currentVersion.model}</span>
+                    )}
+                  </div>
+                  {currentVersion.approvedBy && (
+                    <p className="text-xs text-muted-foreground">
+                      Approved by {formatApprovedBy(currentVersion.approvedBy)}
+                    </p>
+                  )}
+                  {currentVersion.approvedAt && (
+                    <p className="text-xs text-muted-foreground">{formatDate(currentVersion.approvedAt)}</p>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {/* Organizations */}
+            {(prompt?.organizations?.length ?? 0) > 0 && (
+              <section>
+                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                  <Building2 className="h-3 w-3" />
+                  Organizations
+                </h3>
+                <div className="flex flex-wrap gap-1.5">
+                  {prompt.organizations!.map((org) => (
+                    <Link
+                      key={org.id}
+                      href={`/organizations/${org.id}`}
+                      className="text-xs bg-muted hover:bg-muted/80 px-2 py-1 rounded transition-colors"
+                    >
+                      {org.name}
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Linked agents */}
+            <section>
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                <Bot className="h-3 w-3" />
+                Linked Agents
+              </h3>
+              {(prompt?.agents?.length ?? 0) > 0 ? (
+                <ul className="space-y-1.5">
+                  {prompt.agents!.map((a) => (
+                    <li key={a.id}>
+                      <Link
+                        href={`/agents/${a.id}`}
+                        className="text-sm text-primary hover:underline"
+                      >
+                        {a.name}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-muted-foreground">No linked agents</p>
+              )}
+            </section>
+
+            {/* API endpoint */}
+            {prompt?.name && (
+              <section>
+                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">API Endpoint</h3>
+                <code className="block text-[11px] font-mono bg-muted rounded px-2 py-2 break-all mb-3">
+                  GET {fullUrl}
+                </code>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" className="flex-1 h-8 text-xs" onClick={handleCopyApi}>
+                    {copied ? <Check className="h-3 w-3 mr-1 text-green-600" /> : <Copy className="h-3 w-3 mr-1" />}
+                    {copied ? 'Copied' : 'Copy'}
+                  </Button>
+                  <Button variant="outline" size="sm" className="flex-1 h-8 text-xs" onClick={() => window.open(fullUrl, '_blank')}>
+                    <ExternalLink className="h-3 w-3 mr-1" />
+                    Test
+                  </Button>
+                </div>
+              </section>
+            )}
+          </div>
+        </aside>
       </div>
+
+      {/* Version diff dialog */}
+      <Dialog open={!!diffVersion} onOpenChange={(open) => !open && setDiffVersion(null)}>
+        <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              Version diff
+              {diffVersion && (
+                <Badge variant="outline" className="font-mono">
+                  {getPreviousVersionInHistory(diffVersion) ? `v${getPreviousVersionInHistory(diffVersion)!.version}` : '(none)'} → v{diffVersion.version}
+                </Badge>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          {diffVersion && (
+            <TextDiffView
+              oldText={getPreviousVersionInHistory(diffVersion)?.content ?? ''}
+              newText={diffVersion.content}
+              oldLabel={getPreviousVersionInHistory(diffVersion) ? `v${getPreviousVersionInHistory(diffVersion)!.version}` : '(none)'}
+              newLabel={`v${diffVersion.version}`}
+              className="flex-1 min-h-0"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

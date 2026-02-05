@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS contexts (
 CREATE TABLE IF NOT EXISTS context_versions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   context_id UUID NOT NULL REFERENCES contexts(id) ON DELETE CASCADE,
-  version_label TEXT NOT NULL,
+  version INTEGER NOT NULL,
   content JSONB NOT NULL,
   sha256_hash TEXT NOT NULL,
   status TEXT DEFAULT 'Pending' CHECK (status IN ('Draft', 'Pending', 'Approved', 'Archived')),
@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS context_versions (
   updated_by TEXT,
   is_active BOOLEAN DEFAULT FALSE,
   commit_message TEXT,
-  UNIQUE(context_id, version_label)
+  UNIQUE(context_id, version)
 );
 
 CREATE INDEX IF NOT EXISTS idx_context_versions_context_id ON context_versions(context_id);
@@ -60,6 +60,8 @@ CREATE TABLE IF NOT EXISTS sandarb_access_logs (
   trace_id TEXT NOT NULL,
   version_id UUID REFERENCES context_versions(id),
   context_id UUID REFERENCES contexts(id),
+  prompt_id UUID,
+  prompt_version_id UUID,
   accessed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   request_ip TEXT,
   metadata JSONB
@@ -130,6 +132,16 @@ CREATE TABLE IF NOT EXISTS agents (
 
 CREATE INDEX IF NOT EXISTS idx_agents_org_id ON agents(org_id);
 
+-- Agent–Context links (references agents and contexts)
+CREATE TABLE IF NOT EXISTS agent_contexts (
+  agent_id UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+  context_id UUID NOT NULL REFERENCES contexts(id) ON DELETE CASCADE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  PRIMARY KEY (agent_id, context_id)
+);
+CREATE INDEX IF NOT EXISTS idx_agent_contexts_agent_id ON agent_contexts(agent_id);
+CREATE INDEX IF NOT EXISTS idx_agent_contexts_context_id ON agent_contexts(context_id);
+
 -- Settings
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
@@ -180,6 +192,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_service_accounts_client_id ON service_acco
 -- Prompts (the "Employee Handbook" for AI agents)
 CREATE TABLE IF NOT EXISTS prompts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id UUID REFERENCES organizations(id) ON DELETE SET NULL,
   name TEXT UNIQUE NOT NULL,
   description TEXT,
   tags TEXT DEFAULT '[]',
@@ -215,6 +228,16 @@ CREATE TABLE IF NOT EXISTS prompt_versions (
 CREATE INDEX IF NOT EXISTS idx_prompt_versions_prompt_id ON prompt_versions(prompt_id);
 CREATE INDEX IF NOT EXISTS idx_prompt_versions_status ON prompt_versions(status);
 
+-- Agent–Prompt links (references agents and prompts)
+CREATE TABLE IF NOT EXISTS agent_prompts (
+  agent_id UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+  prompt_id UUID NOT NULL REFERENCES prompts(id) ON DELETE CASCADE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  PRIMARY KEY (agent_id, prompt_id)
+);
+CREATE INDEX IF NOT EXISTS idx_agent_prompts_agent_id ON agent_prompts(agent_id);
+CREATE INDEX IF NOT EXISTS idx_agent_prompts_prompt_id ON agent_prompts(prompt_id);
+
 -- Add foreign key for current_version_id after prompt_versions exists
 ALTER TABLE prompts DROP CONSTRAINT IF EXISTS fk_prompts_current_version;
 DO $$ BEGIN
@@ -239,6 +262,44 @@ MIGRATIONS = [
     "DO $$ BEGIN ALTER TABLE context_versions ADD COLUMN updated_by TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$",
     "CREATE TABLE IF NOT EXISTS service_accounts (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), client_id TEXT NOT NULL UNIQUE, secret_hash TEXT NOT NULL, agent_id TEXT NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(), updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW())",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_service_accounts_client_id ON service_accounts(client_id)",
+    # Agent links tables
+    "CREATE TABLE IF NOT EXISTS agent_contexts (agent_id UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE, context_id UUID NOT NULL REFERENCES contexts(id) ON DELETE CASCADE, created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(), PRIMARY KEY (agent_id, context_id))",
+    "CREATE INDEX IF NOT EXISTS idx_agent_contexts_agent_id ON agent_contexts(agent_id)",
+    "CREATE INDEX IF NOT EXISTS idx_agent_contexts_context_id ON agent_contexts(context_id)",
+    "CREATE TABLE IF NOT EXISTS agent_prompts (agent_id UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE, prompt_id UUID NOT NULL REFERENCES prompts(id) ON DELETE CASCADE, created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(), PRIMARY KEY (agent_id, prompt_id))",
+    "CREATE INDEX IF NOT EXISTS idx_agent_prompts_agent_id ON agent_prompts(agent_id)",
+    "CREATE INDEX IF NOT EXISTS idx_agent_prompts_prompt_id ON agent_prompts(prompt_id)",
+    # sandarb_access_logs columns for prompts
+    "DO $$ BEGIN ALTER TABLE sandarb_access_logs ADD COLUMN prompt_id UUID; EXCEPTION WHEN duplicate_column THEN NULL; END $$",
+    "DO $$ BEGIN ALTER TABLE sandarb_access_logs ADD COLUMN prompt_version_id UUID; EXCEPTION WHEN duplicate_column THEN NULL; END $$",
+    # Migrate context_versions.version_label (TEXT) to version (INTEGER)
+    "DO $$ BEGIN ALTER TABLE context_versions RENAME COLUMN version_label TO version; EXCEPTION WHEN undefined_column THEN NULL; END $$",
+    """DO $$
+    BEGIN
+      IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'context_versions' AND column_name = 'version' AND data_type = 'text') THEN
+        ALTER TABLE context_versions ADD COLUMN IF NOT EXISTS version_new INTEGER;
+        UPDATE context_versions SET version_new = sub.ord FROM (SELECT id, (ROW_NUMBER() OVER (PARTITION BY context_id ORDER BY created_at))::integer AS ord FROM context_versions) sub WHERE context_versions.id = sub.id;
+        ALTER TABLE context_versions DROP COLUMN version;
+        ALTER TABLE context_versions RENAME COLUMN version_new TO version;
+        ALTER TABLE context_versions ALTER COLUMN version SET NOT NULL;
+        ALTER TABLE context_versions DROP CONSTRAINT IF EXISTS context_versions_context_id_version_label_key;
+        ALTER TABLE context_versions ADD CONSTRAINT context_versions_context_id_version_key UNIQUE (context_id, version);
+      END IF;
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END $$""",
+    # Prompt versions: approved_by required when status = 'Approved'; backfill any row that is approved or is current version
+    "UPDATE prompt_versions SET approved_by = COALESCE(NULLIF(trim(approved_by), ''), 'system'), approved_at = COALESCE(approved_at, created_at) WHERE (approved_by IS NULL OR trim(approved_by) = '') AND (LOWER(COALESCE(status, '')) = 'approved' OR id IN (SELECT current_version_id FROM prompts WHERE current_version_id IS NOT NULL))",
+    "ALTER TABLE prompt_versions DROP CONSTRAINT IF EXISTS chk_prompt_versions_approved_by",
+    "ALTER TABLE prompt_versions ADD CONSTRAINT chk_prompt_versions_approved_by CHECK (LOWER(COALESCE(status, '')) <> 'approved' OR (approved_by IS NOT NULL AND trim(approved_by) <> ''))",
+    # Drop LOB (lob_tag) and add org_id to contexts (backfill with random non-root org, not Sandarb HQ)
+    "DO $$ BEGIN ALTER TABLE contexts ADD COLUMN org_id UUID REFERENCES organizations(id); EXCEPTION WHEN duplicate_column THEN NULL; END $$",
+    "UPDATE contexts SET org_id = (SELECT id FROM organizations WHERE is_root = false ORDER BY random() LIMIT 1) WHERE org_id IS NULL AND EXISTS (SELECT 1 FROM organizations WHERE is_root = false)",
+    "ALTER TABLE contexts DROP COLUMN IF EXISTS lob_tag",
+    # Prompts: add org_id and backfill so every prompt has an organization (from first linked agent, else first org)
+    "DO $$ BEGIN ALTER TABLE prompts ADD COLUMN org_id UUID REFERENCES organizations(id) ON DELETE SET NULL; EXCEPTION WHEN duplicate_column THEN NULL; END $$",
+    "UPDATE prompts p SET org_id = (SELECT a.org_id FROM agents a INNER JOIN agent_prompts ap ON ap.agent_id = a.id WHERE ap.prompt_id = p.id LIMIT 1) WHERE p.org_id IS NULL AND EXISTS (SELECT 1 FROM agent_prompts ap2 INNER JOIN agents a2 ON a2.id = ap2.agent_id WHERE ap2.prompt_id = p.id)",
+    "UPDATE prompts SET org_id = (SELECT id FROM organizations ORDER BY name LIMIT 1) WHERE org_id IS NULL AND EXISTS (SELECT 1 FROM organizations LIMIT 1)",
+    "CREATE INDEX IF NOT EXISTS idx_prompts_org_id ON prompts(org_id)",
 ]
 
 

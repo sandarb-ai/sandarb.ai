@@ -12,7 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { formatRelativeTime, truncate, toTagList } from '@/lib/utils';
+import { formatDateTime, truncate, toTagList } from '@/lib/utils';
 import type { Context } from '@/types';
 
 interface ContextCardProps {
@@ -84,9 +84,9 @@ export function ContextCard({ context, onDelete }: ContextCardProps) {
 
             {/* Compliance metadata (system-enforced) */}
             <div className="flex flex-wrap gap-1">
-              {context.lineOfBusiness && (
-                <Badge variant="secondary" className="text-xs capitalize">
-                  {context.lineOfBusiness.replace('_', ' ')}
+              {context.organization?.name && (
+                <Badge variant="secondary" className="text-xs">
+                  {context.organization.name}
                 </Badge>
               )}
               {context.dataClassification && (
@@ -142,7 +142,7 @@ export function ContextCard({ context, onDelete }: ContextCardProps) {
                 )}
               </div>
               <span className="text-xs text-muted-foreground">
-                {formatRelativeTime(context.updatedAt)}
+                {formatDateTime(context.updatedAt)}
               </span>
             </div>
           </div>
