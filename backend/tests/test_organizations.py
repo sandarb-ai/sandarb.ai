@@ -9,9 +9,10 @@ class TestOrganizationsCRUD:
     """Test suite for organizations API endpoints."""
 
     @pytest.fixture(autouse=True)
-    def setup_and_teardown(self, client):
+    def setup_and_teardown(self, client, write_headers):
         """Setup and teardown for each test."""
         self.client = client
+        self.write_headers = write_headers
         self.created_ids = []
         yield
         # Cleanup created test organizations (in reverse order due to FK constraints)
@@ -51,6 +52,7 @@ class TestOrganizationsCRUD:
                 "slug": slug,
                 "description": "Test organization description",
             },
+            headers=self.write_headers,
         )
         assert response.status_code in [200, 201]
         data = response.json()
@@ -66,6 +68,7 @@ class TestOrganizationsCRUD:
         response1 = self.client.post(
             "/api/organizations",
             json={"name": "First Org", "slug": slug},
+            headers=self.write_headers,
         )
         assert response1.status_code in [200, 201]
         self.created_ids.append(response1.json()["data"]["id"])
@@ -74,6 +77,7 @@ class TestOrganizationsCRUD:
         response2 = self.client.post(
             "/api/organizations",
             json={"name": "Second Org", "slug": slug},
+            headers=self.write_headers,
         )
         assert response2.status_code in [400, 409, 500]
 
@@ -84,6 +88,7 @@ class TestOrganizationsCRUD:
         create_response = self.client.post(
             "/api/organizations",
             json={"name": "Get Test Org", "slug": slug},
+            headers=self.write_headers,
         )
         org_id = create_response.json()["data"]["id"]
         self.created_ids.append(org_id)
@@ -108,6 +113,7 @@ class TestOrganizationsCRUD:
         create_response = self.client.post(
             "/api/organizations",
             json={"name": "Update Test Org", "slug": slug, "description": "Original"},
+            headers=self.write_headers,
         )
         org_id = create_response.json()["data"]["id"]
         self.created_ids.append(org_id)
@@ -116,6 +122,7 @@ class TestOrganizationsCRUD:
         response = self.client.patch(
             f"/api/organizations/{org_id}",
             json={"description": "Updated description"},
+            headers=self.write_headers,
         )
         assert response.status_code == 200
         data = response.json()
@@ -129,11 +136,12 @@ class TestOrganizationsCRUD:
         create_response = self.client.post(
             "/api/organizations",
             json={"name": "Delete Test Org", "slug": slug},
+            headers=self.write_headers,
         )
         org_id = create_response.json()["data"]["id"]
 
         # Delete
-        response = self.client.delete(f"/api/organizations/{org_id}")
+        response = self.client.delete(f"/api/organizations/{org_id}", headers=self.write_headers)
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
@@ -145,7 +153,7 @@ class TestOrganizationsCRUD:
     def test_delete_organization_not_found(self):
         """Test DELETE /api/organizations/{id} with non-existent ID."""
         fake_id = str(uuid.uuid4())
-        response = self.client.delete(f"/api/organizations/{fake_id}")
+        response = self.client.delete(f"/api/organizations/{fake_id}", headers=self.write_headers)
         assert response.status_code == 404
 
     def test_create_child_organization(self):
@@ -155,6 +163,7 @@ class TestOrganizationsCRUD:
         parent_response = self.client.post(
             "/api/organizations",
             json={"name": "Parent Org", "slug": parent_slug},
+            headers=self.write_headers,
         )
         parent_id = parent_response.json()["data"]["id"]
         self.created_ids.append(parent_id)
@@ -168,6 +177,7 @@ class TestOrganizationsCRUD:
                 "slug": child_slug,
                 "parentId": parent_id,
             },
+            headers=self.write_headers,
         )
         assert child_response.status_code in [200, 201]
         child_data = child_response.json()
@@ -179,9 +189,10 @@ class TestOrganizationAgents:
     """Test suite for organization agents relationship."""
 
     @pytest.fixture(autouse=True)
-    def setup_and_teardown(self, client):
+    def setup_and_teardown(self, client, write_headers):
         """Setup and teardown for each test."""
         self.client = client
+        self.write_headers = write_headers
         self.created_org_ids = []
         self.created_agent_ids = []
         yield
@@ -204,6 +215,7 @@ class TestOrganizationAgents:
         org_response = self.client.post(
             "/api/organizations",
             json={"name": "Org With Agents", "slug": slug},
+            headers=self.write_headers,
         )
         org_id = org_response.json()["data"]["id"]
         self.created_org_ids.append(org_id)
@@ -216,6 +228,7 @@ class TestOrganizationAgents:
                 "name": "Test Agent",
                 "a2aUrl": "http://localhost:8001/agent",
             },
+            headers=self.write_headers,
         )
         if agent_response.status_code == 200:
             self.created_agent_ids.append(agent_response.json()["data"]["id"])

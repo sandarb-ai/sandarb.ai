@@ -47,3 +47,16 @@ export async function verifyToken(token: string) {
     return null; // Invalid or expired
   }
 }
+
+/** Session JWT for UI write access: backend verifies and checks email in WRITE_ALLOWED_EMAILS. */
+const SESSION_JWT_EXPIRY = '7d';
+
+export async function signSessionToken(email: string): Promise<string> {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized) throw new Error('email is required for session token');
+  return new SignJWT({ email: normalized })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime(SESSION_JWT_EXPIRY)
+    .sign(getCachedSecret());
+}

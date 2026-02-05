@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, getWriteAuthHeaders } from '@/lib/api';
 import { ArrowLeft, Plus, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -57,7 +57,7 @@ export default function NewPromptPage() {
     try {
       const res = await fetch(apiUrl('/api/prompts'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getWriteAuthHeaders() },
         body: JSON.stringify({
           name: name.trim(),
           description: description.trim() || undefined,

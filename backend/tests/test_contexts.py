@@ -9,9 +9,10 @@ class TestContextsCRUD:
     """Test suite for contexts API endpoints."""
 
     @pytest.fixture(autouse=True)
-    def setup_and_teardown(self, client):
+    def setup_and_teardown(self, client, write_headers):
         """Setup and teardown for each test."""
         self.client = client
+        self.write_headers = write_headers
         self.created_ids = []
         yield
         # Cleanup created test contexts
@@ -91,6 +92,7 @@ class TestContextsCRUD:
                 "isActive": True,
                 "content": {"updated": True},
             },
+            headers=self.write_headers,
         )
         assert response.status_code == 200
         data = response.json()
@@ -103,6 +105,7 @@ class TestContextsCRUD:
         response = self.client.put(
             f"/api/contexts/{fake_id}",
             json={"description": "Should fail"},
+            headers=self.write_headers,
         )
         assert response.status_code == 404
 
@@ -117,7 +120,7 @@ class TestContextsCRUD:
         )
 
         # Delete via API
-        response = self.client.delete(f"/api/contexts/{ctx_id}")
+        response = self.client.delete(f"/api/contexts/{ctx_id}", headers=self.write_headers)
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
@@ -129,7 +132,7 @@ class TestContextsCRUD:
     def test_delete_context_not_found(self):
         """Test DELETE /api/contexts/{id} with non-existent ID."""
         fake_id = str(uuid.uuid4())
-        response = self.client.delete(f"/api/contexts/{fake_id}")
+        response = self.client.delete(f"/api/contexts/{fake_id}", headers=self.write_headers)
         assert response.status_code == 404
 
     def test_get_context_revisions(self):
@@ -176,6 +179,7 @@ class TestContextsCRUD:
                 "dataClassification": "Confidential",
                 "regulatoryHooks": ["FINRA", "SEC"],
             },
+            headers=self.write_headers,
         )
         assert response.status_code == 200
         data = response.json()

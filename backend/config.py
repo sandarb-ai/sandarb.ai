@@ -17,6 +17,8 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql://postgres:sandarb@localhost:5432/sandarb"
     jwt_secret: str = DEV_SECRET_PLACEHOLDER
+    # Comma-separated emails allowed to perform writes (POST/PUT/PATCH/DELETE). Empty = no UI writes.
+    write_allowed_emails: str = ""
     cors_origins: list[str] = [
         "http://localhost:3000",
         "http://localhost:4000",

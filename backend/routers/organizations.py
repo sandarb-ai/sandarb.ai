@@ -1,7 +1,8 @@
 """Organizations router."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 
+from backend.write_auth import require_write_allowed
 from backend.schemas.organizations import Organization, OrganizationCreate, OrganizationUpdate
 from backend.schemas.common import ApiResponse
 from backend.services.organizations import (
@@ -31,7 +32,7 @@ def list_organizations(tree: bool = False, root: bool = False):
 
 
 @router.post("", response_model=ApiResponse, status_code=201)
-def post_organization(body: OrganizationCreate):
+def post_organization(body: OrganizationCreate, _email: str = Depends(require_write_allowed)):
     if not body.name:
         raise HTTPException(status_code=400, detail="Name is required")
     try:
@@ -61,7 +62,7 @@ def get_organization_ancestors_route(org_id: str):
 
 
 @router.patch("/{org_id}", response_model=ApiResponse)
-def patch_organization(org_id: str, body: OrganizationUpdate):
+def patch_organization(org_id: str, body: OrganizationUpdate, _email: str = Depends(require_write_allowed)):
     org = update_organization(org_id, body)
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
@@ -69,7 +70,7 @@ def patch_organization(org_id: str, body: OrganizationUpdate):
 
 
 @router.delete("/{org_id}")
-def delete_organization_route(org_id: str):
+def delete_organization_route(org_id: str, _email: str = Depends(require_write_allowed)):
     ok = delete_organization(org_id)
     if not ok:
         raise HTTPException(status_code=404, detail="Organization not found")

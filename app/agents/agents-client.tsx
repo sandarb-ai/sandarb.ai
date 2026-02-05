@@ -11,7 +11,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/empty-state';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, getWriteAuthHeaders } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import type { RegisteredAgent } from '@/types';
 import type { Organization } from '@/types';
@@ -163,7 +163,7 @@ export function AgentsPageClient({ initialAgents, initialOrgs, initialStats }: A
   const handleDelete = async (id: string) => {
     if (!confirm('Remove this agent from the registry?')) return;
     try {
-      const res = await fetch(apiUrl(`/api/agents/${id}`), { method: 'DELETE' });
+      const res = await fetch(apiUrl(`/api/agents/${id}`), { method: 'DELETE', headers: getWriteAuthHeaders() });
       if (res.ok) setAgents((prev) => prev.filter((a) => a.id !== id));
     } catch {
     }

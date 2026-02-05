@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, getWriteAuthHeaders } from '@/lib/api';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -34,7 +34,7 @@ export default function NewOrganizationPage() {
     try {
       const res = await fetch(apiUrl('/api/organizations'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getWriteAuthHeaders() },
         body: JSON.stringify({
           name: name.trim(),
           slug: slug.trim() || undefined,

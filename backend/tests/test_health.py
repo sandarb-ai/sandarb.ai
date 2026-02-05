@@ -44,16 +44,18 @@ class TestSettings:
         data = response.json()
         assert data["success"] is True
 
-    def test_update_setting(self, client):
-        """Test PUT /api/settings updates a setting."""
+    def test_update_setting(self, client, write_headers):
+        """Test PATCH /api/settings updates a setting."""
         # First get current settings
         get_response = client.get("/api/settings")
         assert get_response.status_code == 200
 
-        # Try to update a setting
-        response = client.put(
+        # Try to update a setting (backend uses PATCH)
+        response = client.patch(
             "/api/settings",
             json={"test_key": "test_value"},
+            headers=write_headers,
         )
-        # This may or may not be supported
-        assert response.status_code in [200, 404, 405]
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True

@@ -1,10 +1,8 @@
 import { Header } from '@/components/header';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
-import { StatsCard } from '@/components/stats-card';
 import { getBlockedInjections, getA2ALog, getUnauthenticatedDetections, getAgents } from '@/lib/api-client';
-import { ShieldAlert, Bot, Radio, Users } from 'lucide-react';
 import { AgentPulseScanButton } from './agent-pulse-scan-button';
-import { AgentPulseTerminal } from './agent-pulse-terminal';
+import { AgentPulseContent } from './agent-pulse-content';
 import type { RegisteredAgent } from '@/types';
 
 export const dynamic = 'force-dynamic';
@@ -47,40 +45,13 @@ export default async function AgentPulsePage() {
         <AgentPulseScanButton />
       </Header>
 
-      {/* Top: Stats cards in horizontal layout */}
-      <div className="shrink-0 px-6 py-4 border-b border-border bg-background">
-        <div className="grid grid-cols-4 gap-4">
-          <StatsCard
-            title="Registered Agents"
-            value={agents.length}
-            description="Active in Sandarb"
-            icon={Users}
-          />
-          <StatsCard
-            title="Blocked Injections"
-            value={blocked.length}
-            description="Policy violations"
-            icon={ShieldAlert}
-          />
-          <StatsCard
-            title="Shadow AI Detected"
-            value={unauthenticated.length}
-            description="Unauthenticated agents"
-            icon={Bot}
-          />
-          <StatsCard
-            title="A2A Messages"
-            value={a2aLog.length}
-            description="Recent communications"
-            icon={Radio}
-          />
-        </div>
-      </div>
-
-      {/* Bottom: Terminal view takes full remaining space */}
-      <div className="flex-1 min-h-0">
-        <AgentPulseTerminal agents={agentData} autoPlay={true} />
-      </div>
+      {/* Stats cards (animated) + Terminal with live counts */}
+      <AgentPulseContent
+        initialBlocked={blocked.length}
+        initialShadowAI={unauthenticated.length}
+        initialA2ALog={a2aLog.length}
+        agents={agentData}
+      />
     </div>
   );
 }

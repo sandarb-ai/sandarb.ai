@@ -1,15 +1,35 @@
 """Pytest configuration and fixtures for backend tests."""
 
 import os
+import time
 import pytest
 import bcrypt
+import jwt
 from fastapi.testclient import TestClient
 
 # Allow preview agent ID with any valid API key in tests (no sandarb-ui key required)
 os.environ.setdefault("SANDARB_DEV", "true")
+# Allow test user to perform writes (write_allowed_emails)
+os.environ.setdefault("WRITE_ALLOWED_EMAILS", "test@example.com")
 
 from backend.main import app
 from backend.db import get_connection, execute, query, query_one
+from backend.config import settings
+
+
+def _make_write_token(email: str = "test@example.com") -> str:
+    """Create a JWT with email for write-auth (same secret as backend)."""
+    return jwt.encode(
+        {"email": email, "exp": int(time.time()) + 3600},
+        settings.jwt_secret,
+        algorithm="HS256",
+    )
+
+
+@pytest.fixture(scope="session")
+def write_headers():
+    """Headers for UI write endpoints (POST/PUT/PATCH/DELETE). Use in tests that call write routes."""
+    return {"Authorization": f"Bearer {_make_write_token()}"}
 
 
 @pytest.fixture(scope="session")

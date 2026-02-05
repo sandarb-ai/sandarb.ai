@@ -9,9 +9,10 @@ class TestPromptsCRUD:
     """Test suite for prompts API endpoints."""
 
     @pytest.fixture(autouse=True)
-    def setup_and_teardown(self, client):
+    def setup_and_teardown(self, client, write_headers):
         """Setup and teardown for each test."""
         self.client = client
+        self.write_headers = write_headers
         self.created_ids = []
         yield
         # Cleanup created test prompts
@@ -69,7 +70,7 @@ class TestPromptsCRUD:
         self.created_ids.remove(prompt_id)  # Will be deleted by API
 
         # Delete
-        response = self.client.delete(f"/api/prompts/{prompt_id}")
+        response = self.client.delete(f"/api/prompts/{prompt_id}", headers=self.write_headers)
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
@@ -81,7 +82,7 @@ class TestPromptsCRUD:
     def test_delete_prompt_not_found(self):
         """Test DELETE /api/prompts/{id} with non-existent ID."""
         fake_id = str(uuid.uuid4())
-        response = self.client.delete(f"/api/prompts/{fake_id}")
+        response = self.client.delete(f"/api/prompts/{fake_id}", headers=self.write_headers)
         assert response.status_code == 404
 
 
@@ -89,9 +90,10 @@ class TestPromptVersions:
     """Test suite for prompt versions API endpoints."""
 
     @pytest.fixture(autouse=True)
-    def setup_and_teardown(self, client):
+    def setup_and_teardown(self, client, write_headers):
         """Setup and teardown for each test."""
         self.client = client
+        self.write_headers = write_headers
         self.created_prompt_ids = []
         yield
         # Cleanup
@@ -130,6 +132,7 @@ class TestPromptVersions:
         
         response = self.client.post(
             f"/api/prompts/{prompt_id}/versions",
+            headers=self.write_headers,
             json={
                 "content": "You are a helpful assistant.",
                 "commitMessage": "Initial version",
@@ -148,6 +151,7 @@ class TestPromptVersions:
         # Create first version
         self.client.post(
             f"/api/prompts/{prompt_id}/versions",
+            headers=self.write_headers,
             json={
                 "content": "Version 1 content",
                 "commitMessage": "First version",
@@ -158,6 +162,7 @@ class TestPromptVersions:
         # Create second version
         response = self.client.post(
             f"/api/prompts/{prompt_id}/versions",
+            headers=self.write_headers,
             json={
                 "content": "Version 2 content",
                 "commitMessage": "Second version",
@@ -175,6 +180,7 @@ class TestPromptVersions:
         # Create a version (not auto-approved)
         version_response = self.client.post(
             f"/api/prompts/{prompt_id}/versions",
+            headers=self.write_headers,
             json={
                 "content": "Pending approval content",
                 "commitMessage": "Needs approval",
@@ -186,7 +192,8 @@ class TestPromptVersions:
         # Approve
         response = self.client.post(
             f"/api/prompts/{prompt_id}/versions/{version_id}/approve",
-            json={},
+            json={"approvedBy": "test"},
+            headers=self.write_headers,
         )
         assert response.status_code == 200
         data = response.json()
@@ -199,6 +206,7 @@ class TestPromptVersions:
         # Create a version (not auto-approved)
         version_response = self.client.post(
             f"/api/prompts/{prompt_id}/versions",
+            headers=self.write_headers,
             json={
                 "content": "To be rejected",
                 "commitMessage": "Will be rejected",
@@ -211,6 +219,7 @@ class TestPromptVersions:
         response = self.client.post(
             f"/api/prompts/{prompt_id}/versions/{version_id}/reject",
             json={},
+            headers=self.write_headers,
         )
         assert response.status_code == 200
         data = response.json()

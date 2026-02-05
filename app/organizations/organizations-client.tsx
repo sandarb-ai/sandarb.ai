@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, getWriteAuthHeaders } from '@/lib/api';
 import { Plus, Search, Building2, ExternalLink, Trash2, Table2, LayoutGrid, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,7 +35,7 @@ export function OrganizationsPageClient({ initialOrgs }: OrganizationsPageClient
     }
     if (!confirm('Delete this organization? Agents under it will also be removed.')) return;
     try {
-      const res = await fetch(apiUrl(`/api/organizations/${id}`), { method: 'DELETE' });
+      const res = await fetch(apiUrl(`/api/organizations/${id}`), { method: 'DELETE', headers: getWriteAuthHeaders() });
       if (res.ok) setOrgs(orgs.filter((o) => o.id !== id));
     } catch {
     }

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, getWriteAuthHeaders } from '@/lib/api';
 import {
   ArrowLeft,
   Save,
@@ -109,7 +109,7 @@ export default function PromptDetailPage() {
     try {
       const res = await fetch(apiUrl(`/api/prompts/${id}/versions`), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getWriteAuthHeaders() },
         body: JSON.stringify({
           content: newContent,
           systemPrompt: newSystemPrompt || undefined,
@@ -139,7 +139,7 @@ export default function PromptDetailPage() {
     try {
       const res = await fetch(apiUrl(`/api/prompts/${id}/versions/${versionId}/approve`), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getWriteAuthHeaders() },
         body: JSON.stringify({ approvedBy: approvedBy.trim() }),
       });
       if (res.ok) {
@@ -157,7 +157,7 @@ export default function PromptDetailPage() {
     try {
       const res = await fetch(apiUrl(`/api/prompts/${id}/versions/${versionId}/reject`), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getWriteAuthHeaders() },
         body: JSON.stringify({}),
       });
       if (res.ok) {
@@ -170,7 +170,7 @@ export default function PromptDetailPage() {
   const handleDelete = async () => {
     if (!confirm('Are you sure you want to delete this prompt and all its versions?')) return;
     try {
-      const res = await fetch(apiUrl(`/api/prompts/${id}`), { method: 'DELETE' });
+      const res = await fetch(apiUrl(`/api/prompts/${id}`), { method: 'DELETE', headers: getWriteAuthHeaders() });
       if (res.ok) router.push('/prompts');
       else alert('Failed to delete prompt');
     } catch {

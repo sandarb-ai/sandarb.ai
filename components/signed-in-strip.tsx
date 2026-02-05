@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { LogOut, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -42,8 +43,8 @@ function XLogo({ className }: { className?: string }) {
   );
 }
 
-function ProviderIcon({ provider }: { provider: string }) {
-  const c = 'h-4 w-4 shrink-0';
+function ProviderIcon({ provider, className }: { provider: string; className?: string }) {
+  const c = className ?? 'h-4 w-4 shrink-0';
   switch (provider) {
     case 'Google':
       return <GoogleLogo className={c} />;
@@ -63,13 +64,22 @@ const navLinkInactive = 'text-muted-foreground';
 export function SignedInStrip({
   variant = 'header',
   initialSignedIn,
+  insertBetween,
 }: {
   variant?: 'header' | 'sidebar';
   /** Server-rendered sign-in state to avoid flash; still synced from cookie in useEffect */
   initialSignedIn?: boolean;
+  /** Optional node to render between provider logo and sign out (e.g. Settings link) when variant="header" */
+  insertBetween?: React.ReactNode;
 }) {
+  const pathname = usePathname();
   const [isSignedIn, setIsSignedIn] = useState(initialSignedIn ?? false);
   const [provider, setProvider] = useState('Demo');
+
+  // Public paths where we don't assume signed in; all others (dashboard, prompts, etc.) require auth so user is signed in
+  const isPublicPath =
+    pathname === '/' || pathname === '/signup' || pathname === '/docs' || (pathname?.startsWith('/docs/') ?? false);
+  const showSignedIn = isSignedIn || (variant === 'header' && !isPublicPath);
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
@@ -80,20 +90,14 @@ export function SignedInStrip({
   const handleSignOut = () => {
     document.cookie = `${DEMO_COOKIE_NAME}=; path=/; max-age=0`;
     document.cookie = `${DEMO_PROVIDER_COOKIE}=; path=/; max-age=0`;
+    document.cookie = 'sandarb_write_jwt=; path=/; max-age=0';
     setIsSignedIn(false);
     window.location.href = '/';
   };
 
-  if (!isSignedIn) {
+  if (!showSignedIn) {
     if (variant === 'header') {
-      return (
-        <Link
-          href="/signup"
-          className={`${navLink} flex items-center gap-1.5 ${navLinkInactive}`}
-        >
-          Try the demo
-        </Link>
-      );
+      return null;
     }
     return null;
   }
@@ -126,6 +130,31 @@ export function SignedInStrip({
           <span className="min-w-0 truncate">Sign out</span>
         </button>
       </div>
+    );
+  }
+
+  // Header variant: signed-in method logo, optional middle (e.g. Settings), then Sign out icon on top right
+  if (variant === 'header') {
+    return (
+      <>
+        <span
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted/50 dark:bg-muted/40 text-muted-foreground"
+          title={`Signed in with ${provider} (demo)`}
+          aria-hidden
+        >
+          <ProviderIcon provider={provider} className="h-5 w-5 shrink-0" />
+        </span>
+        {insertBetween}
+        <button
+          type="button"
+          onClick={handleSignOut}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+          aria-label="Sign out"
+          title="Sign out"
+        >
+          <LogOut className="h-5 w-5" aria-hidden />
+        </button>
+      </>
     );
   }
 

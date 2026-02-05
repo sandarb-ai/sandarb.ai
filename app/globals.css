@@ -888,6 +888,35 @@
   animation: live-pulse 2s ease-in-out infinite;
 }
 
+/* Agent Pulse: blocked injection card – flash on increment */
+@keyframes agent-pulse-blocked-flash-keyframes {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+.agent-pulse-blocked-flash {
+  animation: agent-pulse-blocked-flash-keyframes 0.6s ease-out;
+}
+
+/* Agent Pulse: shadow AI card – subtle continuous glow */
+@keyframes agent-pulse-shadow-glow-keyframes {
+  0%, 100% {
+    box-shadow: 0 0 12px rgba(139, 92, 246, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.25);
+  }
+}
+.agent-pulse-shadow-glow {
+  animation: agent-pulse-shadow-glow-keyframes 3s ease-in-out infinite;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;

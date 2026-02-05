@@ -24,7 +24,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ContextEditor } from '@/components/context-editor';
 import { ComplianceMetadataFields } from '@/components/compliance-metadata-fields';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, getWriteAuthHeaders } from '@/lib/api';
 import type { Context, ContextRevision, DataClassification, RegulatoryHook, Organization } from '@/types';
 import { formatDate, formatApprovedBy } from '@/lib/utils';
 import { ContentDiffView } from '@/components/content-diff-view';
@@ -142,7 +142,7 @@ export default function EditContextPage() {
     try {
       const res = await fetch(apiUrl(`/api/contexts/${id}`), {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getWriteAuthHeaders() },
         body: JSON.stringify({
           description,
           isActive,
@@ -174,7 +174,7 @@ export default function EditContextPage() {
     try {
       const res = await fetch(apiUrl(`/api/contexts/${id}/revisions`), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getWriteAuthHeaders() },
         body: JSON.stringify({
           content,
           commitMessage,
@@ -201,7 +201,7 @@ export default function EditContextPage() {
     try {
       const res = await fetch(apiUrl(`/api/contexts/${id}/revisions/${revId}/approve`), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getWriteAuthHeaders() },
         body: JSON.stringify({}),
       });
       if (res.ok) {
@@ -216,7 +216,7 @@ export default function EditContextPage() {
     try {
       const res = await fetch(apiUrl(`/api/contexts/${id}/revisions/${revId}/reject`), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getWriteAuthHeaders() },
         body: JSON.stringify({}),
       });
       if (res.ok) fetchRevisions();
@@ -227,7 +227,7 @@ export default function EditContextPage() {
   const handleDelete = async () => {
     if (!confirm('Are you sure you want to delete this context?')) return;
     try {
-      const res = await fetch(apiUrl(`/api/contexts/${id}`), { method: 'DELETE' });
+      const res = await fetch(apiUrl(`/api/contexts/${id}`), { method: 'DELETE', headers: getWriteAuthHeaders() });
       if (res.ok) router.push('/contexts');
       else alert('Failed to delete context');
     } catch {

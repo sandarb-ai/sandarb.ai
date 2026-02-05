@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, getWriteAuthHeaders } from '@/lib/api';
 import Link from 'next/link';
 import { ArrowLeft, Link2, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -58,7 +58,7 @@ function RegisterAgentForm() {
     try {
       const res = await fetch(apiUrl('/api/agents/register'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getWriteAuthHeaders() },
         body: JSON.stringify({
           orgId: orgIdUrl,
           a2aUrl: a2aUrl.trim(),
@@ -87,7 +87,7 @@ function RegisterAgentForm() {
     try {
       const res = await fetch(apiUrl('/api/agents'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getWriteAuthHeaders() },
         body: JSON.stringify({
           orgId: orgIdManual,
           name: nameManual.trim(),

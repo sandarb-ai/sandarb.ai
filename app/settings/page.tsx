@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Save, Copy, Eye, EyeOff, RefreshCw, Sun, Moon, Monitor } from 'lucide-react';
 import { useTheme } from 'next-themes';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, getWriteAuthHeaders } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -39,7 +39,7 @@ export default function SettingsPage() {
     setThemeLocal(value);
 fetch(apiUrl('/api/settings'), {
         method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getWriteAuthHeaders() },
       body: JSON.stringify({ theme: value }),
     })
       .then(() => {})

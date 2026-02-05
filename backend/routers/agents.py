@@ -1,8 +1,10 @@
 """Agents router (CRUD + approve/reject). Mirrors Next.js app/api/agents."""
 
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException, Body, Depends
 
 from pydantic import BaseModel
+
+from backend.write_auth import require_write_allowed
 
 from backend.schemas.agents import RegisteredAgent, RegisteredAgentCreate, RegisteredAgentUpdate
 from backend.schemas.common import ApiResponse
@@ -37,7 +39,7 @@ def list_agents(org_id: str | None = None, approval_status: str | None = None):
 
 
 @router.post("", response_model=ApiResponse[RegisteredAgent], status_code=201)
-def post_agent(body: RegisteredAgentCreate):
+def post_agent(body: RegisteredAgentCreate, _email: str = Depends(require_write_allowed)):
     """POST /agents - Create/register agent."""
     if not body.org_id or not body.name or not body.a2a_url:
         raise HTTPException(status_code=400, detail="org_id, name, and a2a_url are required")
@@ -72,7 +74,7 @@ def get_agent(agent_id: str):
 
 @router.patch("/{agent_id}", response_model=ApiResponse[RegisteredAgent | None])
 @router.put("/{agent_id}", response_model=ApiResponse[RegisteredAgent | None])
-def patch_agent(agent_id: str, body: RegisteredAgentUpdate):
+def patch_agent(agent_id: str, body: RegisteredAgentUpdate, _email: str = Depends(require_write_allowed)):
     """PATCH/PUT /agents/:id - Update agent."""
     agent = update_agent(agent_id, body)
     if not agent:
@@ -81,7 +83,7 @@ def patch_agent(agent_id: str, body: RegisteredAgentUpdate):
 
 
 @router.delete("/{agent_id}")
-def delete_agent_route(agent_id: str):
+def delete_agent_route(agent_id: str, _email: str = Depends(require_write_allowed)):
     """DELETE /agents/:id - Delete agent."""
     ok = delete_agent(agent_id)
     if not ok:
@@ -98,7 +100,7 @@ class RejectBody(BaseModel):
 
 
 @router.post("/{agent_id}/approve", response_model=ApiResponse[RegisteredAgent | None])
-def post_approve(agent_id: str, body: ApproveBody | None = Body(None)):
+def post_approve(agent_id: str, body: ApproveBody | None = Body(None), _email: str = Depends(require_write_allowed)):
     """POST /agents/:id/approve - Approve agent."""
     by = body.approvedBy if body else None
     agent = approve_agent(agent_id, approved_by=by)
@@ -108,7 +110,7 @@ def post_approve(agent_id: str, body: ApproveBody | None = Body(None)):
 
 
 @router.post("/{agent_id}/reject", response_model=ApiResponse[RegisteredAgent | None])
-def post_reject(agent_id: str, body: RejectBody | None = Body(None)):
+def post_reject(agent_id: str, body: RejectBody | None = Body(None), _email: str = Depends(require_write_allowed)):
     """POST /agents/:id/reject - Reject agent."""
     by = body.rejectedBy if body else None
     agent = reject_agent(agent_id, rejected_by=by)
@@ -133,7 +135,7 @@ class LinkContextBody(BaseModel):
 
 
 @router.post("/{agent_id}/contexts", response_model=ApiResponse, status_code=201)
-def post_agent_context(agent_id: str, body: LinkContextBody):
+def post_agent_context(agent_id: str, body: LinkContextBody, _email: str = Depends(require_write_allowed)):
     """POST /agents/:id/contexts - Link a context to this agent."""
     if not get_agent_by_id(agent_id):
         raise HTTPException(status_code=404, detail="Agent not found")
@@ -144,7 +146,7 @@ def post_agent_context(agent_id: str, body: LinkContextBody):
 
 
 @router.delete("/{agent_id}/contexts/{context_id}", response_model=ApiResponse)
-def delete_agent_context(agent_id: str, context_id: str):
+def delete_agent_context(agent_id: str, context_id: str, _email: str = Depends(require_write_allowed)):
     """DELETE /agents/:id/contexts/:context_id - Unlink context from agent."""
     if not get_agent_by_id(agent_id):
         raise HTTPException(status_code=404, detail="Agent not found")
@@ -166,7 +168,7 @@ class LinkPromptBody(BaseModel):
 
 
 @router.post("/{agent_id}/prompts", response_model=ApiResponse, status_code=201)
-def post_agent_prompt(agent_id: str, body: LinkPromptBody):
+def post_agent_prompt(agent_id: str, body: LinkPromptBody, _email: str = Depends(require_write_allowed)):
     """POST /agents/:id/prompts - Link a prompt to this agent."""
     if not get_agent_by_id(agent_id):
         raise HTTPException(status_code=404, detail="Agent not found")
@@ -177,7 +179,7 @@ def post_agent_prompt(agent_id: str, body: LinkPromptBody):
 
 
 @router.delete("/{agent_id}/prompts/{prompt_id}", response_model=ApiResponse)
-def delete_agent_prompt(agent_id: str, prompt_id: str):
+def delete_agent_prompt(agent_id: str, prompt_id: str, _email: str = Depends(require_write_allowed)):
     """DELETE /agents/:id/prompts/:prompt_id - Unlink prompt from agent."""
     if not get_agent_by_id(agent_id):
         raise HTTPException(status_code=404, detail="Agent not found")

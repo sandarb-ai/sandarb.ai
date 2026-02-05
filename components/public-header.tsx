@@ -10,6 +10,8 @@ const navLink =
   'text-sm font-medium rounded-md px-3 py-2 transition-colors hover:bg-muted/60 hover:text-foreground';
 const navLinkActive = 'text-violet-600 dark:text-violet-400 bg-violet-100/60 dark:bg-violet-900/20';
 const navLinkInactive = 'text-muted-foreground';
+const iconButton =
+  'flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-muted/60 hover:text-foreground text-muted-foreground';
 
 export function PublicHeader({
   initialSignedIn,
@@ -50,20 +52,21 @@ export function PublicHeader({
           </Link>
         </nav>
       </div>
-      <div className="flex items-center gap-2">
-        {initialSignedIn && (
-          <>
+      <div className="flex items-center gap-1">
+        <SignedInStrip
+          variant="header"
+          initialSignedIn={initialSignedIn}
+          insertBetween={
             <Link
               href="/settings"
-              className={`${navLink} flex items-center gap-1.5 ${isSettings ? navLinkActive : navLinkInactive}`}
+              className={`${iconButton} ${isSettings ? 'text-violet-600 dark:text-violet-400 bg-violet-100/60 dark:bg-violet-900/20' : ''}`}
               aria-label="Settings"
+              title="Settings"
             >
-              <Settings className="h-4 w-4" />
-              Settings
+              <Settings className="h-5 w-5" />
             </Link>
-            <SignedInStrip variant="header" initialSignedIn={initialSignedIn} />
-          </>
-        )}
+          }
+        />
       </div>
     </header>
   );

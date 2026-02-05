@@ -13,7 +13,7 @@ import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { ContextEditor } from '@/components/context-editor';
 import { ContextPreview } from '@/components/context-preview';
 import { ComplianceMetadataFields } from '@/components/compliance-metadata-fields';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, getWriteAuthHeaders } from '@/lib/api';
 import type { DataClassification, RegulatoryHook } from '@/types';
 import type { Organization } from '@/types';
 
@@ -70,7 +70,7 @@ export default function NewContextPage() {
     try {
       const res = await fetch(apiUrl('/api/contexts'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getWriteAuthHeaders() },
         body: JSON.stringify({
           name,
           description,

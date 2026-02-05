@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/empty-state';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, getWriteAuthHeaders } from '@/lib/api';
 import { formatDateTime, truncate, cn } from '@/lib/utils';
 import type { Prompt } from '@/types';
 
@@ -36,7 +36,7 @@ export function PromptsListClient({ initialPrompts }: PromptsListClientProps) {
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this prompt and all its versions?')) return;
     try {
-      const res = await fetch(apiUrl(`/api/prompts/${id}`), { method: 'DELETE' });
+      const res = await fetch(apiUrl(`/api/prompts/${id}`), { method: 'DELETE', headers: getWriteAuthHeaders() });
       if (res.ok) {
         setPrompts((prev) => prev.filter((p) => p.id !== id));
       }

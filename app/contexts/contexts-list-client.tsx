@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/empty-state';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, getWriteAuthHeaders } from '@/lib/api';
 import { formatDateTime, truncate, cn } from '@/lib/utils';
 import type { Context, DataClassification, RegulatoryHook, Organization } from '@/types';
 import { DATA_CLASSIFICATION_OPTIONS, REGULATORY_HOOK_OPTIONS } from '@/types';
@@ -78,7 +78,7 @@ export function ContextsListClient({ initialContexts, total, totalActive: totalA
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this context?')) return;
     try {
-      const res = await fetch(apiUrl(`/api/contexts/${id}`), { method: 'DELETE' });
+      const res = await fetch(apiUrl(`/api/contexts/${id}`), { method: 'DELETE', headers: getWriteAuthHeaders() });
       if (res.ok) {
         setContexts((prev) => prev.filter((c) => c.id !== id));
       }

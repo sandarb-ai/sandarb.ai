@@ -65,3 +65,17 @@ export function agentUrl(path: string): string {
   const p = path.startsWith('/') ? path : `/${path}`;
   return `${base}${p}`;
 }
+
+const WRITE_JWT_COOKIE_NAME = 'sandarb_write_jwt';
+
+/**
+ * Headers to send on write requests (POST/PUT/PATCH/DELETE) so backend can allow only WRITE_ALLOWED_EMAILS.
+ * Call only from client (reads document.cookie). Returns {} if no token.
+ */
+export function getWriteAuthHeaders(): Record<string, string> {
+  if (typeof document === 'undefined') return {};
+  const match = document.cookie.match(new RegExp(`(?:^|; )${WRITE_JWT_COOKIE_NAME}=([^;]*)`));
+  const token = match ? decodeURIComponent(match[1]) : '';
+  if (!token) return {};
+  return { Authorization: `Bearer ${token}` };
+}

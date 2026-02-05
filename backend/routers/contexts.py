@@ -1,7 +1,8 @@
 """Contexts router (list paginated + detail by id, revisions, approve/reject, update, delete)."""
 
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException, Body, Depends
 
+from backend.write_auth import require_write_allowed
 from backend.db import query, query_one
 from backend.schemas.common import ApiResponse
 from backend.services.contexts import (
@@ -65,7 +66,7 @@ def list_contexts(limit: int = 50, offset: int = 0):
 
 
 @router.post("", response_model=ApiResponse, status_code=201)
-def post_context(body: dict = Body(...)):
+def post_context(body: dict = Body(...), _email: str = Depends(require_write_allowed)):
     """Create a new context with name, description, content, tags, orgId, compliance fields."""
     name = (body.get("name") or "").strip()
     if not name:
@@ -105,7 +106,7 @@ def list_context_revisions(context_id: str):
 
 
 @router.post("/{context_id}/revisions", response_model=ApiResponse)
-def post_context_revision(context_id: str, body: dict = Body(...)):
+def post_context_revision(context_id: str, body: dict = Body(...), _email: str = Depends(require_write_allowed)):
     """Create a new context revision with commit message and optional auto-approve."""
     content = body.get("content")
     commit_message = body.get("commitMessage") or body.get("commit_message") or "Update"
@@ -128,7 +129,7 @@ def post_context_revision(context_id: str, body: dict = Body(...)):
 
 
 @router.put("/{context_id}", response_model=ApiResponse)
-def put_context(context_id: str, body: dict = Body(...)):
+def put_context(context_id: str, body: dict = Body(...), _email: str = Depends(require_write_allowed)):
     description = body.get("description")
     content = body.get("content")
     is_active = body.get("isActive", body.get("is_active"))
@@ -152,7 +153,7 @@ def put_context(context_id: str, body: dict = Body(...)):
 
 
 @router.post("/{context_id}/revisions/{revision_id}/approve", response_model=ApiResponse)
-def post_approve_revision(context_id: str, revision_id: str, body: dict | None = Body(None)):
+def post_approve_revision(context_id: str, revision_id: str, body: dict | None = Body(None), _email: str = Depends(require_write_allowed)):
     approved_by = (body or {}).get("approvedBy") or (body or {}).get("approved_by")
     rev = approve_context_revision(context_id, revision_id, approved_by=approved_by)
     if not rev:
@@ -161,7 +162,7 @@ def post_approve_revision(context_id: str, revision_id: str, body: dict | None =
 
 
 @router.post("/{context_id}/revisions/{revision_id}/reject", response_model=ApiResponse)
-def post_reject_revision(context_id: str, revision_id: str, body: dict | None = Body(None)):
+def post_reject_revision(context_id: str, revision_id: str, body: dict | None = Body(None), _email: str = Depends(require_write_allowed)):
     rejected_by = (body or {}).get("rejectedBy") or (body or {}).get("rejected_by")
     rev = reject_context_revision(context_id, revision_id, rejected_by=rejected_by)
     if not rev:
@@ -170,7 +171,7 @@ def post_reject_revision(context_id: str, revision_id: str, body: dict | None = 
 
 
 @router.delete("/{context_id}", response_model=ApiResponse)
-def delete_context(context_id: str):
+def delete_context(context_id: str, _email: str = Depends(require_write_allowed)):
     ok = delete_context_svc(context_id)
     if not ok:
         raise HTTPException(status_code=404, detail="Context not found")

@@ -163,6 +163,8 @@ interface AgentPulseTerminalProps {
   autoPlay?: boolean;
   fullScreen?: boolean;
   onToggleFullScreen?: () => void;
+  /** Called when entries change so parent can update A2A / blocked counts. */
+  onEntriesChange?: (entries: A2ALogEntry[]) => void;
 }
 
 export function AgentPulseTerminal({ 
@@ -171,6 +173,7 @@ export function AgentPulseTerminal({
   autoPlay = true,
   fullScreen = false,
   onToggleFullScreen,
+  onEntriesChange,
 }: AgentPulseTerminalProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [entries, setEntries] = useState<A2ALogEntry[]>(initialEntries);
@@ -239,6 +242,11 @@ export function AgentPulseTerminal({
       }
     };
   }, [isPlaying, generateDemoEntry]);
+
+  // Notify parent when entries change (for live stats)
+  useEffect(() => {
+    onEntriesChange?.(entries);
+  }, [entries, onEntriesChange]);
 
   // Auto-scroll to bottom when new entries arrive
   useEffect(() => {

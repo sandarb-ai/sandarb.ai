@@ -53,6 +53,7 @@
     "test:all": "npm run test:run && npm run test:backend"
   },
   "dependencies": {
+    "@marsidev/react-turnstile": "^1.4.2",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/api-logs": "^0.211.0",
     "@opentelemetry/exporter-logs-otlp-http": "^0.211.0",

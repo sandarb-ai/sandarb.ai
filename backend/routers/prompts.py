@@ -1,8 +1,9 @@
 """Prompts router (list + detail by id, versions, approve/reject, delete, pull)."""
 
-from fastapi import APIRouter, HTTPException, Body, Request, Query
+from fastapi import APIRouter, HTTPException, Body, Request, Query, Depends
 
 from backend.auth import require_api_key_and_agent
+from backend.write_auth import require_write_allowed
 from backend.db import query
 from backend.schemas.common import ApiResponse
 from backend.services.prompts import (
@@ -136,7 +137,7 @@ def list_prompt_versions(prompt_id: str):
 
 
 @router.post("/{prompt_id}/versions", response_model=ApiResponse)
-def post_prompt_version(prompt_id: str, body: dict = Body(...)):
+def post_prompt_version(prompt_id: str, body: dict = Body(...), _email: str = Depends(require_write_allowed)):
     content = body.get("content", "")
     system_prompt = body.get("systemPrompt") or body.get("system_prompt")
     model = body.get("model")
@@ -150,7 +151,7 @@ def post_prompt_version(prompt_id: str, body: dict = Body(...)):
 
 
 @router.post("/{prompt_id}/versions/{version_id}/approve", response_model=ApiResponse)
-def post_approve_version(prompt_id: str, version_id: str, body: dict | None = Body(None)):
+def post_approve_version(prompt_id: str, version_id: str, body: dict | None = Body(None), _email: str = Depends(require_write_allowed)):
     approved_by = (body or {}).get("approvedBy") or (body or {}).get("approved_by")
     if not approved_by or not str(approved_by).strip():
         raise HTTPException(
@@ -165,7 +166,7 @@ def post_approve_version(prompt_id: str, version_id: str, body: dict | None = Bo
 
 
 @router.post("/{prompt_id}/versions/{version_id}/reject", response_model=ApiResponse)
-def post_reject_version(prompt_id: str, version_id: str, body: dict | None = Body(None)):
+def post_reject_version(prompt_id: str, version_id: str, body: dict | None = Body(None), _email: str = Depends(require_write_allowed)):
     rejected_by = (body or {}).get("rejectedBy") or (body or {}).get("rejected_by")
     v = reject_prompt_version(prompt_id, version_id, rejected_by=rejected_by)
     if not v:
@@ -174,7 +175,7 @@ def post_reject_version(prompt_id: str, version_id: str, body: dict | None = Bod
 
 
 @router.delete("/{prompt_id}", response_model=ApiResponse)
-def delete_prompt(prompt_id: str):
+def delete_prompt(prompt_id: str, _email: str = Depends(require_write_allowed)):
     ok = delete_prompt_svc(prompt_id)
     if not ok:
         raise HTTPException(status_code=404, detail="Prompt not found")

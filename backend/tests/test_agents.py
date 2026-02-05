@@ -9,9 +9,10 @@ class TestAgentsCRUD:
     """Test suite for agents API endpoints."""
 
     @pytest.fixture(autouse=True)
-    def setup_and_teardown(self, client):
+    def setup_and_teardown(self, client, write_headers):
         """Setup and teardown for each test."""
         self.client = client
+        self.write_headers = write_headers
         self.created_agent_ids = []
         self.created_org_ids = []
         
@@ -20,6 +21,7 @@ class TestAgentsCRUD:
         org_response = self.client.post(
             "/api/organizations",
             json={"name": "Agents Test Org", "slug": slug},
+            headers=write_headers,
         )
         self.test_org_id = org_response.json()["data"]["id"]
         self.created_org_ids.append(self.test_org_id)
@@ -53,6 +55,7 @@ class TestAgentsCRUD:
         # Create an agent in the test org
         create_resp = self.client.post(
             "/api/agents",
+            headers=self.write_headers,
             json={
                 "orgId": self.test_org_id,
                 "name": f"Filter Test Agent {uuid.uuid4().hex[:8]}",
@@ -73,6 +76,7 @@ class TestAgentsCRUD:
         """Test POST /api/agents creates a new agent."""
         response = self.client.post(
             "/api/agents",
+            headers=self.write_headers,
             json={
                 "orgId": self.test_org_id,
                 "name": f"Test Agent {uuid.uuid4().hex[:8]}",
@@ -91,6 +95,7 @@ class TestAgentsCRUD:
         """Test POST /api/agents without required fields fails."""
         response = self.client.post(
             "/api/agents",
+            headers=self.write_headers,
             json={"name": "Missing Fields Agent"},  # Missing orgId and a2aUrl
         )
         assert response.status_code in [400, 422, 500]
@@ -100,6 +105,7 @@ class TestAgentsCRUD:
         # Create an agent first
         create_response = self.client.post(
             "/api/agents",
+            headers=self.write_headers,
             json={
                 "orgId": self.test_org_id,
                 "name": f"Get Test Agent {uuid.uuid4().hex[:8]}",
@@ -127,6 +133,7 @@ class TestAgentsCRUD:
         # Create an agent first
         create_response = self.client.post(
             "/api/agents",
+            headers=self.write_headers,
             json={
                 "orgId": self.test_org_id,
                 "name": f"Update Test Agent {uuid.uuid4().hex[:8]}",
@@ -141,6 +148,7 @@ class TestAgentsCRUD:
         response = self.client.put(
             f"/api/agents/{agent_id}",
             json={"description": "Updated description"},
+            headers=self.write_headers,
         )
         assert response.status_code == 200
         data = response.json()
@@ -152,6 +160,7 @@ class TestAgentsCRUD:
         # Create an agent first
         create_response = self.client.post(
             "/api/agents",
+            headers=self.write_headers,
             json={
                 "orgId": self.test_org_id,
                 "name": f"Status Test Agent {uuid.uuid4().hex[:8]}",
@@ -165,6 +174,7 @@ class TestAgentsCRUD:
         response = self.client.put(
             f"/api/agents/{agent_id}",
             json={"status": "inactive"},
+            headers=self.write_headers,
         )
         assert response.status_code == 200
         data = response.json()
@@ -175,6 +185,7 @@ class TestAgentsCRUD:
         # Create an agent first
         create_response = self.client.post(
             "/api/agents",
+            headers=self.write_headers,
             json={
                 "orgId": self.test_org_id,
                 "name": f"Delete Test Agent {uuid.uuid4().hex[:8]}",
@@ -184,7 +195,7 @@ class TestAgentsCRUD:
         agent_id = create_response.json()["data"]["id"]
 
         # Delete
-        response = self.client.delete(f"/api/agents/{agent_id}")
+        response = self.client.delete(f"/api/agents/{agent_id}", headers=self.write_headers)
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
@@ -196,7 +207,7 @@ class TestAgentsCRUD:
     def test_delete_agent_not_found(self):
         """Test DELETE /api/agents/{id} with non-existent ID."""
         fake_id = str(uuid.uuid4())
-        response = self.client.delete(f"/api/agents/{fake_id}")
+        response = self.client.delete(f"/api/agents/{fake_id}", headers=self.write_headers)
         assert response.status_code == 404
 
 
@@ -204,9 +215,10 @@ class TestAgentApproval:
     """Test suite for agent approval workflow."""
 
     @pytest.fixture(autouse=True)
-    def setup_and_teardown(self, client):
+    def setup_and_teardown(self, client, write_headers):
         """Setup and teardown for each test."""
         self.client = client
+        self.write_headers = write_headers
         self.created_agent_ids = []
         self.created_org_ids = []
         
@@ -215,6 +227,7 @@ class TestAgentApproval:
         org_response = self.client.post(
             "/api/organizations",
             json={"name": "Approval Test Org", "slug": slug},
+            headers=write_headers,
         )
         self.test_org_id = org_response.json()["data"]["id"]
         self.created_org_ids.append(self.test_org_id)
@@ -237,6 +250,7 @@ class TestAgentApproval:
         # Create an agent in draft status
         create_response = self.client.post(
             "/api/agents",
+            headers=self.write_headers,
             json={
                 "orgId": self.test_org_id,
                 "name": f"Submit Test Agent {uuid.uuid4().hex[:8]}",
@@ -250,6 +264,7 @@ class TestAgentApproval:
         response = self.client.post(
             f"/api/agents/{agent_id}/submit",
             json={},
+            headers=self.write_headers,
         )
         # This endpoint may not exist, so accept 404 as well
         assert response.status_code in [200, 404]
@@ -259,6 +274,7 @@ class TestAgentApproval:
         # Create an agent
         create_response = self.client.post(
             "/api/agents",
+            headers=self.write_headers,
             json={
                 "orgId": self.test_org_id,
                 "name": f"Approve Test Agent {uuid.uuid4().hex[:8]}",
@@ -272,6 +288,7 @@ class TestAgentApproval:
         response = self.client.post(
             f"/api/agents/{agent_id}/approve",
             json={"approvedBy": "@admin"},
+            headers=self.write_headers,
         )
         # This endpoint may not exist
         assert response.status_code in [200, 404]
@@ -281,9 +298,10 @@ class TestAgentContextLinks:
     """Test suite for agent-context linking."""
 
     @pytest.fixture(autouse=True)
-    def setup_and_teardown(self, client):
+    def setup_and_teardown(self, client, write_headers):
         """Setup and teardown for each test."""
         self.client = client
+        self.write_headers = write_headers
         self.created_agent_ids = []
         self.created_org_ids = []
         self.created_context_ids = []
@@ -293,6 +311,7 @@ class TestAgentContextLinks:
         org_response = self.client.post(
             "/api/organizations",
             json={"name": "Links Test Org", "slug": slug},
+            headers=write_headers,
         )
         self.test_org_id = org_response.json()["data"]["id"]
         self.created_org_ids.append(self.test_org_id)
@@ -322,6 +341,7 @@ class TestAgentContextLinks:
         # Create an agent
         agent_response = self.client.post(
             "/api/agents",
+            headers=self.write_headers,
             json={
                 "orgId": self.test_org_id,
                 "name": f"Link Test Agent {uuid.uuid4().hex[:8]}",
@@ -344,6 +364,7 @@ class TestAgentContextLinks:
         response = self.client.post(
             f"/api/agents/{agent_id}/contexts",
             json={"contextId": ctx_id},
+            headers=self.write_headers,
         )
         # This endpoint may not exist or return 201
         assert response.status_code in [200, 201, 404, 422]
@@ -353,6 +374,7 @@ class TestAgentContextLinks:
         # Create an agent
         agent_response = self.client.post(
             "/api/agents",
+            headers=self.write_headers,
             json={
                 "orgId": self.test_org_id,
                 "name": f"Contexts Test Agent {uuid.uuid4().hex[:8]}",

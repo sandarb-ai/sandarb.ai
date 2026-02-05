@@ -1,7 +1,8 @@
 """Settings router (GET, PATCH)."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 
+from backend.write_auth import require_write_allowed
 from backend.db import query, query_one, execute
 from backend.schemas.common import ApiResponse
 
@@ -16,7 +17,7 @@ def get_settings():
 
 
 @router.patch("", response_model=ApiResponse)
-def patch_settings(body: dict):
+def patch_settings(body: dict, _email: str = Depends(require_write_allowed)):
     for key, value in (body or {}).items():
         if not key:
             continue

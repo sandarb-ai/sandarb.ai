@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, getWriteAuthHeaders } from '@/lib/api';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -50,7 +50,7 @@ export function AgentDetailClient({ initialAgent }: AgentDetailClientProps) {
     try {
       const res = await fetch(apiUrl(`/api/agents/${id}`), {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getWriteAuthHeaders() },
         body: JSON.stringify({}),
       });
       if (res.ok) {
@@ -65,7 +65,7 @@ export function AgentDetailClient({ initialAgent }: AgentDetailClientProps) {
     try {
       const res = await fetch(apiUrl(`/api/agents/${id}/approve`), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getWriteAuthHeaders() },
         body: JSON.stringify({}),
       });
       if (res.ok) {
@@ -80,7 +80,7 @@ export function AgentDetailClient({ initialAgent }: AgentDetailClientProps) {
     try {
       const res = await fetch(apiUrl(`/api/agents/${id}/reject`), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getWriteAuthHeaders() },
         body: JSON.stringify({}),
       });
       if (res.ok) {

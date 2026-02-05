@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Database, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, getWriteAuthHeaders } from '@/lib/api';
 
 export function LoadSampleDataCard() {
   const router = useRouter();
@@ -17,7 +17,7 @@ export function LoadSampleDataCard() {
     setError(null);
     try {
       const url = apiUrl('/api/seed');
-      const res = await fetch(url, { method: 'POST' });
+      const res = await fetch(url, { method: 'POST', headers: getWriteAuthHeaders() });
       let data: { success?: boolean; error?: string; detail?: string } = {};
       const text = await res.text();
       try {
