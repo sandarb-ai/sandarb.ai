@@ -28,6 +28,8 @@ class Settings(BaseSettings):
         "https://sandarb-ui-hpezvkxi7q-uc.a.run.app",  # Cloud Run UI URL
     ]
     agent_public_url: str = "http://localhost:8000"
+    # Base URL for the Agent subdomain (MCP + A2A). Used in Agent Card. Defaults to agent_public_url.
+    agent_base_url: str = Field(default="", description="e.g. https://agent.sandarb.ai; empty = use agent_public_url")
     dev_mode: bool = Field(default=False, validation_alias="SANDARB_DEV", description="Allow preview agent without sandarb-ui key")
 
     model_config = {

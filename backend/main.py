@@ -1,13 +1,17 @@
 """
 Sandarb FastAPI backend.
 Runs alongside Next.js frontend; same Postgres schema.
+
+When SANDARB_AGENT_SERVICE=1 (e.g. on agent.sandarb.ai), the agent protocol router
+is mounted at root: GET / (Agent Card), POST /mcp (MCP JSON-RPC), POST /a2a (A2A JSON-RPC).
 """
 
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config import settings as config
-from backend.routers import health, agents, organizations, dashboard, governance, agent_pulse, lineage, contexts, prompts, templates, settings, inject, reports, audit, samples, seed
+from backend.routers import health, agents, organizations, dashboard, governance, agent_pulse, lineage, contexts, prompts, templates, settings, inject, reports, audit, samples, seed, agent_protocol
 
 app = FastAPI(
     title="Sandarb API",
@@ -15,13 +19,33 @@ app = FastAPI(
     version="0.1.0",
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=config.cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORS: allow configured origins + localhost/127.0.0.1 (for IDEs using MCP) and optionally wildcard for agents
+_cors_origins = list(config.cors_origins)
+_cors_origins.extend([
+    "http://localhost",
+    "http://127.0.0.1",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
+])
+if os.environ.get("CORS_ORIGINS") and "*" in os.environ.get("CORS_ORIGINS", ""):
+    # Wildcard requested (e.g. for agent service): allow any origin; credentials must be false
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 app.include_router(health.router, prefix="/api")
 app.include_router(agents.router, prefix="/api")
@@ -40,7 +64,10 @@ app.include_router(audit.router, prefix="/api")
 app.include_router(samples.router, prefix="/api")
 app.include_router(seed.router, prefix="/api")
 
-
-@app.get("/")
-def root():
-    return {"service": "sandarb-api", "docs": "/docs"}
+# Agent service (agent.sandarb.ai): mount Agent Card + MCP + A2A at root
+if os.environ.get("SANDARB_AGENT_SERVICE", "").lower() in ("1", "true", "yes"):
+    app.include_router(agent_protocol.router, prefix="")
+else:
+    @app.get("/")
+    def root():
+        return {"service": "sandarb-api", "docs": "/docs"}

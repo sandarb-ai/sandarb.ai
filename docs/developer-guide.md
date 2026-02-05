@@ -444,6 +444,20 @@ GET /api/inject?name=my-context&vars={"user_id":"123"}
 
 Optional headers: `X-Sandarb-Agent-ID`, `X-Sandarb-Trace-ID`, `X-Sandarb-Variables` (JSON).
 
+## Agent endpoint (MCP & A2A)
+
+The **Sandarb MCP Server** and **A2A Server** run on the `agent.sandarb.ai` subdomain, separate from the main REST API. Use the same backend Docker image deployed as the `sandarb-agent` Cloud Run service.
+
+| Purpose | URL |
+|--------|-----|
+| **Agent Endpoint** | `https://agent.sandarb.ai` |
+| **MCP URL** (Claude Desktop / Cursor) | `https://agent.sandarb.ai/mcp` |
+| **A2A URL** (discovery + JSON-RPC) | `https://agent.sandarb.ai/a2a` |
+
+- **Discovery:** `GET https://agent.sandarb.ai` or `GET https://agent.sandarb.ai/a2a` returns the Agent Card (name, description, url, version, capabilities, skills).
+- **MCP:** Configure `https://agent.sandarb.ai/mcp` in Claude Desktop or Cursor to use Sandarb as an MCP server (JSON-RPC 2.0 at `POST /mcp`).
+- **A2A:** Use `POST https://agent.sandarb.ai/a2a` for A2A skill execution (JSON-RPC 2.0: `agent/info`, `skills/list`, `skills/execute`).
+
 ## A2A protocol
 
 **How A2A URLs work in practice (Sandarb AI Governance Agent; A2A is the industry standard for agent-to-agent communication):**
