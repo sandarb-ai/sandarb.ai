@@ -12,7 +12,12 @@
 #   REGION default: us-central1
 #
 # Prerequisites: gcloud installed and logged in (gcloud auth login)
-# Set CLOUD_SQL_DATABASE_URL (or DATABASE_URL) in .env for backend DB (required for api + agent).
+# .env: all variables are loaded and exported (for --seed and scripts). Set at least:
+#   CLOUD_SQL_DATABASE_URL or DATABASE_URL  (backend DB; required for api + agent)
+#   SANDARB_UI_SECRET, SANDARB_API_SECRET, SANDARB_A2A_SECRET  (optional; seed_postgres uses these if set)
+#   JWT_SECRET  (required in production for UI auth)
+# To allow public invoker (allUsers) on Cloud Run, set org policy first, e.g.:
+#   gcloud resource-manager org-policies set-policy config/policy.yaml --project=PROJECT_ID
 #
 # SECURITY: This script deploys with --allow-unauthenticated, exposing the UI and API to the
 # public internet. For production, consider using Identity-Aware Proxy (IAP), Cloud Identity,
@@ -25,15 +30,16 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Load DATABASE_URL and CLOUD_SQL_DATABASE_URL from .env
+# Load and export all env vars from .env (for GCP PG seeding and deploy; required for seed_postgres.py secrets, JWT, etc.)
 if [[ -f "$REPO_ROOT/.env" ]]; then
+  echo "Loading .env into environment..."
   while IFS= read -r line; do
     [[ "$line" =~ ^#.*$ || -z "${line// /}" ]] && continue
-    if [[ "$line" == DATABASE_URL=* ]]; then
-      v="${line#DATABASE_URL=}"; export DATABASE_URL="${v%\"}"; export DATABASE_URL="${DATABASE_URL#\"}"
-    fi
-    if [[ "$line" == CLOUD_SQL_DATABASE_URL=* ]]; then
-      v="${line#CLOUD_SQL_DATABASE_URL=}"; export CLOUD_SQL_DATABASE_URL="${v%\"}"; export CLOUD_SQL_DATABASE_URL="${CLOUD_SQL_DATABASE_URL#\"}"
+    if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+      key="${BASH_REMATCH[1]}"
+      val="${BASH_REMATCH[2]}"
+      val="${val%\"}"; val="${val#\"}"; val="${val%\'}"; val="${val#\'}"
+      export "$key=$val"
     fi
   done < "$REPO_ROOT/.env"
 fi
@@ -58,15 +64,25 @@ fi
 # Parse args
 PROJECT_ID=""
 REGION=""
+DO_SEED=""
+DO_SEED_ONLY=""
 for arg in "$@"; do
   if [[ "$arg" == "--help" || "$arg" == "-h" ]]; then
-    echo "Usage: $0 [PROJECT_ID] [REGION]"
+    echo "Usage: $0 [PROJECT_ID] [REGION] [--seed] [--seed-only]"
     echo "  PROJECT_ID default: sandarb-ai (or GCP_PROJECT_ID or gcloud config)"
     echo "  REGION default: us-central1"
+    echo "  --seed       After deploy, seed GCP Postgres (schema + sample data) so the UI shows data."
+    echo "  --seed-only  Run only the seed step (no build/deploy). Uses CLOUD_SQL_DATABASE_URL from .env."
+    echo "               Uses your gcloud auth; for Cloud SQL socket URLs the script starts Cloud SQL Proxy automatically."
+    echo "  Run 'gcloud auth application-default login' once if you get an auth error during seed."
     echo "  Set CLOUD_SQL_DATABASE_URL or DATABASE_URL in .env for backend services."
     exit 0
   fi
-  if [[ "$arg" != -* && -z "$PROJECT_ID" ]]; then
+  if [[ "$arg" == "--seed" ]]; then
+    DO_SEED=1
+  elif [[ "$arg" == "--seed-only" ]]; then
+    DO_SEED_ONLY=1
+  elif [[ "$arg" != -* && -z "$PROJECT_ID" ]]; then
     PROJECT_ID="$arg"
   elif [[ "$arg" != -* && -n "$PROJECT_ID" && -z "$REGION" ]]; then
     REGION="$arg"
@@ -91,9 +107,14 @@ if [[ -z "$DEPLOY_DATABASE_URL" ]]; then
   exit 1
 fi
 
-if [[ "$DEPLOY_DATABASE_URL" == *"localhost"* || "$DEPLOY_DATABASE_URL" == *"127.0.0.1"* ]]; then
+if [[ -z "$DO_SEED_ONLY" ]] && { [[ "$DEPLOY_DATABASE_URL" == *"localhost"* ]] || [[ "$DEPLOY_DATABASE_URL" == *"127.0.0.1"* ]]; }; then
   echo "Error: DATABASE_URL must not be localhost for Cloud Run. Use Cloud SQL URL or public IP."
   exit 1
+fi
+
+# --seed-only: run only the seed step, then exit
+if [[ -n "$DO_SEED_ONLY" ]]; then
+  DO_SEED=1
 fi
 
 # Cloud SQL instance for --add-cloudsql-instances (when URL uses Unix socket)
@@ -102,6 +123,7 @@ if [[ "$DEPLOY_DATABASE_URL" == *"/cloudsql/"* ]]; then
   CLOUDSQL_INSTANCE=$(echo "$DEPLOY_DATABASE_URL" | sed -n 's|.*/cloudsql/\([^/?]*\).*|\1|p')
 fi
 
+if [[ -z "$DO_SEED_ONLY" ]]; then
 BUILD_TAG="$(date +%Y%m%d-%H%M%S)"
 if (cd "$REPO_ROOT" && git rev-parse --short HEAD &>/dev/null); then
   BUILD_TAG="${BUILD_TAG}-$(cd "$REPO_ROOT" && git rev-parse --short HEAD)"
@@ -243,6 +265,28 @@ if [[ -n "$CLOUDSQL_INSTANCE" ]]; then
 fi
 "$GCLOUD" run deploy sandarb-agent "${DEPLOY_AGENT_ARGS[@]}"
 
+# Make UI, API, and Agent publicly invokable (requires org policy to allow allUsers; see config/policy.yaml)
+echo ""
+echo "Adding public invoker access for UI, API, and Agent..."
+"$GCLOUD" run services add-iam-policy-binding sandarb-ui \
+  --member="allUsers" \
+  --role="roles/run.invoker" \
+  --region="$REGION" \
+  --project="$PROJECT_ID" \
+  || echo "  sandarb-ui: add-iam-policy-binding failed (org policy may block allUsers)."
+"$GCLOUD" run services add-iam-policy-binding sandarb-api \
+  --member="allUsers" \
+  --role="roles/run.invoker" \
+  --region="$REGION" \
+  --project="$PROJECT_ID" \
+  || echo "  sandarb-api: add-iam-policy-binding failed (org policy may block allUsers)."
+"$GCLOUD" run services add-iam-policy-binding sandarb-agent \
+  --member="allUsers" \
+  --role="roles/run.invoker" \
+  --region="$REGION" \
+  --project="$PROJECT_ID" \
+  || echo "  sandarb-agent: add-iam-policy-binding failed (org policy may block allUsers)."
+
 # ---------------------------------------------------------------------------
 # Step 5: Domain mapping instructions (manual; gcloud domain-mappings can be flaky)
 # ---------------------------------------------------------------------------
@@ -269,4 +313,104 @@ echo "  UI:         $UI_URL"
 echo "  API:        $API_URL"
 echo "  Agent:      $AGENT_URL"
 echo ""
+fi
+
+# Optional: seed GCP Postgres so the UI shows data (schema + sample data)
+# Uses your gcloud login; for Cloud SQL Unix socket URLs we start Cloud SQL Proxy so seed runs locally.
+if [[ -n "$DO_SEED" ]]; then
+  echo "[Seed] Seeding GCP Postgres (schema + sample data)..."
+  cd "$REPO_ROOT"
+  SEED_URL="$DEPLOY_DATABASE_URL"
+  PROXY_PID=""
+  NEED_PROXY=""
+  if [[ "$DEPLOY_DATABASE_URL" == *"/cloudsql/"* ]]; then
+    NEED_PROXY=1
+    echo "  Cloud SQL socket URL detected; starting Cloud SQL Proxy (uses your gcloud auth)..."
+    # Parse URL: get connection name and build TCP URL (Python)
+    SEED_PARSE=$(python3 - "$DEPLOY_DATABASE_URL" << 'PYSEED'
+import sys
+from urllib.parse import urlparse, parse_qs, unquote
+url = sys.argv[2] if len(sys.argv) > 2 else sys.argv[1]
+u = urlparse(url)
+q = parse_qs(u.query)
+host = (q.get("host") or [None])[0]
+if host:
+    host = unquote(host)
+if host and "/cloudsql/" in host:
+    conn = host.replace("/cloudsql/", "").strip()
+    from urllib.parse import quote
+    safe_pass = quote(u.password, safe="") if u.password else ""
+    tcp = f"{u.scheme}://{u.username}:{safe_pass}@127.0.0.1:5433{u.path}"
+    print(conn)
+    print(tcp)
+else:
+    sys.exit(1)
+PYSEED
+) || true
+    if [[ -z "$SEED_PARSE" ]]; then
+      echo "Seed: could not parse CLOUD_SQL_DATABASE_URL (expected ?host=/cloudsql/PROJECT:REGION:INSTANCE)." >&2
+      exit 1
+    fi
+    CONNECTION_NAME=$(echo "$SEED_PARSE" | head -1)
+    SEED_URL=$(echo "$SEED_PARSE" | tail -1)
+    # Find or download Cloud SQL Proxy
+    PROXY_BIN=$(command -v cloud_sql_proxy 2>/dev/null || command -v cloud-sql-proxy 2>/dev/null || true)
+    if [[ -z "$PROXY_BIN" ]]; then
+      PROXY_DIR="$REPO_ROOT/.tmp"
+      mkdir -p "$PROXY_DIR"
+      ARCH=$(uname -m)
+      OS=$(uname -s)
+      case "$OS" in
+        Darwin) OS=darwin ;;
+        Linux)  OS=linux ;;
+        *) echo "Seed: unsupported OS for Cloud SQL Proxy auto-download." >&2; exit 1 ;;
+      esac
+      case "$ARCH" in
+        x86_64|amd64) ARCH=amd64 ;;
+        arm64|aarch64) ARCH=arm64 ;;
+        *) echo "Seed: unsupported arch for Cloud SQL Proxy auto-download." >&2; exit 1 ;;
+      esac
+      PROXY_BIN="$PROXY_DIR/cloud-sql-proxy"
+      if [[ ! -x "$PROXY_BIN" ]]; then
+        echo "  Downloading Cloud SQL Proxy..."
+        VER="v2.14.0"
+        URL="https://github.com/GoogleCloudPlatform/cloud-sql-proxy/releases/download/${VER}/cloud-sql-proxy.${OS}.${ARCH}"
+        if ! curl -sLf -o "$PROXY_BIN" "$URL"; then
+          echo "Seed: download failed. Install manually: https://cloud.google.com/sql/docs/postgres/connect-auth-proxy#install" >&2
+          exit 1
+        fi
+        chmod +x "$PROXY_BIN"
+      fi
+    fi
+    "$PROXY_BIN" --port 5433 "$CONNECTION_NAME" &
+    PROXY_PID=$!
+    # Wait for proxy to listen
+    for i in 1 2 3 4 5 6 7 8 9 10; do
+      if (python3 -c "import socket; s=socket.socket(); s.settimeout(1); s.connect(('127.0.0.1', 5433)); s.close()" 2>/dev/null); then
+        break
+      fi
+      sleep 1
+    done
+    if ! (python3 -c "import socket; s=socket.socket(); s.settimeout(1); s.connect(('127.0.0.1', 5433)); s.close()" 2>/dev/null); then
+      kill "$PROXY_PID" 2>/dev/null || true
+      echo "Seed: Cloud SQL Proxy failed to start. Run: gcloud auth application-default login" >&2
+      exit 1
+    fi
+  fi
+  export DATABASE_URL="$SEED_URL"
+  if ! python3 scripts/init_postgres.py; then
+    [[ -n "$PROXY_PID" ]] && kill "$PROXY_PID" 2>/dev/null || true
+    echo "Seed: init_postgres.py failed." >&2
+    exit 1
+  fi
+  if ! python3 scripts/seed_postgres.py; then
+    [[ -n "$PROXY_PID" ]] && kill "$PROXY_PID" 2>/dev/null || true
+    echo "Seed: seed_postgres.py failed." >&2
+    exit 1
+  fi
+  [[ -n "$PROXY_PID" ]] && kill "$PROXY_PID" 2>/dev/null || true
+  echo "Seed done. Refresh the UI to see data."
+  echo ""
+fi
+
 echo "Done."

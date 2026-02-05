@@ -16,22 +16,28 @@ interface BreadcrumbProps {
 
 /**
  * Breadcrumb navigation. Last item is current (no link).
- * Use for list pages (single crumb) and detail pages (Section > ... > Current).
+ * Only shown when there is a path (2+ segments); single-crumb list pages do not show a bar.
  */
 export function Breadcrumb({ items, className }: BreadcrumbProps) {
-  if (!items.length) return null;
+  if (!items.length || items.length < 2) return null;
   return (
-    <nav aria-label="Breadcrumb" className={cn('flex items-center gap-1.5 text-sm', className)}>
+    <nav
+      aria-label="Breadcrumb"
+      className={cn(
+        'flex items-center gap-1.5 rounded-md border border-violet-200/80 dark:border-violet-800/50 bg-violet-50/80 dark:bg-violet-950/40 px-3 py-2 text-[13px] font-medium',
+        className
+      )}
+    >
       {items.map((item, i) => {
         const isLast = i === items.length - 1;
         return (
           <span key={i} className="flex items-center gap-1.5">
             {i > 0 && (
-              <ChevronRight className="h-4 w-4 text-muted-foreground/70 shrink-0" aria-hidden />
+              <ChevronRight className="h-3.5 w-3.5 text-violet-500 dark:text-violet-400 shrink-0 opacity-80" aria-hidden />
             )}
             {isLast || !item.href ? (
               <span
-                className="font-medium text-foreground truncate max-w-[12rem] sm:max-w-none"
+                className="text-violet-900 dark:text-violet-100 truncate max-w-[12rem] sm:max-w-none"
                 aria-current="page"
               >
                 {item.label}
@@ -39,7 +45,7 @@ export function Breadcrumb({ items, className }: BreadcrumbProps) {
             ) : (
               <Link
                 href={item.href}
-                className="text-muted-foreground hover:text-foreground truncate max-w-[8rem] sm:max-w-[12rem] transition-colors"
+                className="text-violet-700 dark:text-violet-300 hover:text-violet-900 dark:hover:text-violet-100 hover:underline underline-offset-2 truncate max-w-[8rem] sm:max-w-[12rem] transition-colors"
               >
                 {item.label}
               </Link>

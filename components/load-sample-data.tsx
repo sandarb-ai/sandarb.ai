@@ -16,10 +16,20 @@ export function LoadSampleDataCard() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(apiUrl('/api/seed'), { method: 'POST' });
-      const data = await res.json();
+      const url = apiUrl('/api/seed');
+      const res = await fetch(url, { method: 'POST' });
+      let data: { success?: boolean; error?: string; detail?: string } = {};
+      const text = await res.text();
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        if (!res.ok) {
+          setError(`Seed failed: backend returned non-JSON (is the API at ${url} running?).`);
+          return;
+        }
+      }
       if (!res.ok) {
-        setError(data.error || 'Seed failed');
+        setError(data.detail || data.error || 'Seed failed');
         return;
       }
       router.refresh();

@@ -51,6 +51,9 @@ __pycache__/
 .Python
 *.so
 
+# Deploy / Cloud SQL Proxy (downloaded by deploy-gcp.sh --seed)
+.tmp/
+
 # Misc
 *.tsbuildinfo
 next-env.d.ts
