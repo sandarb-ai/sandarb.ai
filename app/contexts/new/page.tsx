@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { ContextEditor } from '@/components/context-editor';
 import { ContextPreview } from '@/components/context-preview';
 import { ComplianceMetadataFields } from '@/components/compliance-metadata-fields';
@@ -102,12 +103,8 @@ export default function NewContextPage() {
       {/* Header */}
       <header className="flex items-center justify-between border-b bg-background px-6 py-4">
         <div className="flex items-center gap-4">
-          <Link href="/contexts">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
           <div>
+            <Breadcrumb items={[{ label: 'Contexts', href: '/contexts' }, { label: 'New context' }]} className="mb-2" />
             <h1 className="text-2xl font-semibold tracking-tight">
               New Agent Context
             </h1>

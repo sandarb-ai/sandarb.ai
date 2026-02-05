@@ -28,21 +28,21 @@ const HANDSHAKE_MERMAID = `sequenceDiagram
     Sandarb-->>Worker: OK (Agent ID, approval status)
 
     Note over Worker: 2. Execution start
-    Worker->>Sandarb: A2A Call: get_prompt { name: "finance-bot" }
-    Sandarb-->>Worker: { content: "...", version: 4, model: "gpt-4-turbo" }
+    Worker->>Sandarb: A2A Call: get_prompt (name: finance-bot)
+    Sandarb-->>Worker: (content, version: 4, model: gpt-4-turbo)
 
     Note over Worker: 3. RAG / context
     Worker->>Worker: Fetch docs from vector DB
-    Worker->>Sandarb: A2A Call: validate_context { name: "trading-limits", sourceAgent: "my-agent" }
-    Sandarb-->>Worker: { approved: true, content: {...}, hasPendingRevisions: false }
+    Worker->>Sandarb: A2A Call: validate_context (name: trading-limits, sourceAgent: my-agent)
+    Sandarb-->>Worker: (approved: true, content, hasPendingRevisions: false)
 
     Note over Worker: 4. Inference
     Worker->>LLM: Chat completion (Prompt v4 + context)
     LLM-->>Worker: Response
 
     Note over Worker: 5. Audit
-    Worker->>Sandarb: A2A Call: audit_log { eventType: "inference", details: { ... } }
-    Sandarb-->>Worker: { logged: true }`;
+    Worker->>Sandarb: A2A Call: audit_log (eventType: inference, details)
+    Sandarb-->>Worker: (logged: true)`;
 
 const EXAMPLE_AGENTS_A2A_MERMAID = `sequenceDiagram
     participant Support as Support Bot
@@ -144,12 +144,14 @@ export default async function DocsPage() {
         { id: 'sdks-python', label: 'Python' },
         { id: 'sdks-node', label: 'Node' },
         { id: 'sdks-go', label: 'Go' },
+        { id: 'sdks-java', label: 'Java' },
       ],
     },
     {
       label: 'REST API',
       items: [
         { id: 'rest-api', label: 'Core endpoints' },
+        { id: 'rest-api-swagger', label: 'API Reference (Swagger UI)' },
         { id: 'inject', label: 'Inject API' },
         { id: 'try-inject', label: 'Try Inject API' },
         { id: 'prompts-pull', label: 'Prompts Pull API' },
@@ -477,14 +479,20 @@ export default async function DocsPage() {
 │       ├── client.ts
 │       ├── models.ts
 │       └── index.ts
-└── go/                    # Go SDK (standard structs)
-    ├── go.mod
-    └── sandarb/
-        ├── client.go
-        └── models.go`}</DocsCodeBlock>
+├── go/                    # Go SDK (standard structs)
+│   ├── go.mod
+│   └── sandarb/
+│       ├── client.go
+│       └── models.go
+└── java/                  # Java SDK (Jackson, Java 11+)
+    ├── pom.xml
+    └── src/main/java/ai/sandarb/
+        ├── SandarbClient.java
+        ├── GetContextResult.java
+        └── GetPromptResult.java`}</DocsCodeBlock>
 
           <H3WithAnchor>Build and test</H3WithAnchor>
-          <P><strong className="text-foreground">Prerequisites:</strong> Python 3.10+, Node 18+, Go 1.21+.</P>
+          <P><strong className="text-foreground">Prerequisites:</strong> Python 3.10+, Node 18+, Go 1.21+, Java 11+ (Maven 3.6+).</P>
           <DocsCodeBlock label="Python">{`cd sdk/python
 pip install -e .
 # Tests: pytest`}</DocsCodeBlock>
@@ -496,7 +504,10 @@ npm run build
 go mod tidy
 go build ./...
 # Tests: go test ./...`}</DocsCodeBlock>
-          <P>From repo root, run all: <InlineCode>pip install -e sdk/python</InlineCode>; <InlineCode>(cd sdk/node &amp;&amp; npm install &amp;&amp; npm run build)</InlineCode>; <InlineCode>(cd sdk/go &amp;&amp; go mod tidy &amp;&amp; go build ./...)</InlineCode>.</P>
+          <DocsCodeBlock label="Java">{`cd sdk/java
+mvn compile
+# Tests: mvn test`}</DocsCodeBlock>
+          <P>From repo root, run all: <InlineCode>pip install -e sdk/python</InlineCode>; <InlineCode>(cd sdk/node &amp;&amp; npm install &amp;&amp; npm run build)</InlineCode>; <InlineCode>(cd sdk/go &amp;&amp; go mod tidy &amp;&amp; go build ./...)</InlineCode>; <InlineCode>(cd sdk/java &amp;&amp; mvn compile)</InlineCode>.</P>
 
           <H3WithAnchor>Environment variables</H3WithAnchor>
           <div className="overflow-x-auto mb-4">
@@ -547,6 +558,14 @@ await client.logActivity("my-agent-id", "trace-123", { query: "..." }, { answer:
 ctx, _ := client.GetContext("trading-limits", "my-agent-id")
 prompt, _ := client.GetPrompt("customer-support-v1", map[string]interface{}{"user_tier": "gold"}, "my-agent-id", "")
 client.LogActivity("my-agent-id", "trace-123", map[string]interface{}{"query": "..."}, map[string]interface{}{"answer": "..."})`}</DocsCodeBlock>
+          <H3WithAnchor id="sdks-java">Java</H3WithAnchor>
+          <DocsCodeBlock label="Java">{`SandarbClient client = SandarbClient.builder()
+  .baseUrl("http://localhost:8000")
+  .apiKey("your-api-key")
+  .build();
+GetContextResult ctx = client.getContext("trading-limits", "my-agent-id");
+GetPromptResult prompt = client.getPrompt("customer-support-v1", Map.of("user_tier", "gold"), "my-agent-id");
+client.logActivity("my-agent-id", "trace-123", Map.of("query", "..."), Map.of("answer", "..."));`}</DocsCodeBlock>
 
           <H3WithAnchor>Backend requirements</H3WithAnchor>
           <Ul>
@@ -719,6 +738,13 @@ POST /api/a2a
             </div>
           </div>
           <P>All mutations and inject support optional audit headers (see <a href="#audit-headers" className="text-violet-600 dark:text-violet-400 hover:underline underline-offset-2">Audit headers</a>).</P>
+          <H3WithAnchor id="rest-api-swagger">API Reference (Swagger UI)</H3WithAnchor>
+          <P>Use the interactive <strong className="text-foreground">Swagger UI</strong> to explore and test all endpoints. You can point it at <InlineCode>http://localhost:8000</InlineCode> when running locally or at your deployed API URL (e.g. GCP Cloud Run) when testing in production.</P>
+          <p className="mb-4">
+            <a href="/docs/api" className="inline-flex items-center rounded-md bg-violet-100 dark:bg-violet-900/30 px-3 py-1.5 text-sm font-medium text-violet-700 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-800/40 transition-colors">
+              Open API Reference (Swagger UI) →
+            </a>
+          </p>
         </section>
 
         <section id="inject" className="scroll-mt-24 pt-6 border-t border-border/40">

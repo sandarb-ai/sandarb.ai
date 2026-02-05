@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, RefreshCw, Bot } from 'lucide-react';
 import { Header } from '@/components/header';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { D3BarChart } from '@/components/charts/d3-bar-chart';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -36,7 +37,7 @@ export default function ComplianceReportPage() {
   if (loading && !data) {
     return (
       <div className="flex flex-col h-full">
-        <Header title="Compliance Report" description="Access events and audit lineage" />
+        <Header title="Compliance Report" description="Access events and audit lineage" breadcrumb={<Breadcrumb items={[{ label: 'Reports', href: '/reports' }, { label: 'Compliance' }]} className="mb-2" />} />
         <div className="flex-1 p-6 flex items-center justify-center">
           <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
@@ -47,7 +48,7 @@ export default function ComplianceReportPage() {
   if (error && !data) {
     return (
       <div className="flex flex-col h-full">
-        <Header title="Compliance Report" description="Access events and audit lineage" />
+        <Header title="Compliance Report" description="Access events and audit lineage" breadcrumb={<Breadcrumb items={[{ label: 'Reports', href: '/reports' }, { label: 'Compliance' }]} className="mb-2" />} />
         <div className="flex-1 p-6">
           <EmptyState title="Could not load report" description={error} />
         </div>
@@ -65,6 +66,7 @@ export default function ComplianceReportPage() {
       <Header
         title="Compliance Report"
         description="Access events, success vs denied injections, prompt usage and audit lineage"
+        breadcrumb={<Breadcrumb items={[{ label: 'Reports', href: '/reports' }, { label: 'Compliance' }]} className="mb-2" />}
       />
       <div className="flex-1 p-6 overflow-auto space-y-8">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

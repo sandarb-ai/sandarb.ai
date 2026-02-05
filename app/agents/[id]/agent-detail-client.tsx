@@ -23,6 +23,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { formatDate, formatApprovedBy } from '@/lib/utils';
 import type { RegisteredAgent } from '@/types';
 import type { AgentCard, AgentSkill } from '@/types';
@@ -95,11 +96,8 @@ export function AgentDetailClient({ initialAgent }: AgentDetailClientProps) {
   return (
     <div className="flex flex-col h-full">
       <header className="flex items-center gap-4 border-b bg-background px-6 py-4">
-        <Link href="/agents">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
+        <div className="min-w-0 flex-1">
+          <Breadcrumb items={[{ label: 'Agents', href: '/agents' }, { label: agent.name }]} className="mb-1" />
         <div className="flex flex-col gap-1.5 flex-1 min-w-0">
           {agent.organization && (
             <Link
@@ -135,7 +133,8 @@ export function AgentDetailClient({ initialAgent }: AgentDetailClientProps) {
           </Badge>
           </div>
         </div>
-        <div className="flex items-center gap-4">
+        </div>
+        <div className="flex items-center gap-4 shrink-0">
           {(agent.approvalStatus ?? 'draft') === 'pending_approval' && (
             <>
               <Button size="sm" variant="approve" onClick={handleApprove}>

@@ -31,6 +31,10 @@ Sandarb is designed to run in a **company’s control plane** to implement AI Go
 
 When you go to production, the service must be hosted and fully protected by your organization—not exposed directly from a developer machine. See **[docs/developer-guide.md](docs/developer-guide.md#deployment)** and **[docs/deploy-gcp.md](docs/deploy-gcp.md)** for how to host Sandarb (e.g. behind LB, GCP Cloud Run, or a dedicated server).
 
+### Security
+
+Sandarb is built for enterprise and regulated use. Governance data and audit endpoints are protected by **API key authentication**; agent identity is bound to the key (no header trust). **JWT and service account secrets** are enforced in production (no default/weak secrets). Preview bypass is restricted; secrets are not logged; CORS and SQL are hardened. **[Full security documentation →](docs/SECURITY.md)**
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![GCP Native](https://img.shields.io/badge/Deploy-Google%20Cloud-4285F4?logo=google-cloud&logoColor=white)](https://cloud.google.com/)
 

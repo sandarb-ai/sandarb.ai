@@ -51,15 +51,19 @@ export function PublicHeader({
         </nav>
       </div>
       <div className="flex items-center gap-2">
-        <Link
-          href="/settings"
-          className={`${navLink} flex items-center gap-1.5 ${isSettings ? navLinkActive : navLinkInactive}`}
-          aria-label="Settings"
-        >
-          <Settings className="h-4 w-4" />
-          Settings
-        </Link>
-        <SignedInStrip variant="header" initialSignedIn={initialSignedIn} />
+        {initialSignedIn && (
+          <>
+            <Link
+              href="/settings"
+              className={`${navLink} flex items-center gap-1.5 ${isSettings ? navLinkActive : navLinkInactive}`}
+              aria-label="Settings"
+            >
+              <Settings className="h-4 w-4" />
+              Settings
+            </Link>
+            <SignedInStrip variant="header" initialSignedIn={initialSignedIn} />
+          </>
+        )}
       </div>
     </header>
   );

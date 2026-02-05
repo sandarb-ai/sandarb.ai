@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/empty-state';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { formatDateTime, cn } from '@/lib/utils';
 import type { Organization } from '@/types';
 
@@ -50,6 +51,7 @@ export function OrganizationsPageClient({ initialOrgs }: OrganizationsPageClient
     <div className="flex flex-col h-full">
       <header className="flex items-center justify-between border-b bg-background px-6 py-4">
         <div>
+          <Breadcrumb items={[{ label: 'Organizations' }]} className="mb-2" />
           <h1 className="text-2xl font-semibold tracking-tight">Organizations</h1>
           <p className="text-sm text-muted-foreground">
             Root org and sub-orgs. Create orgs under root for teams (data, marketing, ops, etc.).

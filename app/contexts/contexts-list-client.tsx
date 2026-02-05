@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/empty-state';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { apiUrl } from '@/lib/api';
 import { formatDateTime, truncate, cn } from '@/lib/utils';
 import type { Context, DataClassification, RegulatoryHook, Organization } from '@/types';
@@ -110,6 +111,7 @@ export function ContextsListClient({ initialContexts, total, totalActive: totalA
         <div className="flex flex-col gap-5">
           <div className="flex items-start justify-between gap-4">
             <div>
+              <Breadcrumb items={[{ label: 'Contexts' }]} className="mb-2" />
               <h1 className="text-2xl font-semibold tracking-tight">Agent Context</h1>
               <p className="text-sm text-muted-foreground mt-1">
                 Reference data and documents agents can access at runtime. Versioned with approval workflow.

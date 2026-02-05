@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { FileText, FileJson, Zap, Bot, Building2, ExternalLink } from 'lucide-react';
 import { Header } from '@/components/header';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { StatsCard } from '@/components/stats-card';
 import { LoadSampleDataCard } from '@/components/load-sample-data';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -55,6 +56,7 @@ export default async function DashboardPage() {
       <Header
         title="Dashboard"
         description={orgCount || agentCount || contextStats.active || promptStats.active ? 'Aggregate metrics from your database' : 'Aggregate metrics (load data with ./scripts/load_sandarb_data.sh)'}
+        breadcrumb={<Breadcrumb items={[{ label: 'Dashboard' }]} className="mb-2" />}
       />
 
       <div className="flex-1 p-6 space-y-6">

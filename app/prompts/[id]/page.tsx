@@ -27,6 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { TextDiffView } from '@/components/text-diff-view';
 import type { Prompt, PromptVersion, PromptVersionStatus } from '@/types';
 import { formatDate, formatApprovedBy } from '@/lib/utils';
@@ -220,17 +221,11 @@ export default function PromptDetailPage() {
     <div className="flex flex-col h-full bg-background">
       {/* Clean header */}
       <header className="flex items-center justify-between border-b px-6 py-4 bg-background shrink-0">
-        <div className="flex items-center gap-4">
-          <Link href="/prompts">
-            <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="h-4 w-4" />
-              Prompts
-            </Button>
-          </Link>
-          <div className="h-6 w-px bg-border" />
+        <div className="flex items-center gap-4 min-w-0">
           <div>
+            <Breadcrumb items={[{ label: 'Prompts', href: '/prompts' }, { label: prompt?.name ?? '…' }]} className="mb-1" />
             <div className="flex items-center gap-3">
-              <h1 className="text-lg font-semibold font-mono">{prompt?.name}</h1>
+              <h1 className="text-lg font-semibold font-mono truncate">{prompt?.name}</h1>
               {currentVersion && (
                 <Badge variant="outline" className="font-mono">v{currentVersion.version}</Badge>
               )}

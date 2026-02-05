@@ -2,16 +2,18 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Building2, Bot, CheckCircle2, Clock, FileEdit, XCircle, Users, Calendar } from 'lucide-react';
+import { Building2, Bot, CheckCircle2, Clock, FileEdit, XCircle, Users, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { formatDateTime } from '@/lib/utils';
 import type { Organization } from '@/types';
 import type { RegisteredAgent } from '@/types';
 
 interface OrganizationDetailClientProps {
   org: Organization;
+  ancestors: Organization[];
   children: Organization[];
   agents: RegisteredAgent[];
 }
@@ -32,7 +34,7 @@ function AgentStatusBadge({ status }: { status: string }) {
   );
 }
 
-export function OrganizationDetailClient({ org, children, agents }: OrganizationDetailClientProps) {
+export function OrganizationDetailClient({ org, ancestors, children, agents }: OrganizationDetailClientProps) {
   const router = useRouter();
   
   // Stats
@@ -41,19 +43,21 @@ export function OrganizationDetailClient({ org, children, agents }: Organization
   const pendingAgents = agents.filter(a => a.approvalStatus === 'pending_approval').length;
   const draftAgents = agents.filter(a => !a.approvalStatus || a.approvalStatus === 'draft').length;
 
+  const breadcrumbItems = [
+    { label: 'Organizations', href: '/organizations' },
+    ...ancestors.map((a) => ({ label: a.name, href: `/organizations/${a.id}` })),
+    { label: org.name },
+  ];
+
   return (
     <div className="flex flex-col h-full">
       <header className="border-b bg-background px-6 py-5">
         <div className="flex items-center gap-4">
-          <Link href="/organizations">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
+            <Breadcrumb items={breadcrumbItems} className="mb-2" />
             <div className="flex items-center gap-2">
-              <Building2 className="h-6 w-6 text-violet-600" />
-              <h1 className="text-2xl font-semibold tracking-tight">{org.name}</h1>
+              <Building2 className="h-6 w-6 text-violet-600 shrink-0" />
+              <h1 className="text-2xl font-semibold tracking-tight truncate">{org.name}</h1>
               {org.isRoot && <Badge variant="secondary">Root</Badge>}
             </div>
             {org.description && (

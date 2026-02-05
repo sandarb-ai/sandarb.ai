@@ -30,10 +30,6 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
-# DB scripts (for CI or manual runs; backend uses Postgres, not this container)
-COPY --from=builder /app/scripts/full-reset-postgres.js /app/scripts/init-postgres.js /app/scripts/seed-postgres.js /app/scripts/
-RUN chown -R nextjs:nodejs /app/scripts
-
 # Entrypoint: start Next.js UI only. Backend runs as a separate service.
 COPY scripts/docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh

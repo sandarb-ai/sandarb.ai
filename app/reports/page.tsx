@@ -10,6 +10,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { Header } from '@/components/header';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { Card, CardContent } from '@/components/ui/card';
 
 const reportLinks = [
@@ -53,6 +54,7 @@ export default function ReportsIndexPage() {
       <Header
         title="Reports"
         description="Reports and insights that demonstrate AI Governance for AI Agents: risk & controls, un-registered agents, regulatory, and compliance."
+        breadcrumb={<Breadcrumb items={[{ label: 'Reports' }]} className="mb-2" />}
       />
       <div className="flex-1 p-6 overflow-auto">
         <div className="max-w-4xl mx-auto">

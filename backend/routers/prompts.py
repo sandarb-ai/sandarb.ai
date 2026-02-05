@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, HTTPException, Body, Request, Query
 
+from backend.auth import require_api_key_and_agent
 from backend.db import query
 from backend.schemas.common import ApiResponse
 from backend.services.prompts import (
@@ -25,8 +26,8 @@ PREVIEW_AGENT_ID = "sandarb-prompt-preview"
 
 
 def _get_audit_ids(request: Request, agent_id: str | None = None, trace_id: str | None = None) -> tuple[str | None, str | None]:
-    agent = request.headers.get("x-sandarb-agent-id") or request.headers.get("X-Sandarb-Agent-ID") or agent_id
-    trace = request.headers.get("x-sandarb-trace-id") or request.headers.get("X-Sandarb-Trace-ID") or trace_id
+    agent = request.headers.get("x-sandarb-agent-id") or request.headers.get("X-Sandarb-Agent-ID") or request.query_params.get("agentId") or agent_id
+    trace = request.headers.get("x-sandarb-trace-id") or request.headers.get("X-Sandarb-Trace-ID") or request.query_params.get("traceId") or trace_id
     return (agent.strip() if agent else None, trace.strip() if trace else None)
 
 
@@ -37,13 +38,11 @@ def get_pull(
     agentId: str | None = Query(None),
     traceId: str | None = Query(None),
 ):
-    """Pull approved prompt by name. Requires X-Sandarb-Agent-ID and X-Sandarb-Trace-ID. Prompt is returned only if linked to the calling agent (agent_prompts)."""
+    """Pull approved prompt by name. Requires API key (Bearer or X-API-Key) and X-Sandarb-Agent-ID / X-Sandarb-Trace-ID. Agent ID must match the key's linked agent. Prompt is returned only if linked to that agent."""
     agent_id_header, trace_id_header = _get_audit_ids(request, agentId, traceId)
-    if not agent_id_header or not trace_id_header:
-        raise HTTPException(
-            status_code=400,
-            detail="Auditable prompt pull requires X-Sandarb-Agent-ID and X-Sandarb-Trace-ID (headers or query agentId/traceId).",
-        )
+    _account, agent_id_header, trace_id_header = require_api_key_and_agent(
+        request, agent_id_header, trace_id_header, allow_preview_for_client_id="sandarb-ui"
+    )
     prompt = get_prompt_by_name(name)
     if not prompt:
         raise HTTPException(status_code=404, detail=f"Prompt not found: {name}")

@@ -32,14 +32,22 @@ sdk/
 │       ├── client.ts
 │       ├── models.ts
 │       └── index.ts
-└── go/                    # Go SDK (standard structs)
-    ├── go.mod
-    └── sandarb/
-        ├── client.go
-        └── models.go
+├── go/                    # Go SDK (standard structs)
+│   ├── go.mod
+│   └── sandarb/
+│       ├── client.go
+│       └── models.go
+└── java/                  # Java SDK (Jackson, Java 11+)
+    ├── pom.xml
+    ├── README.md
+    └── src/main/java/ai/sandarb/
+        ├── SandarbClient.java
+        ├── GetContextResult.java
+        ├── GetPromptResult.java
+        └── SandarbException.java
 ```
 
-Additional SDKs (Java/Kotlin, C#/.NET) and REST/OpenAPI specs can be added under `sdk/` following the same interface.
+Additional SDKs (Kotlin, C#/.NET) and REST/OpenAPI specs can be added under `sdk/` following the same interface.
 
 ## Build and test
 
@@ -48,6 +56,7 @@ Additional SDKs (Java/Kotlin, C#/.NET) and REST/OpenAPI specs can be added under
 - **Python**: 3.10+, pip
 - **Node**: 18+, npm
 - **Go**: 1.21+
+- **Java**: 11+, Maven 3.6+
 
 ### Python
 
@@ -78,6 +87,15 @@ go build ./...
 # Tests: go test ./...
 ```
 
+### Java
+
+```bash
+cd sdk/java
+mvn compile
+# Package: mvn package
+# Tests: mvn test
+```
+
 ### All at once (from repo root)
 
 ```bash
@@ -89,6 +107,9 @@ pip install -e sdk/python
 
 # Go
 (cd sdk/go && go mod tidy && go build ./...)
+
+# Java
+(cd sdk/java && mvn compile)
 ```
 
 ## Environment variables
@@ -170,6 +191,28 @@ func main() {
 
 	_ = client.LogActivity("my-agent-id", "trace-123", map[string]interface{}{"query": "..."}, map[string]interface{}{"answer": "..."})
 }
+```
+
+### Java
+
+```java
+import ai.sandarb.SandarbClient;
+import ai.sandarb.GetContextResult;
+import ai.sandarb.GetPromptResult;
+import java.util.Map;
+
+SandarbClient client = SandarbClient.builder()
+    .baseUrl("http://localhost:8000")
+    .apiKey("your-api-key")
+    .build();
+
+GetContextResult ctx = client.getContext("trading-limits", "my-agent-id");
+System.out.println(ctx.getContent() + " " + ctx.getContextVersionId());
+
+GetPromptResult prompt = client.getPrompt("customer-support-v1", Map.of("user_tier", "gold"), "my-agent-id");
+System.out.println(prompt.getContent() + " " + prompt.getVersion());
+
+client.logActivity("my-agent-id", "trace-123", Map.of("query", "..."), Map.of("answer", "..."));
 ```
 
 ## Backend requirements

@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 // Validate name: lowercase alphanumeric, hyphens, underscores only
 const isValidName = (n: string) => /^[a-z0-9_-]+$/.test(n);
@@ -86,12 +87,8 @@ export default function NewPromptPage() {
     <div className="flex flex-col h-full">
       <header className="flex items-center justify-between border-b bg-background px-6 py-4">
         <div className="flex items-center gap-4">
-          <Link href="/prompts">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
           <div>
+            <Breadcrumb items={[{ label: 'Prompts', href: '/prompts' }, { label: 'New prompt' }]} className="mb-2" />
             <h1 className="text-2xl font-semibold tracking-tight">Create Agent Prompt</h1>
             <p className="text-sm text-muted-foreground">
               The "Employee Handbook" for agents: instructions on behavior, tone, and rules.

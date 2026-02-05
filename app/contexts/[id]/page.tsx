@@ -34,6 +34,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 function InjectApiBar({ contextName }: { contextName: string }) {
   const [copied, setCopied] = useState(false);
@@ -267,15 +268,11 @@ export default function EditContextPage() {
   return (
     <div className="flex flex-col h-full min-h-0">
       <header className="sticky top-0 z-10 shrink-0 flex items-center justify-between border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-6 py-3">
-        <div className="flex items-center gap-4">
-          <Link href="/contexts">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
+        <div className="flex items-center gap-4 min-w-0">
           <div>
+            <Breadcrumb items={[{ label: 'Contexts', href: '/contexts' }, { label: context.name }]} className="mb-1" />
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-semibold tracking-tight font-mono">{context.name}</h1>
+              <h1 className="text-xl font-semibold tracking-tight font-mono truncate">{context.name}</h1>
               {currentVersion && (
                 <Badge variant="outline" className="font-mono">v{currentVersion.version}</Badge>
               )}
@@ -285,7 +282,7 @@ export default function EditContextPage() {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <Badge variant={isActive ? 'success' : 'secondary'} className="h-8 px-3 text-xs">
             {isActive ? 'Active' : 'Inactive'}
           </Badge>

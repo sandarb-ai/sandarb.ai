@@ -48,6 +48,20 @@ def get_child_organizations(parent_id: str) -> list[Organization]:
     return [_row_to_org(dict(r)) for r in rows]
 
 
+def get_organization_ancestors(org_id: str) -> list[Organization]:
+    """Return ancestor chain from root to immediate parent (excludes org_id)."""
+    ancestors: list[Organization] = []
+    current = get_organization_by_id(org_id)
+    while current and current.parent_id:
+        parent = get_organization_by_id(current.parent_id)
+        if not parent:
+            break
+        ancestors.append(parent)
+        current = parent
+    ancestors.reverse()
+    return ancestors
+
+
 def get_organizations_tree() -> list[dict]:
     all_orgs = get_all_organizations()
     root = [o for o in all_orgs if o.is_root]
@@ -78,11 +92,16 @@ def create_organization(input: OrganizationCreate) -> Organization:
     return out
 
 
+# Allowlisted columns for update_organization (prevents SQLi if input keys ever become user-controlled)
+_ALLOWED_ORG_UPDATE_COLUMNS = frozenset({"name", "slug", "description", "parent_id"})
+
+
 def update_organization(org_id: str, input: OrganizationUpdate) -> Organization | None:
     existing = get_organization_by_id(org_id)
     if not existing:
         return None
     updates, params = [], []
+    # Only allow known columns; values are parameterized
     if input.name is not None:
         updates.append("name = %s")
         params.append(input.name)

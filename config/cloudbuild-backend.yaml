@@ -1,0 +1,13 @@
+# Cloud Build config for sandarb-backend (FastAPI). Use with:
+#   gcloud builds submit --config=config/cloudbuild-backend.yaml --substitutions=_IMAGE=REGION-docker.pkg.dev/PROJECT/cloud-run/sandarb-backend:TAG .
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - build
+      - -f
+      - Dockerfile.backend
+      - -t
+      - '${_IMAGE}'
+      - .
+images:
+  - '${_IMAGE}'

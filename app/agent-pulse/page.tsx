@@ -1,4 +1,5 @@
 import { Header } from '@/components/header';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { StatsCard } from '@/components/stats-card';
 import { getBlockedInjections, getA2ALog, getUnauthenticatedDetections, getAgents } from '@/lib/api-client';
 import { ShieldAlert, Bot, Radio, Users } from 'lucide-react';
@@ -41,6 +42,7 @@ export default async function AgentPulsePage() {
       <Header
         title="Agent Pulse"
         description="Live A2A communication feed — watch agents interact with Sandarb AI Governance in real-time"
+        breadcrumb={<Breadcrumb items={[{ label: 'Agent Pulse' }]} className="mb-2" />}
       >
         <AgentPulseScanButton />
       </Header>

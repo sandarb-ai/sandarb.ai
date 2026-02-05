@@ -1,7 +1,12 @@
 """Pytest configuration and fixtures for backend tests."""
 
+import os
 import pytest
+import bcrypt
 from fastapi.testclient import TestClient
+
+# Allow preview agent ID with any valid API key in tests (no sandarb-ui key required)
+os.environ.setdefault("SANDARB_DEV", "true")
 
 from backend.main import app
 from backend.db import get_connection, execute, query, query_one
@@ -12,6 +17,27 @@ def client():
     """Create a test client for the FastAPI app."""
     with TestClient(app) as c:
         yield c
+
+
+# Known test API key for SDK endpoints (inject, prompts/pull, audit/activity). Service account must exist in DB.
+TEST_API_SECRET = "test-api-secret-do-not-use-in-prod"
+
+
+@pytest.fixture(scope="session")
+def api_key_headers():
+    """Ensure test service account exists and return headers for API key auth (Bearer + sandarb-prompt-preview agent)."""
+    secret_hash = bcrypt.hashpw(TEST_API_SECRET.encode(), bcrypt.gensalt()).decode()
+    execute(
+        """INSERT INTO service_accounts (client_id, secret_hash, agent_id)
+           VALUES ('test-api', %s, 'sandarb-prompt-preview')
+           ON CONFLICT (client_id) DO UPDATE SET secret_hash = EXCLUDED.secret_hash, agent_id = EXCLUDED.agent_id""",
+        (secret_hash,),
+    )
+    return {
+        "Authorization": f"Bearer {TEST_API_SECRET}",
+        "X-Sandarb-Agent-ID": "sandarb-prompt-preview",
+        "X-Sandarb-Trace-ID": "test-trace-id",
+    }
 
 
 @pytest.fixture(scope="function")

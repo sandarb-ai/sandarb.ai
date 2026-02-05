@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { AlertTriangle, ExternalLink, RefreshCw } from 'lucide-react';
 import { Header } from '@/components/header';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/empty-state';
 import { getReportsUnregisteredAgents } from '@/lib/api-client';
@@ -35,7 +36,7 @@ export default function UnregisteredAgentsReportPage() {
   if (loading && list.length === 0 && !error) {
     return (
       <div className="flex flex-col h-full">
-        <Header title="Un-Registered Agents" description="Discovered by Sandarb AI Governance Agent" />
+        <Header title="Un-Registered Agents" description="Discovered by Sandarb AI Governance Agent" breadcrumb={<Breadcrumb items={[{ label: 'Reports', href: '/reports' }, { label: 'Un-Registered Agents' }]} className="mb-2" />} />
         <div className="flex-1 p-6 flex items-center justify-center">
           <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
@@ -46,7 +47,7 @@ export default function UnregisteredAgentsReportPage() {
   if (error && list.length === 0) {
     return (
       <div className="flex flex-col h-full">
-        <Header title="Un-Registered Agents" description="Discovered by Sandarb AI Governance Agent" />
+        <Header title="Un-Registered Agents" description="Discovered by Sandarb AI Governance Agent" breadcrumb={<Breadcrumb items={[{ label: 'Reports', href: '/reports' }, { label: 'Un-Registered Agents' }]} className="mb-2" />} />
         <div className="flex-1 p-6">
           <EmptyState title="Could not load report" description={error} />
         </div>
@@ -59,6 +60,7 @@ export default function UnregisteredAgentsReportPage() {
       <Header
         title="Un-Registered Agents"
         description="Agents discovered at scan targets but not yet registered in the Agent Registry"
+        breadcrumb={<Breadcrumb items={[{ label: 'Reports', href: '/reports' }, { label: 'Un-Registered Agents' }]} className="mb-2" />}
       />
       <div className="flex-1 p-6 overflow-auto space-y-6">
         <p className="text-sm text-muted-foreground">

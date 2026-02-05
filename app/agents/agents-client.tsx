@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/empty-state';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { apiUrl } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import type { RegisteredAgent } from '@/types';
@@ -185,6 +186,7 @@ export function AgentsPageClient({ initialAgents, initialOrgs, initialStats }: A
         <div className="flex flex-col gap-5">
           <div className="flex items-start justify-between gap-4">
             <div>
+              <Breadcrumb items={[{ label: 'Agents' }]} className="mb-2" />
               <h1 className="text-2xl font-semibold tracking-tight">Agent Registry</h1>
               <p className="text-sm text-muted-foreground mt-1">
                 A2A-compatible agents. Register by service URL or add manually.

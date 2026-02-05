@@ -5,13 +5,14 @@ import { useEffect, useRef, useState } from 'react';
 export function MermaidDiagram({ chart, title }: { chart: string; title?: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const chartString = typeof chart === 'string' ? chart : String(chart ?? '');
 
   useEffect(() => {
-    if (!chart || !containerRef.current) return;
+    if (!chartString || !containerRef.current) return;
     setError(null);
     const el = document.createElement('div');
     el.className = 'mermaid mermaid-fit-container';
-    el.textContent = chart;
+    el.textContent = chartString;
     containerRef.current.innerHTML = '';
     containerRef.current.appendChild(el);
 
@@ -30,7 +31,7 @@ export function MermaidDiagram({ chart, title }: { chart: string; title?: string
         }
       })
       .catch((err) => setError(err instanceof Error ? err.message : String(err)));
-  }, [chart]);
+  }, [chartString]);
 
   return (
     <div className="my-6 w-full rounded-lg border border-border bg-muted/30 overflow-hidden">

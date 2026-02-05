@@ -244,36 +244,41 @@ class TestPromptPull:
         self.created_prompt_ids.append(prompt_id)
         return prompt_id
 
-    def test_pull_prompt_missing_headers(self):
-        """Test GET /api/prompts/pull requires audit headers."""
-        response = self.client.get("/api/prompts/pull?name=test")
-        assert response.status_code == 400
+    def test_pull_prompt_missing_api_key(self):
+        """Test GET /api/prompts/pull requires API key (401 without auth)."""
+        response = self.client.get("/api/prompts/pull?name=test&agentId=preview&traceId=trace")
+        assert response.status_code == 401
 
-    def test_pull_prompt_not_found(self):
-        """Test GET /api/prompts/pull with non-existent name."""
+    def test_pull_prompt_not_found(self, api_key_headers):
+        """Test GET /api/prompts/pull with non-existent name (with valid API key)."""
         response = self.client.get(
-            "/api/prompts/pull?name=nonexistent-prompt&agentId=test&traceId=test"
+            "/api/prompts/pull?name=nonexistent-prompt&agentId=sandarb-prompt-preview&traceId=test-trace",
+            headers=api_key_headers,
         )
         assert response.status_code == 404
 
-    def test_pull_prompt_preview_mode(self):
-        """Test prompt pull in preview mode (sandarb-prompt-preview agent)."""
+    def test_pull_prompt_preview_mode(self, api_key_headers):
+        """Test prompt pull in preview mode (sandarb-prompt-preview agent) with API key."""
+        from backend.services.prompts import create_prompt_version, approve_prompt_version
+
         name = f"test-pull-preview-{uuid.uuid4().hex[:8]}"
         prompt_id = self._create_test_prompt_with_version(name)
-        
-        # Create an approved version using API
-        self.client.post(
-            f"/api/prompts/{prompt_id}/versions",
-            json={
-                "content": "Preview test content",
-                "commitMessage": "For preview test",
-                "autoApprove": True,
-            },
-        )
 
-        # Pull using preview agent ID
+        # Create version then approve (INSERT with status=Approved may require approved_by in DB)
+        v = create_prompt_version(
+            prompt_id,
+            content="Preview test content",
+            commit_message="For preview test",
+            auto_approve=False,
+            created_by="test",
+        )
+        if v and v.get("id"):
+            approve_prompt_version(prompt_id, v["id"], approved_by="test")
+
+        # Pull using preview agent ID and test API key
         response = self.client.get(
-            f"/api/prompts/pull?name={name}&agentId=sandarb-prompt-preview&traceId=preview-trace"
+            f"/api/prompts/pull?name={name}&agentId=sandarb-prompt-preview&traceId=preview-trace",
+            headers=api_key_headers,
         )
         assert response.status_code == 200
         data = response.json()

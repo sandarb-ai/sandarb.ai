@@ -6,13 +6,15 @@ import { Input } from '@/components/ui/input';
 interface HeaderProps {
   title: string;
   description?: string;
+  breadcrumb?: React.ReactNode;
   children?: React.ReactNode;
 }
 
-export function Header({ title, description, children }: HeaderProps) {
+export function Header({ title, description, breadcrumb, children }: HeaderProps) {
   return (
     <header className="flex items-center justify-between border-b bg-background px-6 py-4">
       <div>
+        {breadcrumb}
         <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
         {description && (
           <p className="text-sm text-muted-foreground">{description}</p>

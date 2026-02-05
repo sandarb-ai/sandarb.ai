@@ -25,6 +25,7 @@ function CodeBlock({ children, label }: { children: React.ReactNode; label?: str
 export function DocsTryInject() {
   const [name, setName] = useState('ib-trading-limits');
   const [format, setFormat] = useState('json');
+  const [apiKey, setApiKey] = useState('');
   const [agentId, setAgentId] = useState('sandarb-context-preview');
   const [traceId, setTraceId] = useState(`docs-try-${Date.now()}`);
   const [loading, setLoading] = useState(false);
@@ -37,12 +38,12 @@ export function DocsTryInject() {
     setBody('');
     try {
       const url = apiUrl(`/api/inject?name=${encodeURIComponent(name)}&format=${format}`);
-      const res = await fetch(url, {
-        headers: {
-          'X-Sandarb-Agent-ID': agentId,
-          'X-Sandarb-Trace-ID': traceId,
-        },
-      });
+      const headers: Record<string, string> = {
+        'X-Sandarb-Agent-ID': agentId,
+        'X-Sandarb-Trace-ID': traceId,
+      };
+      if (apiKey.trim()) headers['Authorization'] = `Bearer ${apiKey.trim()}`;
+      const res = await fetch(url, { headers });
       setStatus(res.status);
       const raw = await res.text();
       if (format === 'json' && res.ok) {
@@ -66,7 +67,7 @@ export function DocsTryInject() {
   return (
     <div className="space-y-4 rounded-lg border border-border bg-muted/20 p-4">
       <p className="text-sm text-muted-foreground">
-        Requests go to the <strong className="text-foreground">FastAPI backend</strong> (default <code className="rounded bg-muted px-1">http://localhost:8000</code>). Set <code className="rounded bg-muted px-1">NEXT_PUBLIC_API_URL</code> or <code className="rounded bg-muted px-1">BACKEND_URL</code> so the UI can reach it. Use <code className="rounded bg-muted px-1">sandarb-context-preview</code> as Agent ID to skip registration and link check for testing. Context is normally returned only if it is <strong className="text-foreground">linked to the calling agent</strong> (agent_contexts). Ensure Postgres is running and the DB is seeded (e.g. <code className="rounded bg-muted px-1">./scripts/seed_scale.py</code> or load sample data).
+        Requests go to the <strong className="text-foreground">FastAPI backend</strong> (default <code className="rounded bg-muted px-1">http://localhost:8000</code>). Set <code className="rounded bg-muted px-1">NEXT_PUBLIC_API_URL</code> or <code className="rounded bg-muted px-1">BACKEND_URL</code> so the UI can reach it. <strong className="text-foreground">API key required.</strong> Use the sandarb-ui secret from <code className="rounded bg-muted px-1">.env.seed.generated</code> (or <code className="rounded bg-muted px-1">SANDARB_UI_SECRET</code>). Use <code className="rounded bg-muted px-1">sandarb-context-preview</code> as Agent ID with that key to skip registration and link check for testing. Context is normally returned only if it is <strong className="text-foreground">linked to the calling agent</strong> (agent_contexts). Ensure Postgres is running and the DB is seeded (e.g. <code className="rounded bg-muted px-1">./scripts/seed_scale.py</code> or load sample data).
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
@@ -84,6 +85,10 @@ export function DocsTryInject() {
             <option value="yaml">yaml</option>
             <option value="text">text</option>
           </select>
+        </div>
+        <div>
+          <Label className="text-xs">API key (required)</Label>
+          <Input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="SANDARB_UI_SECRET for preview" className="mt-1 h-9 font-mono text-xs" />
         </div>
         <div>
           <Label className="text-xs">X-Sandarb-Agent-ID</Label>
@@ -111,6 +116,7 @@ export function DocsTryInject() {
 
 export function DocsTryPromptsPull() {
   const [name, setName] = useState('retail-customer-support-playbook');
+  const [apiKey, setApiKey] = useState('');
   const [agentId, setAgentId] = useState('sandarb-prompt-preview');
   const [traceId, setTraceId] = useState(`docs-try-prompt-${Date.now()}`);
   const [loading, setLoading] = useState(false);
@@ -123,12 +129,12 @@ export function DocsTryPromptsPull() {
     setBody('');
     try {
       const url = apiUrl(`/api/prompts/pull?name=${encodeURIComponent(name)}`);
-      const res = await fetch(url, {
-        headers: {
-          'X-Sandarb-Agent-ID': agentId,
-          'X-Sandarb-Trace-ID': traceId,
-        },
-      });
+      const headers: Record<string, string> = {
+        'X-Sandarb-Agent-ID': agentId,
+        'X-Sandarb-Trace-ID': traceId,
+      };
+      if (apiKey.trim()) headers['Authorization'] = `Bearer ${apiKey.trim()}`;
+      const res = await fetch(url, { headers });
       setStatus(res.status);
       const raw = await res.text();
       try {
@@ -144,12 +150,16 @@ export function DocsTryPromptsPull() {
   return (
     <div className="space-y-4 rounded-lg border border-border bg-muted/20 p-4">
       <p className="text-sm text-muted-foreground">
-        Pull an approved prompt by name. Uses the same backend as Inject (<code className="rounded bg-muted px-1">http://localhost:8000</code>). Use <code className="rounded bg-muted px-1">sandarb-prompt-preview</code> as Agent ID to skip registration and link check. Prompt is normally returned only if it is <strong className="text-foreground">linked to the calling agent</strong> (agent_prompts).
+        Pull an approved prompt by name. Uses the same backend as Inject (<code className="rounded bg-muted px-1">http://localhost:8000</code>). <strong className="text-foreground">API key required.</strong> Use the sandarb-ui secret from <code className="rounded bg-muted px-1">.env.seed.generated</code>. Use <code className="rounded bg-muted px-1">sandarb-prompt-preview</code> as Agent ID with that key to skip registration and link check. Prompt is normally returned only if it is <strong className="text-foreground">linked to the calling agent</strong> (agent_prompts).
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <Label className="text-xs">Prompt name</Label>
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="retail-customer-support-playbook" className="mt-1 h-9" />
+        </div>
+        <div>
+          <Label className="text-xs">API key (required)</Label>
+          <Input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="SANDARB_UI_SECRET for preview" className="mt-1 h-9 font-mono text-xs" />
         </div>
         <div>
           <Label className="text-xs">X-Sandarb-Agent-ID</Label>

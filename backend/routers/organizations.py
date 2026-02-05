@@ -7,6 +7,7 @@ from backend.schemas.common import ApiResponse
 from backend.services.organizations import (
     get_all_organizations,
     get_organization_by_id,
+    get_organization_ancestors,
     get_root_organization,
     get_organizations_tree,
     create_organization,
@@ -48,6 +49,15 @@ def get_organization(org_id: str):
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
     return ApiResponse(success=True, data=org)
+
+
+@router.get("/{org_id}/ancestors", response_model=ApiResponse)
+def get_organization_ancestors_route(org_id: str):
+    """Return ancestor chain (root to parent) for breadcrumb navigation."""
+    if not get_organization_by_id(org_id):
+        raise HTTPException(status_code=404, detail="Organization not found")
+    data = get_organization_ancestors(org_id)
+    return ApiResponse(success=True, data=data)
 
 
 @router.patch("/{org_id}", response_model=ApiResponse)

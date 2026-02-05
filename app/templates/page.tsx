@@ -5,6 +5,7 @@ import { apiUrl } from '@/lib/api';
 import { Plus, FileText, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { EmptyState } from '@/components/empty-state';
 import type { Template } from '@/types';
 
@@ -34,6 +35,7 @@ export default function TemplatesPage() {
       {/* Header */}
       <header className="flex items-center justify-between border-b bg-background px-6 py-4">
         <div>
+          <Breadcrumb items={[{ label: 'Templates' }]} className="mb-2" />
           <h1 className="text-2xl font-semibold tracking-tight">Templates</h1>
           <p className="text-sm text-muted-foreground">
             Reusable schemas and default values for context content. Link contexts to a template for consistent structure and governance. See <a href="/docs#templates" className="text-violet-600 dark:text-violet-400 hover:underline">Docs → Templates for context</a>.

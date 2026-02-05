@@ -14,6 +14,11 @@
 # Prerequisites: gcloud installed and logged in (gcloud auth login)
 # Set CLOUD_SQL_DATABASE_URL (or DATABASE_URL) in .env for backend DB (required for api + agent).
 #
+# SECURITY: This script deploys with --allow-unauthenticated, exposing the UI and API to the
+# public internet. For production, consider using Identity-Aware Proxy (IAP), Cloud Identity,
+# or VPC/private ingress and remove --allow-unauthenticated so only authenticated users
+# can reach the services.
+#
 
 set -e
 
@@ -105,29 +110,53 @@ fi
 echo "=============================================="
 echo " Deploying Sandarb to Google Cloud Run"
 echo "=============================================="
-echo "  Project:  $PROJECT_ID"
-echo "  Region:   $REGION"
-echo "  Account:  $ACTIVE_ACCOUNT"
-echo "  Tag:      $BUILD_TAG"
-echo "  DB:       set (backend services will use it)"
+echo "  Project ID: $PROJECT_ID"
+echo "  Region:     $REGION"
+echo "  Account:    $ACTIVE_ACCOUNT"
+echo "  Tag:        $BUILD_TAG"
+echo "  DB:         set (backend services will use it)"
 echo "=============================================="
 echo ""
 
 # ---------------------------------------------------------------------------
-# Step 0: Enable APIs and configure Docker for gcr.io
+# Step 0: Enable APIs, Artifact Registry repo, and IAM for Cloud Build
 # ---------------------------------------------------------------------------
 echo "[0/5] Enabling APIs..."
-"$GCLOUD" services enable run.googleapis.com cloudbuild.googleapis.com containerregistry.googleapis.com --project="$PROJECT_ID"
+"$GCLOUD" services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com --project="$PROJECT_ID"
 
-echo "Configuring Docker for gcr.io..."
-"$GCLOUD" auth configure-docker gcr.io --quiet
+# Project number and Cloud Build service account
+PROJECT_NUMBER=$("$GCLOUD" projects describe "$PROJECT_ID" --format='value(projectNumber)')
+CLOUDBUILD_SA="${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com"
+
+# Artifact Registry: use regional Docker repo (avoids gcr.io "createOnPush" permission issues)
+AR_REPO_NAME="cloud-run"
+AR_HOST="${REGION}-docker.pkg.dev"
+AR_IMAGE_PREFIX="${AR_HOST}/${PROJECT_ID}/${AR_REPO_NAME}"
+echo "Configuring Artifact Registry (${AR_IMAGE_PREFIX})..."
+"$GCLOUD" auth configure-docker "$AR_HOST" --quiet
+
+# Create Docker repository if it does not exist (so Cloud Build can push without createOnPush)
+if ! "$GCLOUD" artifacts repositories describe "$AR_REPO_NAME" --location="$REGION" --project="$PROJECT_ID" &>/dev/null; then
+  echo "Creating Artifact Registry repository ${AR_REPO_NAME} in ${REGION}..."
+  "$GCLOUD" artifacts repositories create "$AR_REPO_NAME" \
+    --repository-format=docker \
+    --location="$REGION" \
+    --project="$PROJECT_ID" \
+    --description="Cloud Run container images"
+fi
 
 # Cloud Build bucket IAM (avoid 403 storage.objects.get)
-PROJECT_NUMBER=$("$GCLOUD" projects describe "$PROJECT_ID" --format='value(projectNumber)')
 "$GCLOUD" storage buckets add-iam-policy-binding "gs://${PROJECT_ID}_cloudbuild" \
   --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
   --role="roles/storage.objectViewer" \
   --project="$PROJECT_ID" 2>/dev/null || true
+
+# Allow Cloud Build to push images to Artifact Registry
+echo "Granting Cloud Build permission to push images..."
+"$GCLOUD" projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:${CLOUDBUILD_SA}" \
+  --role="roles/artifactregistry.writer" \
+  --quiet
 
 # ---------------------------------------------------------------------------
 # Step 1: Build Phase (frontend + backend; backend image used twice in deploy)
@@ -137,13 +166,15 @@ echo "[1/5] Building images..."
 
 echo "  Building sandarb-ui (Next.js frontend)..."
 cd "$REPO_ROOT"
-if ! "$GCLOUD" builds submit --tag "gcr.io/${PROJECT_ID}/sandarb-ui:${BUILD_TAG}" --project="$PROJECT_ID" . ; then
+if ! "$GCLOUD" builds submit --tag "${AR_IMAGE_PREFIX}/sandarb-ui:${BUILD_TAG}" --project="$PROJECT_ID" . ; then
   echo "Frontend build failed. Check Dockerfile and Cloud Build logs."
   exit 1
 fi
 
 echo "  Building sandarb-backend (FastAPI; same image for api + agent)..."
-if ! "$GCLOUD" builds submit --tag "gcr.io/${PROJECT_ID}/sandarb-backend:${BUILD_TAG}" -f Dockerfile.backend --project="$PROJECT_ID" . ; then
+if ! "$GCLOUD" builds submit --config=config/cloudbuild-backend.yaml \
+  --substitutions="_IMAGE=${AR_IMAGE_PREFIX}/sandarb-backend:${BUILD_TAG}" \
+  --project="$PROJECT_ID" . ; then
   echo "Backend build failed. Check Dockerfile.backend and Cloud Build logs."
   exit 1
 fi
@@ -152,11 +183,11 @@ fi
 # Step 2: Deploy sandarb-ui (Frontend)
 # ---------------------------------------------------------------------------
 echo ""
-echo "[2/5] Deploying sandarb-ui (ui.sandarb.ai)..."
+echo "[2/5] Deploying sandarb-ui (ui.sandarb.ai) (--allow-unauthenticated; see script header for production security options)..."
 
 UI_ENV="NEXT_PUBLIC_API_URL=https://api.sandarb.ai,NEXT_PUBLIC_AGENT_URL=https://agent.sandarb.ai"
 "$GCLOUD" run deploy sandarb-ui \
-  --image "gcr.io/${PROJECT_ID}/sandarb-ui:${BUILD_TAG}" \
+  --image "${AR_IMAGE_PREFIX}/sandarb-ui:${BUILD_TAG}" \
   --platform managed \
   --region "$REGION" \
   --project "$PROJECT_ID" \
@@ -174,7 +205,7 @@ echo "[3/5] Deploying sandarb-api (api.sandarb.ai)..."
 
 API_ENV="AGENT_PUBLIC_URL=https://agent.sandarb.ai,SERVICE_MODE=api,DATABASE_URL=${DEPLOY_DATABASE_URL}"
 DEPLOY_API_ARGS=(
-  --image "gcr.io/${PROJECT_ID}/sandarb-backend:${BUILD_TAG}"
+  --image "${AR_IMAGE_PREFIX}/sandarb-backend:${BUILD_TAG}"
   --platform managed
   --region "$REGION"
   --project "$PROJECT_ID"
@@ -197,7 +228,7 @@ echo "[4/5] Deploying sandarb-agent (agent.sandarb.ai)..."
 
 AGENT_ENV="AGENT_PUBLIC_URL=https://agent.sandarb.ai,SERVICE_MODE=agent,DATABASE_URL=${DEPLOY_DATABASE_URL}"
 DEPLOY_AGENT_ARGS=(
-  --image "gcr.io/${PROJECT_ID}/sandarb-backend:${BUILD_TAG}"
+  --image "${AR_IMAGE_PREFIX}/sandarb-backend:${BUILD_TAG}"
   --platform managed
   --region "$REGION"
   --project "$PROJECT_ID"
@@ -233,8 +264,9 @@ API_URL=$("$GCLOUD" run services describe sandarb-api  --region="$REGION" --proj
 AGENT_URL=$("$GCLOUD" run services describe sandarb-agent --region="$REGION" --project="$PROJECT_ID" --format='value(status.url)' 2>/dev/null || true)
 
 echo "Service URLs (until custom domains are mapped):"
-echo "  UI:     $UI_URL"
-echo "  API:    $API_URL"
-echo "  Agent:  $AGENT_URL"
+echo "  Project ID: $PROJECT_ID"
+echo "  UI:         $UI_URL"
+echo "  API:        $API_URL"
+echo "  Agent:      $AGENT_URL"
 echo ""
 echo "Done."

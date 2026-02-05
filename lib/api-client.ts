@@ -88,6 +88,11 @@ export async function getChildOrganizations(parentId: string) {
   return all.filter((o) => o.parentId === parentId);
 }
 
+export async function getOrganizationAncestors(orgId: string) {
+  const r = await fetchApi<unknown[]>(`/api/organizations/${orgId}/ancestors`);
+  return (r.success && Array.isArray(r.data) ? r.data : []) as Array<{ id: string; name: string; slug?: string }>;
+}
+
 // Contexts
 export async function getContextsPaginated(limit: number, offset: number) {
   const r = await fetchApi<{ contexts: unknown[]; total: number; totalActive?: number; totalDraft?: number }>(

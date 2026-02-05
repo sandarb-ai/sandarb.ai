@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Scale, RefreshCw, Bot, Shield } from 'lucide-react';
 import { Header } from '@/components/header';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { D3PieChart } from '@/components/charts/d3-pie-chart';
 import { D3BarChart } from '@/components/charts/d3-bar-chart';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -45,7 +46,7 @@ export default function RegulatoryReportPage() {
   if (loading && !data) {
     return (
       <div className="flex flex-col h-full">
-        <Header title="Regulatory Report" description="Context and prompt version status, data classification" />
+        <Header title="Regulatory Report" description="Context and prompt version status, data classification" breadcrumb={<Breadcrumb items={[{ label: 'Reports', href: '/reports' }, { label: 'Regulatory' }]} className="mb-2" />} />
         <div className="flex-1 p-6 flex items-center justify-center">
           <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
@@ -56,7 +57,7 @@ export default function RegulatoryReportPage() {
   if (error && !data) {
     return (
       <div className="flex flex-col h-full">
-        <Header title="Regulatory Report" description="Context and prompt version status, data classification" />
+        <Header title="Regulatory Report" description="Context and prompt version status, data classification" breadcrumb={<Breadcrumb items={[{ label: 'Reports', href: '/reports' }, { label: 'Regulatory' }]} className="mb-2" />} />
         <div className="flex-1 p-6">
           <EmptyState title="Could not load report" description={error} />
         </div>
@@ -98,6 +99,7 @@ export default function RegulatoryReportPage() {
       <Header
         title="Regulatory Report"
         description="Context and prompt version status, data classification for compliance and audit"
+        breadcrumb={<Breadcrumb items={[{ label: 'Reports', href: '/reports' }, { label: 'Regulatory' }]} className="mb-2" />}
       />
       <div className="flex-1 p-6 overflow-auto space-y-8">
         <p className="text-sm text-muted-foreground">
