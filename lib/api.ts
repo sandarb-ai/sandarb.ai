@@ -14,6 +14,11 @@ export function getApiBase(): string {
     const host = window.location.hostname;
     if (host === 'localhost' || host === '127.0.0.1') return 'http://localhost:8000';
     if (host.endsWith('sandarb.ai')) return 'https://api.sandarb.ai';
+    // Cloud Run URL (sandarb-ui-xxx.run.app): use sandarb-api-xxx.run.app so /api/* hits the backend
+    if (host.includes('run.app') && host.startsWith('sandarb-ui')) {
+      const apiHost = host.replace(/^sandarb-ui/, 'sandarb-api');
+      return `${window.location.protocol}//${apiHost}`;
+    }
   } else {
     // Server-side (SSR): use BACKEND_URL or NEXT_PUBLIC_API_URL so dashboard hits FastAPI/Postgres
     const serverBackend = process.env.BACKEND_URL?.trim() || process.env.NEXT_PUBLIC_API_URL?.trim();
@@ -39,6 +44,10 @@ export function getAgentBase(): string {
     const host = window.location.hostname;
     if (host === 'localhost' || host === '127.0.0.1') return 'http://localhost:8000';
     if (host.endsWith('sandarb.ai')) return 'https://agent.sandarb.ai';
+    if (host.includes('run.app') && host.startsWith('sandarb-ui')) {
+      const agentHost = host.replace(/^sandarb-ui/, 'sandarb-agent');
+      return `${window.location.protocol}//${agentHost}`;
+    }
   }
 
   return getApiBase() || '';

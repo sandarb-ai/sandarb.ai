@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
 Seed Postgres with sample data for Sandarb (financial services target).
+- If data/sandarb.sql exists: loads that file and exits (use ./scripts/generate_sandarb_data.sh to generate it).
+- Else: runs Python-defined seed (root org, child orgs, agents, contexts, prompts, templates, settings, etc.).
 Run after init_postgres: python scripts/init_postgres.py && python scripts/seed_postgres.py
 Loads .env from project root; defaults DATABASE_URL to local docker-compose URL.
-Inserts: root org, child orgs, agents, contexts, prompts, templates, settings, scan_targets, audit, service_accounts.
 """
 import hashlib
 import json
@@ -17,6 +18,46 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _env import load_dotenv, get_database_url
 
 load_dotenv()
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+DATA_SQL = REPO_ROOT / "data" / "sandarb.sql"
+
+
+def _split_sql_statements(sql: str) -> list:
+    """Split SQL script into statements (semicolon-newline)."""
+    sql = sql.replace("\r\n", "\n")
+    parts = sql.split(";\n")
+    out = []
+    for p in parts:
+        lines = p.splitlines()
+        while lines and (not lines[0].strip() or lines[0].strip().startswith("--")):
+            lines.pop(0)
+        stmt = "\n".join(lines).strip()
+        if stmt:
+            out.append(stmt)
+    return out
+
+
+def _run_sql_file(sql_path: Path, url: str) -> None:
+    """Execute SQL file against url using psycopg2."""
+    import psycopg2
+
+    if not sql_path.exists():
+        raise FileNotFoundError(f"SQL file not found: {sql_path}")
+    sql = sql_path.read_text(encoding="utf-8")
+    statements = _split_sql_statements(sql)
+    conn = psycopg2.connect(url)
+    conn.autocommit = True
+    cur = conn.cursor()
+    try:
+        for stmt in statements:
+            s = stmt.strip()
+            if not s or s.startswith("--"):
+                continue
+            cur.execute(s)
+    finally:
+        cur.close()
+        conn.close()
 
 SEED_APPROVERS = ["@alice", "@bob", "@carol", "@dave", "@erin", "@compliance"]
 
@@ -111,6 +152,18 @@ def main() -> None:
         sys.exit(1)
 
     url = get_database_url()
+
+    # If data/sandarb.sql exists, load it and exit (no Python seed).
+    if DATA_SQL.exists():
+        print(f"Loading data from {DATA_SQL}...", file=sys.stderr)
+        try:
+            _run_sql_file(DATA_SQL, url)
+            print("Done.", file=sys.stderr)
+            return
+        except Exception as e:
+            print(f"Failed to load {DATA_SQL}: {e}", file=sys.stderr)
+            sys.exit(1)
+
     conn = psycopg2.connect(url)
     conn.autocommit = False
     cur = conn.cursor()

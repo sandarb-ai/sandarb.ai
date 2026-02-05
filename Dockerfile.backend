@@ -11,6 +11,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend package (imports use "backend.*")
 COPY backend/ ./backend/
+# For POST /api/seed: schema + scripts/seed_postgres.py (data/sandarb.sql not in image; use deploy --seed-only to load it)
+COPY schema/ ./schema/
+COPY scripts/ ./scripts/
 ENV PYTHONPATH=/app
 
 # Cloud Run sets PORT (default 8080)

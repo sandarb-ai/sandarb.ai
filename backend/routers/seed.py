@@ -67,8 +67,9 @@ def _run_sql_file(sql_path: Path, url: str) -> None:
 @router.post("/seed", response_model=ApiResponse)
 def post_seed():
     """
-    Load sample data: run schema/sandarb.sql then data/sandarb.sql (if present)
-    or scripts/seed_postgres.py. Uses CLOUD_SQL_DATABASE_URL or DATABASE_URL from env.
+    Load sample data: run schema/sandarb.sql then data/sandarb.sql (if present in image)
+    or scripts/seed_postgres.py. In Cloud Run the image has schema/ and scripts/ but not data/sandarb.sql;
+    use deploy --seed-only with data/sandarb.sql locally for bulk data.
     """
     try:
         url = _get_database_url()
