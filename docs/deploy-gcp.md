@@ -1,6 +1,8 @@
 # Deploying Sandarb on Google Cloud Platform (GCP)
 
-Sandarb is containerized and can run on **Cloud Run** (serverless) or **GKE** (Kubernetes). The same Docker image works for both.
+Sandarb is designed to run in a **company’s control plane** for AI Governance. In production, the service must be **hosted behind a load balancer or on a separate, fully protected server**—you do not control the API or UI endpoints; your company does. This guide describes one way to host Sandarb (GCP) so it is protected and scalable.
+
+Sandarb is containerized and can run on **Cloud Run** (serverless) or **GKE** (Kubernetes). The same Docker image works for both. For production, keep the service **private** (authenticated access only, no public `allUsers` invoker) unless your org explicitly allows it.
 
 ## Prerequisites
 

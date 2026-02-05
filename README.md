@@ -20,6 +20,17 @@ docker compose up -d postgres
 
 Full steps (env, troubleshooting): **[docs/QUICKSTART.md](docs/QUICKSTART.md)**
 
+### Where Sandarb runs (local vs production)
+
+Sandarb is designed to run in a **company’s control plane** to implement AI Governance for AI agents. You do **not** control the API or UI endpoints in production—the company does.
+
+| Environment | Who runs it | Endpoints |
+|-------------|-------------|-----------|
+| **Local development** | You on your laptop | UI: `http://localhost:3000`, API: `http://localhost:8000`. Use the Quick Start above for localhost integration. |
+| **Production** | Your company (platform/security team) | Sandarb is hosted behind a **load balancer** or on a **separate, fully protected server**. API and UI URLs are provided by the company (e.g. `https://sandarb.your-company.com`, `https://api.sandarb.your-company.com`). Your agents and SDK point at those URLs; you do not run or expose Sandarb yourself. |
+
+When you go to production, the service must be hosted and fully protected by your organization—not exposed directly from a developer machine. See **[docs/developer-guide.md](docs/developer-guide.md#deployment)** and **[docs/deploy-gcp.md](docs/deploy-gcp.md)** for how to host Sandarb (e.g. behind LB, GCP Cloud Run, or a dedicated server).
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![GCP Native](https://img.shields.io/badge/Deploy-Google%20Cloud-4285F4?logo=google-cloud&logoColor=white)](https://cloud.google.com/)
 
@@ -79,15 +90,28 @@ Sandarb fits into your architecture however you need it to.
 
 ## Testing
 
-Sandarb ships with a **Vitest** test suite (unit + API route tests; no database required). Run:
+Sandarb has **120+ tests** covering both frontend and backend:
 
 ```bash
-npm run test        # watch mode
-npm run test:run    # single run (CI)
+# Run all tests (recommended)
+npm run test:all
+
+# Frontend tests (Vitest) - 67 tests
+npm run test           # watch mode
+npm run test:run       # single run (CI)
 npm run test:coverage  # with coverage
+
+# Backend tests (Pytest) - 53 tests
+npm run test:backend        # run backend API tests
+npm run test:backend:cov    # with coverage
 ```
 
-See **[tests/README.md](tests/README.md)** for what’s covered, how to run tests, and how to **extend the suite** (adding lib tests, API route tests, and mocking patterns).
+| Suite | Tests | Coverage |
+|-------|-------|----------|
+| Frontend (Vitest) | 67 | lib/, API client |
+| Backend (Pytest) | 53 | All API endpoints (agents, contexts, prompts, orgs) |
+
+See **[tests/README.md](tests/README.md)** for full documentation on running and extending tests.
 
 ---
 
@@ -95,31 +119,89 @@ See **[tests/README.md](tests/README.md)** for what’s covered, how to run test
 
 Your agents don't guess what to say; they ask Sandarb.
 
-**Example: A2A Request for Validated Context**
+### Python SDK (Recommended)
 
-```typescript
-import { SandarbClient } from '@openint/sandarb-sdk';
+Install the Sandarb Python SDK to integrate governance in minutes:
 
-// Connect to your internal Sandarb instance
-const sandarb = new SandarbClient({ 
-  endpoint: process.env.INTERNAL_SANDARB_URL,
-  apiKey: process.env.SANDARB_SERVICE_KEY 
-});
+```bash
+pip install sandarb                  # Basic
+pip install sandarb[openai]          # With OpenAI integration
+pip install sandarb[langchain]       # With LangChain integration
+pip install sandarb[all]             # Everything
+```
 
-async function runAgentTask(input: string) {
-  
-  // 1. The Agent calls Sandarb (A2A) to get its "Operating Manifest"
-  // This includes the approved System Prompt + Validated Context
-  const governanceData = await sandarb.agent.pull({
-    agentId: 'finance-analyst-bot-01',
-    intent: 'analyze_q3_report',
-    input_variables: { query: input }
-  });
+**Quick Example:**
 
-  // 2. Execute inference using ONLY the governed data
-  return llm.generate({
-    system: governanceData.prompt.system,
-    context: governanceData.context.chunks,
-    user: input
-  });
-}
+```python
+from sandarb import Sandarb
+
+# Initialize client
+client = Sandarb(
+    "https://api.sandarb.ai",
+    agent_id="my-agent-v1",
+    token=os.environ.get("SANDARB_TOKEN"),
+)
+
+# Register your agent on startup
+client.register(
+    agent_id="my-agent-v1",
+    name="My AI Agent",
+    version="1.0.0",
+    url="https://my-agent.example.com/a2a",
+    owner_team="platform",
+)
+
+# Get governed prompt
+prompt = client.get_prompt("customer-support", variables={"tier": "gold"})
+
+# Use with your LLM
+response = openai.chat.completions.create(
+    model="gpt-4",
+    messages=[
+        {"role": "system", "content": prompt.content},
+        {"role": "user", "content": user_input},
+    ],
+)
+
+# Log audit event
+client.audit("inference", details={"tokens": response.usage.total_tokens})
+```
+
+**Using Decorators (Declarative Governance):**
+
+```python
+from sandarb import governed, configure
+
+configure("https://api.sandarb.ai", agent_id="my-agent")
+
+@governed(prompt="customer-support", context="support-policies")
+def handle_query(query: str, governed_prompt: str, governed_context: str):
+    """Prompt and context are automatically injected!"""
+    return llm_call(governed_prompt, governed_context, query)
+```
+
+**OpenAI Integration:**
+
+```python
+from sandarb import Sandarb
+from sandarb.integrations.openai import GovernedChatOpenAI
+
+client = Sandarb("https://api.sandarb.ai", agent_id="my-agent")
+llm = GovernedChatOpenAI(client=client, prompt_name="customer-support", model="gpt-4")
+
+response = llm.chat("How can I help you?")  # Automatic governance + audit logging
+```
+
+**LangChain Integration:**
+
+```python
+from langchain_openai import ChatOpenAI
+from sandarb.integrations.langchain import SandarbLangChainCallback
+
+callback = SandarbLangChainCallback(client=sandarb_client, log_tokens=True)
+llm = ChatOpenAI(callbacks=[callback])
+
+response = llm.invoke("Hello!")  # Automatically logged to Sandarb
+```
+
+📚 **Full SDK Documentation:** [sdk/python/README.md](sdk/python/README.md)

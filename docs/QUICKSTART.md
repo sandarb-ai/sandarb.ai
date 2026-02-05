@@ -1,6 +1,10 @@
 # Sandarb.ai — Quick Start (Local Development)
 
-Get Sandarb.ai running locally in a few steps. For full API and integration details, see [developer-guide.md](./developer-guide.md).
+Get Sandarb.ai running **on your laptop** in a few steps. This guide uses **localhost** (UI on port 3000, API on port 8000) so you can develop and test without touching production.
+
+**Production:** Sandarb is intended to run in a **company’s control plane** for AI Governance. In production you do **not** run or control the API or UI—your company hosts Sandarb behind a **load balancer** or on a **separate, fully protected server**. When you go to prod, your agents and SDK use the company-provided Sandarb URLs. See [developer-guide.md](./developer-guide.md#deployment) and [deploy-gcp.md](./deploy-gcp.md) for hosting.
+
+For full API and integration details, see [developer-guide.md](./developer-guide.md).
 
 ---
 
@@ -51,10 +55,11 @@ Important variables:
 
 | Variable | Purpose |
 |----------|--------|
-| `DATABASE_URL` | Postgres URL. Default: `postgresql://postgres:sandarb@localhost:5432/sandarb` |
-| `NEXT_PUBLIC_API_URL` | Backend URL. Default: `http://localhost:8000` (see `.env.example`) |
+| `DATABASE_URL` | Postgres URL. Required for FastAPI backend. Default: `postgresql://postgres:sandarb@localhost:5432/sandarb` |
+| `NEXT_PUBLIC_API_URL` | Backend URL (client). Default: `http://localhost:8000` (see `.env.example`) |
+| `BACKEND_URL` | Backend URL (server-side/SSR). Set so prompts and contexts lists load from FastAPI (e.g. `http://localhost:8000`) |
 
-You can leave `.env` as-is for local dev; `start-sandarb.sh` uses the default Postgres URL if `DATABASE_URL` is unset.
+You can leave `.env` as-is for local dev; `start-sandarb.sh` uses the default Postgres URL if `DATABASE_URL` is unset. For the **Try Inject API** and **Try Prompts Pull API** in the in-app docs to work, ensure the backend is running on port 8000 and these URLs are set.
 
 ---
 
@@ -127,4 +132,80 @@ Then restart the app if it’s already running.
 ## Next steps
 
 - **In-app docs:** http://localhost:3000/docs (when the app is running)
-- **Developer guide:** [developer-guide.md](./developer-guide.md) — API, A2A, inject, templates, env vars
+- **Developer guide:** [developer-guide.md](./developer-guide.md) — API, A2A, inject, templates, env vars, **deployment (local vs production)**
+- **Python SDK:** [sdk/python/README.md](../sdk/python/README.md) — Full SDK documentation (use `http://localhost:8000` for local; in prod use your company’s Sandarb API URL)
+
+---
+
+## Integrate with Python SDK
+
+The fastest way to add Sandarb governance to your AI agents:
+
+### Install
+
+```bash
+pip install sandarb                  # Basic
+pip install sandarb[openai]          # With OpenAI integration
+pip install sandarb[langchain]       # With LangChain integration
+pip install sandarb[all]             # Everything
+```
+
+### Basic Usage
+
+```python
+from sandarb import Sandarb
+
+# Connect to your local Sandarb instance
+client = Sandarb(
+    "http://localhost:8000",
+    agent_id="my-agent-v1",
+)
+
+# Register your agent
+client.register(
+    agent_id="my-agent-v1",
+    name="My AI Agent",
+    version="1.0.0",
+    url="http://localhost:9000/a2a",
+    owner_team="platform",
+)
+
+# Get governed prompt
+prompt = client.get_prompt("customer-support")
+print(prompt.content)
+
+# Log audit event
+client.audit("inference", details={"tokens": 150})
+```
+
+### Using Decorators
+
+```python
+from sandarb import governed, configure
+
+configure("http://localhost:8000", agent_id="my-agent")
+
+@governed(prompt="customer-support", context="policies")
+def handle_query(query: str, governed_prompt: str, governed_context: str):
+    """Prompt and context are automatically injected!"""
+    return llm_call(governed_prompt, governed_context, query)
+```
+
+### OpenAI Integration
+
+```python
+from sandarb import Sandarb
+from sandarb.integrations.openai import GovernedChatOpenAI
+
+client = Sandarb("http://localhost:8000", agent_id="my-agent")
+
+llm = GovernedChatOpenAI(
+    client=client,
+    prompt_name="customer-support",
+    model="gpt-3.5-turbo",
+)
+
+response = llm.chat("How can I help?")  # Automatic governance + audit!
+```
+
+📚 **Full SDK docs:** [sdk/python/README.md](../sdk/python/README.md)

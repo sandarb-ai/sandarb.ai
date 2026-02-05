@@ -4,12 +4,15 @@ Developer integration and usage guide for anyone in the firm. For the full inter
 
 ## Overview
 
+Sandarb is a **control-plane** AI Governance service for your AI agents. It is intended to run in your **company’s** infrastructure: on your laptop you use **localhost** for development; in production your company hosts Sandarb behind a **load balancer** or on a **separate, fully protected server**—you do not control the API or UI endpoints there. See [Deployment](#deployment) for local vs production.
+
 Sandarb is AI governance for your AI agents: a single place for approved prompts and context, audit trail, lineage, and a living agent registry. The **Sandarb AI Governance Agent** participates in A2A (fast becoming the industry standard for agent-to-agent communication): other agents call Sandarb for governance, and Sandarb can communicate with other agents via A2A. Integrate via:
 
-- **API** – CRUD for organizations, agents, contexts, templates; inject context by name
+- **API** – CRUD for organizations, agents, contexts, prompts, templates; inject context and pull prompt by name. Context and prompt access are **gated by agent linking** (link contexts/prompts to agents in the Registry).
 - **A2A protocol** – Discovery (Agent Card) and skills: `get_context`, `validate_context`, `get_lineage`, `register`. Sandarb is an AI agent that participates in A2A as both server and first-class participant.
 - **Sandarb Client SDK** – A small library you drop into your Worker Agents so developers don’t write raw A2A/API calls every time. It handles **Check-in** (register on startup) and **Audit Push** (audit_log after inference) automatically, plus helpers for `getPrompt`, `validateContext`, `getContext`. See `lib/sandarb-client.ts` (TypeScript/Node) and the [Sandarb Client SDK](/docs#sandarb-client-sdk) section in the in-app docs.
-- **Inject API** – `GET /api/inject?name=my-context` returns approved context (JSON/YAML/text) for your agent
+- **Inject API** – `GET /api/inject?name=my-context` returns approved context (JSON/YAML/text) only if the context is **linked to the calling agent** (agent_contexts). Use `sandarb-context-preview` as Agent ID for UI testing.
+- **Prompts Pull API** – `GET /api/prompts/pull?name=my-prompt` returns the current approved prompt only if it is **linked to the calling agent** (agent_prompts). Use `sandarb-prompt-preview` for UI testing.
 - **Templates** – Reusable schemas and default values for context content; link a context to a template for consistent structure
 
 ## Prompts vs Context: Governance Perspective
@@ -75,9 +78,321 @@ Without governing both, you cannot diagnose whether the error was a failure of *
 |-----|-------------|
 | [The Governance Protocol](reference/protocol.md) | Registry & Observer pattern, handshake (Mermaid), check-in, separation of concerns, data model and lineage. |
 | [A2A Skills (API reference)](reference/api-skills.md) | Every A2A skill from `getAgentSkills()` with request/response examples and required fields. |
-| **Sandarb Client SDK** (in-app docs) | Tiny client wrapper: Check-in and Audit Push automatically; `getPrompt`, `validateContext`, `getContext`. Use `lib/sandarb-client.ts` (TypeScript/Node). |
-| [Python integration](guides/python-integration.md) | Sandarb Python Client SDK (`sdk/python/sandarb_client.py`): check-in, audit, get_prompt, validate_context, get_context. |
+| **[Python SDK](../sdk/python/README.md)** | Full-featured Python SDK with sync/async clients, decorators, and framework integrations. |
 | [Security](reference/security.md) | Manifest-based registration (`sandarb.json`), shadow AI discovery (`runDiscoveryScan`). |
+
+---
+
+## Python SDK
+
+The **Sandarb Python SDK** is the recommended way to integrate AI governance into your agents. It provides type-safe APIs, decorators for declarative governance, and built-in integrations with popular AI frameworks.
+
+### Installation
+
+```bash
+# Basic installation
+pip install sandarb
+
+# With async support (httpx)
+pip install sandarb[async]
+
+# With framework integrations
+pip install sandarb[openai]      # OpenAI integration
+pip install sandarb[langchain]   # LangChain integration
+pip install sandarb[anthropic]   # Anthropic integration
+
+# Everything
+pip install sandarb[all]
+```
+
+Or install from source:
+
+```bash
+cd sdk/python
+pip install -e .
+```
+
+### Quick Start
+
+```python
+import os
+from sandarb import Sandarb
+
+# Initialize client (can also use SANDARB_URL, SANDARB_TOKEN env vars)
+client = Sandarb(
+    os.environ.get("SANDARB_URL", "https://api.sandarb.ai"),
+    agent_id="my-agent-v1",
+    token=os.environ.get("SANDARB_TOKEN"),
+)
+
+# 1. Register agent on startup
+client.register(
+    agent_id="my-agent-v1",
+    name="My AI Agent",
+    version="1.0.0",
+    url="https://my-agent.example.com/a2a",
+    owner_team="platform",
+    capabilities=["text-generation", "summarization"],
+)
+
+# 2. Get governed prompt
+prompt = client.get_prompt("customer-support", variables={"tier": "gold"})
+system_message = prompt.content
+
+# 3. Get governed context
+context = client.get_context("trading-limits")
+config_data = context.content
+
+# 4. Run your agent (Sandarb is NOT in the inference path)
+response = your_llm_call(system_message, config_data, user_input)
+
+# 5. Log audit event for compliance
+client.audit(
+    "inference",
+    resource_type="llm",
+    resource_name="gpt-4",
+    details={"tokens": 150, "latency_ms": 230},
+)
+```
+
+### Configuration
+
+| Parameter | Environment Variable | Description |
+|-----------|---------------------|-------------|
+| `base_url` | `SANDARB_URL` | API base URL (default: https://api.sandarb.ai) |
+| `token` | `SANDARB_TOKEN` | Bearer token for authenticated calls |
+| `agent_id` | `SANDARB_AGENT_ID` | Default agent ID for tracking |
+
+### Core Methods
+
+#### Agent Registration
+
+```python
+# Using manifest dict
+client.check_in({
+    "agent_id": "my-agent",
+    "version": "1.0.0",
+    "owner_team": "platform",
+    "url": "https://my-agent.example.com/a2a",
+    "name": "My Agent",
+})
+
+# Using named parameters (recommended)
+client.register(
+    agent_id="my-agent",
+    name="My Agent",
+    version="1.0.0",
+    url="https://my-agent.example.com/a2a",
+    owner_team="platform",
+    description="A helpful assistant",
+    capabilities=["text-generation"],
+)
+```
+
+#### Prompts
+
+```python
+# Get prompt with full metadata
+prompt = client.get_prompt("my-prompt", variables={"key": "value"})
+print(prompt.content)   # The prompt text
+print(prompt.version)   # Version number
+print(prompt.approved)  # Approval status
+
+# Get just the content string
+content = client.pull_prompt("my-prompt")
+
+# List available prompts
+prompts = client.list_prompts(tags=["production"])
+```
+
+#### Contexts
+
+```python
+# Get context with validation info
+context = client.get_context("trading-limits")
+print(context.content)           # The context data
+print(context.approved)          # Is it approved?
+print(context.compliance_level)  # Compliance classification
+
+# Validate before use (lightweight check)
+validation = client.validate_context("trading-limits", environment="prod")
+if validation.approved:
+    # Safe to use
+    pass
+
+# Inject via REST API (alternative method)
+config = client.inject("app-config", format="json")
+
+# List contexts
+contexts = client.list_contexts(environment="prod", active_only=True)
+```
+
+#### Audit Logging
+
+```python
+# Log audit event
+client.audit(
+    "inference",                    # Event type
+    resource_type="llm",            # Resource category
+    resource_name="gpt-4",          # Specific resource
+    details={                       # Custom metadata
+        "tokens": 150,
+        "latency_ms": 230,
+        "prompt_name": "customer-support",
+    },
+)
+
+# Convenience log method
+client.log("Processing complete", level="info", request_id="req-123")
+```
+
+### Decorators
+
+Use decorators for declarative, zero-boilerplate governance:
+
+```python
+from sandarb import governed, audit_action, require_prompt, require_context, configure
+
+# Configure global client (required for decorators)
+configure(
+    "https://api.sandarb.ai",
+    agent_id="my-agent",
+    token=os.environ.get("SANDARB_TOKEN"),
+)
+
+# @governed: Automatically fetch prompt + context, log audit events
+@governed(prompt="customer-support", context="support-policies")
+def handle_query(query: str, governed_prompt: str, governed_context: str):
+    """governed_prompt and governed_context are auto-injected!"""
+    return llm_call(governed_prompt, governed_context, query)
+
+# @audit_action: Automatically log function calls
+@audit_action("data_access", resource_type="database", include_args=True)
+def fetch_user(user_id: str):
+    return db.get_user(user_id)
+
+# @require_prompt: Require and inject a specific prompt
+@require_prompt("greeting", variables={"lang": "en"})
+def greet(user: str, prompt: str):
+    return f"{prompt} {user}!"
+
+# @require_context: Require and inject a specific context
+@require_context("config", param_name="config")
+def process(data: dict, config: str):
+    return transform(data, json.loads(config))
+```
+
+### Async Support
+
+For high-performance applications:
+
+```python
+from sandarb import AsyncSandarb
+
+async with AsyncSandarb("https://api.sandarb.ai", agent_id="my-agent") as client:
+    # All methods are async
+    prompt = await client.get_prompt("my-prompt")
+    await client.audit("event", details={"key": "value"})
+    
+    # Parallel operations
+    import asyncio
+    prompts, contexts = await asyncio.gather(
+        client.list_prompts(),
+        client.list_contexts(),
+    )
+```
+
+### Framework Integrations
+
+#### OpenAI Integration
+
+```python
+from sandarb import Sandarb
+from sandarb.integrations.openai import GovernedChatOpenAI
+
+client = Sandarb("https://api.sandarb.ai", agent_id="my-agent")
+
+# Create governed OpenAI wrapper
+llm = GovernedChatOpenAI(
+    client=client,
+    prompt_name="customer-support",  # Auto-fetch governed prompt
+    model="gpt-4",
+    audit_calls=True,                # Auto-log all LLM calls
+)
+
+# Use like normal - governance happens automatically
+response = llm.chat(
+    "How can I help you?",
+    prompt_variables={"user_tier": "premium"},
+)
+```
+
+#### LangChain Integration
+
+```python
+from langchain_openai import ChatOpenAI
+from sandarb.integrations.langchain import SandarbLangChainCallback, get_governed_prompt_template
+
+# Create callback for automatic audit logging
+callback = SandarbLangChainCallback(
+    client=sandarb_client,
+    log_tokens=True,
+    log_prompts=False,   # Don't log prompt content for privacy
+)
+
+# Use with any LangChain LLM
+llm = ChatOpenAI(model="gpt-4", callbacks=[callback])
+response = llm.invoke("Hello!")  # Automatically logged!
+
+# Or fetch governed prompt for use with LangChain
+from langchain_core.prompts import ChatPromptTemplate
+
+system_prompt = get_governed_prompt_template(client, "my-prompt")
+prompt = ChatPromptTemplate.from_messages([
+    ("system", system_prompt),
+    ("human", "{input}"),
+])
+
+chain = prompt | llm
+response = chain.invoke({"input": "Hello!"})
+```
+
+#### Anthropic Integration
+
+```python
+from sandarb import Sandarb
+from sandarb.integrations.anthropic import GovernedAnthropic
+
+client = Sandarb("https://api.sandarb.ai", agent_id="my-agent")
+
+llm = GovernedAnthropic(
+    client=client,
+    prompt_name="my-prompt",
+    model="claude-3-sonnet-20240229",
+    audit_calls=True,
+)
+
+response = llm.chat("Hello!")
+```
+
+### Error Handling
+
+```python
+from sandarb import Sandarb, SandarbError
+
+client = Sandarb("https://api.sandarb.ai")
+
+try:
+    prompt = client.get_prompt("nonexistent")
+except SandarbError as e:
+    print(f"Error: {e.message}")
+    print(f"Status Code: {e.status_code}")
+    print(f"Response Body: {e.body}")
+```
+
+### Full SDK Reference
+
+See **[sdk/python/README.md](../sdk/python/README.md)** for complete API documentation, all methods, models, and examples.
 
 ## Quick start
 
@@ -89,14 +404,15 @@ export DATABASE_URL=postgresql://postgres:sandarb@localhost:5432/sandarb  # opti
 ./scripts/start-sandarb.sh
 ```
 
-Open the UI at http://localhost:3000. Backend runs at http://localhost:8000. Demo data: run `npm run db:full-reset-pg` once (backend uses Postgres).
+Open the UI at http://localhost:3000. Backend (FastAPI) runs at http://localhost:8000. Set `BACKEND_URL=http://localhost:8000` and `NEXT_PUBLIC_API_URL=http://localhost:8000` in `.env` so prompts and contexts lists load. Use the **Try Inject API** and **Try Prompts Pull API** in the in-app docs (/docs) to test. Demo data: run seed (e.g. `scripts/seed_scale.py`) once (backend uses Postgres).
 
 ## API (core)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | /api/health | Health check |
-| GET | /api/inject?name=... | Inject context by name |
+| GET | /api/inject?name=... | Inject context by name (gated by agent_contexts link) |
+| GET | /api/prompts/pull?name=... | Pull prompt by name (gated by agent_prompts link) |
 | GET | /api/contexts | List contexts |
 | GET | /api/contexts/:id | Get context |
 | POST | /api/contexts | Create context |
@@ -203,8 +519,33 @@ When OTel is disabled (default), the tracer and logger are no-ops.
 
 ## Deployment
 
-- **Docker:** `docker compose up -d` (Postgres + app). Demo data seeded on start when `DATABASE_URL` is set.
-- **GCP Cloud Run:** `./scripts/deploy-gcp.sh PROJECT_ID`. See [deploy-gcp.md](./deploy-gcp.md) for permissions and Cloud SQL.
+Sandarb is designed to run in a **company’s control plane** for AI Governance. Developers do **not** control the API or UI endpoints in production—the company hosts and protects the service.
+
+### Local development (your laptop)
+
+- Run everything on **localhost** for integration and testing.
+- **UI:** http://localhost:3000 · **API:** http://localhost:8000
+- Set `NEXT_PUBLIC_API_URL=http://localhost:8000` and `BACKEND_URL=http://localhost:8000` in `.env`.
+- **Start:** `./scripts/start-sandarb.sh` or `npm run dev` (see [QUICKSTART.md](./QUICKSTART.md)).
+- Your agents and SDK point at `http://localhost:8000`; you control both ends.
+
+### Production (company control plane)
+
+- In production, Sandarb **must** be hosted by your organization—**not** run from a developer machine or exposed directly to the internet.
+- The service must sit behind a **load balancer** or on a **separate, fully protected server** (e.g. private VPC, IAP, VPN, or authenticated ingress). You do **not** control the API server endpoint or the UI endpoint; the company’s platform/security team does.
+- API and UI base URLs are provided by the company (e.g. `https://api.sandarb.your-company.com`, `https://sandarb.your-company.com`). Agents and SDKs use those URLs via `SANDARB_URL` / `NEXT_PUBLIC_API_URL`.
+- **Hosting options:** Docker behind your LB, [GCP Cloud Run](deploy-gcp.md) (with IAM/private access), GKE, or a dedicated server with TLS and access control.
+
+### Summary
+
+| | Local development | Production |
+|---|-------------------|------------|
+| **Who runs Sandarb** | You (laptop) | Company (control plane) |
+| **API / UI endpoints** | You control (localhost) | Company-controlled; behind LB or protected server |
+| **SDK / agents** | Point at `http://localhost:8000` | Point at company-provided Sandarb URL |
+
+- **Docker:** `docker compose up -d` (Postgres + app). Demo data seeded on start when `DATABASE_URL` is set. In prod, run behind a load balancer and restrict access.
+- **GCP Cloud Run:** `./scripts/deploy-gcp.sh PROJECT_ID`. See [deploy-gcp.md](./deploy-gcp.md) for permissions, Cloud SQL, and keeping the service fully protected (e.g. no public `allUsers` invoker).
 
 ## More
 
