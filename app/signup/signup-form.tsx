@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useFormStatus } from 'react-dom';
 import { Turnstile } from '@marsidev/react-turnstile';
 import { ShieldCheck } from 'lucide-react';
@@ -9,6 +9,12 @@ import { Button } from '@/components/ui/button';
 
 const SESSION_KEY = 'sandarb_human_verified';
 const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? '';
+
+function isLocalhostHost(): boolean {
+  if (typeof window === 'undefined') return false;
+  const h = window.location.hostname;
+  return h === 'localhost' || h === '127.0.0.1';
+}
 
 function SubmitButton({ disabled }: { disabled: boolean }) {
   const { pending } = useFormStatus();
@@ -25,6 +31,11 @@ function SubmitButton({ disabled }: { disabled: boolean }) {
 
 export function SignupForm({ from, onContinueClick }: { from?: string; onContinueClick?: () => void } = {}) {
   const [verified, setVerified] = useState(false);
+  const [isLocalhost, setIsLocalhost] = useState(false);
+
+  useEffect(() => {
+    setIsLocalhost(isLocalhostHost());
+  }, []);
 
   const handleSuccess = () => {
     try {
@@ -37,7 +48,8 @@ export function SignupForm({ from, onContinueClick }: { from?: string; onContinu
     setVerified(true);
   };
 
-  const canContinue = verified || !SITE_KEY;
+  const useTurnstile = Boolean(SITE_KEY) && !isLocalhost;
+  const canContinue = verified || !useTurnstile;
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     if (onContinueClick && canContinue) {
@@ -50,7 +62,7 @@ export function SignupForm({ from, onContinueClick }: { from?: string; onContinu
   return (
     <form action={startDemo} onSubmit={handleSubmit} className="space-y-6">
       {from && <input type="hidden" name="from" value={from} />}
-      {SITE_KEY ? (
+      {useTurnstile ? (
         <div className="flex flex-col items-center gap-5">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <ShieldCheck className="h-4 w-4 text-violet-500 dark:text-violet-400 shrink-0" aria-hidden />
@@ -69,7 +81,9 @@ export function SignupForm({ from, onContinueClick }: { from?: string; onContinu
         </div>
       ) : (
         <p className="text-sm text-muted-foreground text-center py-2">
-          Turnstile not configured — you can continue to the demo.
+          {isLocalhost
+            ? 'Localhost: Turnstile skipped — you can continue to the demo.'
+            : 'Turnstile not configured — you can continue to the demo.'}
         </p>
       )}
       <SubmitButton disabled={!canContinue} />

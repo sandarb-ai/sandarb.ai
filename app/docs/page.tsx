@@ -226,13 +226,15 @@ export default async function DocsPage() {
             <section id="overview" className="scroll-mt-24 pt-6 border-t border-border/40 first:border-t-0 first:pt-0">
           <H2WithAnchor id="overview">Overview</H2WithAnchor>
           <P>
-            Sandarb (derived from &quot;Sandarbh&quot; (संदर्भ), a Hindi/Sanskrit word meaning &quot;context,&quot; &quot;reference,&quot; or &quot;connection&quot;) is an AI governance platform: a single place for approved prompts and context, audit trail, lineage, and a living agent registry. Your AI agents and applications integrate via <strong className="text-violet-600 dark:text-violet-400">API</strong>, <strong className="text-violet-600 dark:text-violet-400">A2A</strong>, or <strong className="text-foreground">Inject API</strong>. The <strong className="text-foreground">Sandarb AI Governance Agent</strong> is an AI agent that participates in A2A (fast becoming the industry standard for agent-to-agent communication): other agents call Sandarb for validation and approved context, and Sandarb can communicate with other agents via A2A as a first-class participant.
+            Sandarb (derived from &quot;Sandarbh&quot; (संदर्भ), a Hindi/Sanskrit word meaning &quot;context,&quot; &quot;reference,&quot; or &quot;connection&quot;) is an AI governance platform: a single place for approved prompts and context, audit trail, lineage, and a living agent registry.
+          </P>
+          <P>
+            Sandarb is designed to fit seamlessly into your existing engineering workflow. Your AI agents and applications integrate via <strong className="text-violet-600 dark:text-violet-400">A2A</strong>, <strong className="text-violet-600 dark:text-violet-400">API</strong>, or <strong className="text-violet-600 dark:text-violet-400">Git</strong>.
           </P>
           <Ul>
-            <li><strong className="text-violet-600 dark:text-violet-400">API</strong> – CRUD for organizations, agents, contexts, templates; inject context by name.</li>
-            <li><strong className="text-violet-600 dark:text-violet-400">A2A</strong> – Discovery (Agent Card) and skills: <InlineCode>get_context</InlineCode>, <InlineCode>validate_context</InlineCode>, <InlineCode>get_lineage</InlineCode>, <InlineCode>register</InlineCode>.</li>
-            <li><strong className="text-foreground">Inject</strong> – <InlineCode>GET /api/inject?name=...</InlineCode> returns approved context (JSON/YAML/text) for your agent.</li>
-            <li><strong className="text-violet-600 dark:text-violet-400">Git-like</strong> – Propose revisions; approve/reject in the UI. Version history for compliance.</li>
+            <li><strong className="text-violet-600 dark:text-violet-400">A2A (Agent-to-Agent Protocol)</strong> – Enables your agent to be discovered by the broader AI ecosystem. Other agents can read your &quot;Agent Card&quot; to understand your capabilities and interact with you using standardized skills (like <InlineCode>validate_context</InlineCode> or <InlineCode>get_lineage</InlineCode>) without custom integration code.</li>
+            <li><strong className="text-violet-600 dark:text-violet-400">API (REST &amp; SDK)</strong> – The runtime fuel for your agents. Use the API to fetch approved Prompts (instructions) and Context (knowledge) instantly during inference. It also handles management tasks like registering new agents, creating organizations, and logging audit trails.</li>
+            <li><strong className="text-violet-600 dark:text-violet-400">Git (Governance as Code)</strong> – Manage your Sandarb config and other governance assets like source code in your AI Agents git repo. Inject the config based on your CI/CD and deployment model for AI Agents.</li>
           </Ul>
         </section>
 

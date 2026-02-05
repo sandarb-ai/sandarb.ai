@@ -41,7 +41,10 @@ export default function AboutPage() {
                 Governance for AI agents while your teams build.
               </p>
               <p className="text-muted-foreground mt-1">
-                Sandarb (derived from &quot;Sandarbh&quot; (संदर्भ), a Hindi/Sanskrit word meaning &quot;context,&quot; &quot;reference,&quot; or &quot;connection&quot;) is the regulatory, controls, risk, and compliance layer for AI agents—so teams can ship agents without skipping governance.
+                Sandarb (derived from &quot;Sandarbh&quot; (संदर्भ), a Hindi/Sanskrit word meaning &quot;context,&quot; &quot;reference,&quot; or &quot;connection&quot;) is an AI governance platform: a single place for approved prompts and context, audit trail, lineage, and a living agent registry.
+              </p>
+              <p className="text-muted-foreground mt-2">
+                Sandarb is designed to fit seamlessly into your existing engineering workflow. Your AI agents and applications integrate via <strong className="text-foreground">A2A</strong>, <strong className="text-foreground">API</strong>, or <strong className="text-foreground">Git</strong>—so teams can ship agents without skipping governance.
               </p>
             </div>
           </section>

@@ -7,6 +7,12 @@ import { startDemo } from './actions';
 const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? '';
 const SESSION_KEY = 'sandarb_human_verified';
 
+function isLocalhostHost(): boolean {
+  if (typeof window === 'undefined') return false;
+  const h = window.location.hostname;
+  return h === 'localhost' || h === '127.0.0.1';
+}
+
 function setVerifiedSession() {
   try {
     if (typeof sessionStorage !== 'undefined') {
@@ -30,6 +36,13 @@ export function SignupCardOrTerminal({ from }: { from?: string }) {
   const [accessGranted, setAccessGranted] = useState(false);
   const [bypassCountdown, setBypassCountdown] = useState<number | null>(null);
   const [bypassBootIndex, setBypassBootIndex] = useState(0);
+  const [isLocalhost, setIsLocalhost] = useState(false);
+
+  useEffect(() => {
+    setIsLocalhost(isLocalhostHost());
+  }, []);
+
+  const useTurnstile = Boolean(SITE_KEY) && !isLocalhost;
 
   const handleContinueClick = useCallback(() => {
     setView('terminal');
@@ -38,7 +51,7 @@ export function SignupCardOrTerminal({ from }: { from?: string }) {
   // Boot sequence: reveal one line every ~400ms
   useEffect(() => {
     if (view !== 'terminal') return;
-    if (!SITE_KEY) {
+    if (!useTurnstile) {
       // Bypass flow: run bypass boot
       return;
     }
@@ -47,11 +60,11 @@ export function SignupCardOrTerminal({ from }: { from?: string }) {
       return () => clearTimeout(t);
     }
     setAccessGranted(true);
-  }, [view, bootLineIndex]);
+  }, [view, bootLineIndex, useTurnstile]);
 
   // When ACCESS GRANTED (has key): set session for verified user, then redirect after 1s
   useEffect(() => {
-    if (!accessGranted || !SITE_KEY) return;
+    if (!accessGranted || !useTurnstile) return;
     const t = setTimeout(() => {
       setVerifiedSession();
       const fd = new FormData();
@@ -59,24 +72,33 @@ export function SignupCardOrTerminal({ from }: { from?: string }) {
       startDemo(fd);
     }, 1000);
     return () => clearTimeout(t);
-  }, [accessGranted, from]);
+  }, [accessGranted, from, useTurnstile]);
 
-  // Bypass (no key): boot lines then countdown
+  // Bypass (no key or localhost): boot lines then countdown
   useEffect(() => {
-    if (view !== 'terminal' || SITE_KEY) return;
+    if (view !== 'terminal' || useTurnstile) return;
     if (bypassBootIndex < BOOT_LINES.length) {
       const t = setTimeout(() => setBypassBootIndex((i) => i + 1), 400);
       return () => clearTimeout(t);
     }
     if (bypassCountdown === null) setBypassCountdown(3);
-  }, [view, SITE_KEY, bypassBootIndex, bypassCountdown]);
+  }, [view, useTurnstile, bypassBootIndex, bypassCountdown]);
 
+  // Bypass countdown hit 0: set session, call server action to set cookies + redirect; fallback client redirect if server redirect doesn't apply (e.g. in some production setups)
   useEffect(() => {
     if (bypassCountdown === null || bypassCountdown > 0) return;
     setVerifiedSession();
     const fd = new FormData();
     if (from) fd.set('from', from);
+    const targetPath =
+      (typeof from === 'string' && from.trim().startsWith('/')
+        ? from.trim()
+        : '/dashboard');
     startDemo(fd);
+    const fallback = setTimeout(() => {
+      window.location.href = targetPath;
+    }, 2000);
+    return () => clearTimeout(fallback);
   }, [bypassCountdown, from]);
 
   useEffect(() => {
@@ -89,7 +111,7 @@ export function SignupCardOrTerminal({ from }: { from?: string }) {
   }, [bypassCountdown]);
 
   if (view === 'terminal') {
-    const isBypass = !SITE_KEY;
+    const isBypass = !useTurnstile;
     const bootIndex = isBypass ? bypassBootIndex : bootLineIndex;
     const showWarn = isBypass && bypassBootIndex >= BOOT_LINES.length;
     const showAccessGranted = !isBypass && (accessGranted || bootLineIndex >= BOOT_LINES.length);

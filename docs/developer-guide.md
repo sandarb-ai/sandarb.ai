@@ -4,9 +4,17 @@ Developer integration and usage guide for anyone in the firm. For the full inter
 
 ## Overview
 
-Sandarb (derived from "Sandarbh" (संदर्भ), a Hindi/Sanskrit word meaning "context," "reference," or "connection") is a **control-plane** AI Governance service for your AI agents. It is intended to run in your **company’s** infrastructure: on your laptop you use **localhost** for development; in production your company hosts Sandarb behind a **load balancer** or on a **separate, fully protected server**—you do not control the API or UI endpoints there. See [Deployment](#deployment) for local vs production.
+Sandarb (derived from "Sandarbh" (संदर्भ), a Hindi/Sanskrit word meaning "context," "reference," or "connection") is an AI governance platform: a single place for approved prompts and context, audit trail, lineage, and a living agent registry.
 
-Sandarb is AI governance for your AI agents: a single place for approved prompts and context, audit trail, lineage, and a living agent registry. The **Sandarb AI Governance Agent** participates in A2A (fast becoming the industry standard for agent-to-agent communication): other agents call Sandarb for governance, and Sandarb can communicate with other agents via A2A. Integrate via:
+Sandarb is designed to fit seamlessly into your existing engineering workflow. Your AI Agents and Applications integrate via **A2A**, **API**, or **Git**:
+
+- **A2A (Agent-to-Agent Protocol):** Enables your agent to be discovered by the broader AI ecosystem. Other agents can read your "Agent Card" to understand your capabilities and interact with you using standardized skills (like `validate_context` or `get_lineage`) without custom integration code.
+- **API (REST & SDK):** The runtime fuel for your agents. Use the API to fetch approved Prompts (instructions) and Context (knowledge) instantly during inference. It also handles management tasks like registering new agents, creating organizations, and logging audit trails.
+- **Git (Governance as Code):** Manage your Sandarb config and other governance assets like source code in your AI Agents git repo. Inject the config based on your CI/CD and deployment model for AI Agents.
+
+Sandarb is a **control-plane** AI Governance service intended to run in your **company's** infrastructure: on your laptop you use **localhost** for development; in production your company hosts Sandarb behind a **load balancer** or on a **separate, fully protected server**—you do not control the API or UI endpoints there. See [Deployment](#deployment) for local vs production.
+
+Integration details:
 
 - **API** – CRUD for organizations, agents, contexts, prompts, templates; inject context and pull prompt by name. Context and prompt access are **gated by agent linking** (link contexts/prompts to agents in the Registry).
 - **A2A protocol** – Discovery (Agent Card) and skills: `get_context`, `validate_context`, `get_lineage`, `register`. Sandarb is an AI agent that participates in A2A as both server and first-class participant.
