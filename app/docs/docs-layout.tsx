@@ -56,7 +56,7 @@ export function DocsLayout({
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/30">
             <BookOpen className="h-4 w-4 text-violet-600 dark:text-violet-400" />
           </div>
-          <span className="font-semibold text-foreground truncate">Developer documentation</span>
+          <span className="font-semibold text-foreground truncate">Developer Documentation</span>
         </Link>
       </header>
 
