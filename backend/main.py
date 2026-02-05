@@ -6,12 +6,22 @@ When SANDARB_AGENT_SERVICE=1 (e.g. on agent.sandarb.ai), the agent protocol rout
 is mounted at root: GET / (Agent Card), POST /mcp (MCP JSON-RPC), POST /a2a (A2A JSON-RPC).
 """
 
+import logging
 import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config import settings as config
+from backend.middleware.security import setup_security_middleware
 from backend.routers import health, agents, organizations, dashboard, governance, agent_pulse, lineage, contexts, prompts, templates, settings, inject, reports, audit, samples, seed, agent_protocol
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Sandarb API",
@@ -46,6 +56,9 @@ else:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+# Setup security middleware (rate limiting, security headers, error sanitization)
+setup_security_middleware(app)
 
 app.include_router(health.router, prefix="/api")
 app.include_router(agents.router, prefix="/api")

@@ -8,12 +8,19 @@ Mounted at root when running as the Sandarb Agent service (agent.sandarb.ai).
 """
 
 import json
+import logging
+import re
 from typing import Any
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from backend.config import settings as config
+
+logger = logging.getLogger(__name__)
+
+# URL validation pattern for agent registration
+VALID_URL_PATTERN = re.compile(r"^https?://[a-zA-Z0-9][-a-zA-Z0-9.]*[a-zA-Z0-9](:[0-9]+)?(/.*)?$")
 
 # -----------------------------------------------------------------------------
 # Agent Card (A2A discovery)
@@ -265,6 +272,16 @@ async def _execute_a2a_skill(request: Request, skill: str, inp: dict[str, Any]) 
         org_id = (inp.get("orgId") or inp.get("org_id") or "").strip()
         if not name or not url:
             return {"error": "register requires name and url in input"}
+
+        # Validate URL format to prevent malicious URLs
+        if not VALID_URL_PATTERN.match(url):
+            return {"error": "Invalid URL format. URL must be a valid HTTP/HTTPS URL."}
+
+        # Check for duplicate agent_id
+        existing = get_agent_by_identifier(agent_id or name)
+        if existing:
+            return {"error": f"Agent with ID '{agent_id or name}' already exists."}
+
         try:
             create_input = RegisteredAgentCreate(
                 orgId=org_id or "default",
@@ -277,7 +294,9 @@ async def _execute_a2a_skill(request: Request, skill: str, inp: dict[str, Any]) 
             agent = create_agent(create_input)
             return {"success": True, "agentId": agent.agent_id, "id": agent.id}
         except Exception as e:
-            return {"error": str(e)}
+            # Log full error server-side, return sanitized message to client
+            logger.exception(f"Failed to register agent: {name}")
+            return {"error": "Failed to register agent. Please check your input and try again."}
 
     return {"error": f"Unknown skill: {skill}"}
 

@@ -51,9 +51,32 @@ class TestSettings:
         assert get_response.status_code == 200
 
         # Try to update a setting (backend uses PATCH)
+        # Use a valid whitelisted key (theme) or custom_ prefix
         response = client.patch(
             "/api/settings",
-            json={"test_key": "test_value"},
+            json={"theme": "dark"},
+            headers=write_headers,
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+
+    def test_update_setting_invalid_key(self, client, write_headers):
+        """Test PATCH /api/settings rejects invalid keys."""
+        response = client.patch(
+            "/api/settings",
+            json={"invalid_key": "test_value"},
+            headers=write_headers,
+        )
+        assert response.status_code == 400
+        data = response.json()
+        assert "Invalid settings keys" in data.get("detail", "")
+
+    def test_update_setting_custom_key(self, client, write_headers):
+        """Test PATCH /api/settings accepts custom_ prefix keys."""
+        response = client.patch(
+            "/api/settings",
+            json={"custom_my_setting": "my_value"},
             headers=write_headers,
         )
         assert response.status_code == 200

@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { SignupForm } from './signup-form';
-import { startDemo } from './actions';
+import { setDemoCookies } from './actions';
 
 const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? '';
 const SESSION_KEY = 'sandarb_human_verified';
@@ -31,12 +32,14 @@ const BOOT_LINES = [
 ];
 
 export function SignupCardOrTerminal({ from }: { from?: string }) {
+  const router = useRouter();
   const [view, setView] = useState<'card' | 'terminal'>('card');
   const [bootLineIndex, setBootLineIndex] = useState(0);
   const [accessGranted, setAccessGranted] = useState(false);
   const [bypassCountdown, setBypassCountdown] = useState<number | null>(null);
   const [bypassBootIndex, setBypassBootIndex] = useState(0);
   const [isLocalhost, setIsLocalhost] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
     setIsLocalhost(isLocalhostHost());
@@ -47,6 +50,31 @@ export function SignupCardOrTerminal({ from }: { from?: string }) {
   const handleContinueClick = useCallback(() => {
     setView('terminal');
   }, []);
+
+  // Helper to set cookies and redirect
+  const performRedirect = useCallback(async () => {
+    if (isRedirecting) return;
+    setIsRedirecting(true);
+    setVerifiedSession();
+
+    const fd = new FormData();
+    if (from) fd.set('from', from);
+
+    try {
+      // Set cookies via server action (returns target path)
+      const targetPath = await setDemoCookies(fd);
+      // Use router.push for client-side navigation (works in production)
+      router.push(targetPath);
+      // Fallback: if router.push doesn't work, use window.location after a delay
+      setTimeout(() => {
+        window.location.href = targetPath;
+      }, 1500);
+    } catch (error) {
+      // Fallback to direct navigation
+      const targetPath = from?.startsWith('/') ? from : '/dashboard';
+      window.location.href = targetPath;
+    }
+  }, [from, router, isRedirecting]);
 
   // Boot sequence: reveal one line every ~400ms
   useEffect(() => {
@@ -64,15 +92,12 @@ export function SignupCardOrTerminal({ from }: { from?: string }) {
 
   // When ACCESS GRANTED (has key): set session for verified user, then redirect after 1s
   useEffect(() => {
-    if (!accessGranted || !useTurnstile) return;
+    if (!accessGranted || !useTurnstile || isRedirecting) return;
     const t = setTimeout(() => {
-      setVerifiedSession();
-      const fd = new FormData();
-      if (from) fd.set('from', from);
-      startDemo(fd);
+      performRedirect();
     }, 1000);
     return () => clearTimeout(t);
-  }, [accessGranted, from, useTurnstile]);
+  }, [accessGranted, useTurnstile, isRedirecting, performRedirect]);
 
   // Bypass (no key or localhost): boot lines then countdown
   useEffect(() => {
@@ -84,22 +109,11 @@ export function SignupCardOrTerminal({ from }: { from?: string }) {
     if (bypassCountdown === null) setBypassCountdown(3);
   }, [view, useTurnstile, bypassBootIndex, bypassCountdown]);
 
-  // Bypass countdown hit 0: set session, call server action to set cookies + redirect; fallback client redirect if server redirect doesn't apply (e.g. in some production setups)
+  // Bypass countdown hit 0: set session, call server action to set cookies + redirect
   useEffect(() => {
-    if (bypassCountdown === null || bypassCountdown > 0) return;
-    setVerifiedSession();
-    const fd = new FormData();
-    if (from) fd.set('from', from);
-    const targetPath =
-      (typeof from === 'string' && from.trim().startsWith('/')
-        ? from.trim()
-        : '/dashboard');
-    startDemo(fd);
-    const fallback = setTimeout(() => {
-      window.location.href = targetPath;
-    }, 2000);
-    return () => clearTimeout(fallback);
-  }, [bypassCountdown, from]);
+    if (bypassCountdown === null || bypassCountdown > 0 || isRedirecting) return;
+    performRedirect();
+  }, [bypassCountdown, isRedirecting, performRedirect]);
 
   useEffect(() => {
     if (bypassCountdown === null || bypassCountdown <= 0) return;
@@ -148,6 +162,11 @@ export function SignupCardOrTerminal({ from }: { from?: string }) {
             <div className="pt-2 text-green-400 font-semibold animate-pulse flex items-center gap-1">
               &gt; ACCESS GRANTED
               <span className="inline-block w-2 h-4 bg-green-500 animate-pulse" aria-hidden />
+            </div>
+          )}
+          {isRedirecting && (
+            <div className="pt-1 text-zinc-400 animate-pulse">
+              &gt; redirecting to dashboard...
             </div>
           )}
         </div>

@@ -13,11 +13,11 @@ const WRITE_JWT_COOKIE_NAME = 'sandarb_write_jwt';
 const WRITE_JWT_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
 
 /**
- * Start demo mode: set cookies and redirect to dashboard.
- * FormData may include "provider" (Google, Apple, X) and optional "email" (for write access).
+ * Set demo cookies without redirecting. Use this when calling from useEffect
+ * where redirect() doesn't work properly. Returns the target path for client-side navigation.
  */
-export async function startDemo(formData?: FormData) {
-  const cookieStore = cookies();
+export async function setDemoCookies(formData?: FormData): Promise<string> {
+  const cookieStore = await cookies();
   const provider = (formData?.get('provider') as string) || 'Demo';
   const email = (formData?.get('email') as string)?.trim();
   cookieStore.set(DEMO_COOKIE_NAME, '1', {
@@ -46,5 +46,17 @@ export async function startDemo(formData?: FormData) {
     }
   }
   const from = (formData?.get('from') as string)?.trim() || '/dashboard';
-  redirect(from.startsWith('/') ? from : '/dashboard');
+  return from.startsWith('/') ? from : '/dashboard';
+}
+
+/**
+ * Start demo mode: set cookies and redirect to dashboard.
+ * FormData may include "provider" (Google, Apple, X) and optional "email" (for write access).
+ *
+ * NOTE: This uses redirect() which only works properly when called from a form submission.
+ * For programmatic calls (e.g., from useEffect), use setDemoCookies() instead.
+ */
+export async function startDemo(formData?: FormData) {
+  const targetPath = await setDemoCookies(formData);
+  redirect(targetPath);
 }

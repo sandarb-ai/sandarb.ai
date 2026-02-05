@@ -86,7 +86,9 @@ Without governing both, you cannot diagnose whether the error was a failure of *
 | [The Governance Protocol](reference/protocol.md) | Registry & Observer pattern, handshake (Mermaid), check-in, separation of concerns, data model and lineage. |
 | [A2A Skills (API reference)](reference/api-skills.md) | Every A2A skill from `getAgentSkills()` with request/response examples and required fields. |
 | **[Python SDK](../sdk/python/README.md)** | Full-featured Python SDK with sync/async clients, decorators, and framework integrations. |
-| [Security](reference/security.md) | Manifest-based registration (`sandarb.json`), shadow AI discovery (`runDiscoveryScan`). |
+| [Security](SECURITY.md) | API authentication, rate limiting, security headers, error handling, and production checklist. |
+| [Deployment](DEPLOYMENT.md) | Local, GCP Cloud Run, and enterprise/on-premises deployment guides. |
+| [Environment Configuration](../.env.example) | Complete environment variable reference with examples. |
 
 ---
 
@@ -526,17 +528,49 @@ When OTel is disabled (default), the tracer and logger are no-ops.
 
 ## Environment variables
 
+### Core Configuration
+
 | Variable | Description |
 |----------|-------------|
 | DATABASE_URL | PostgreSQL URL (required) |
 | NEXT_PUBLIC_API_URL | Backend API URL (e.g. http://localhost:8000 for FastAPI). UI fetches from this for all /api/*. |
 | PORT | Server port (default 3000) |
 | NODE_ENV | production / development |
+
+### Enterprise Domain Configuration
+
+For on-premises or custom cloud deployments, configure your domain:
+
+| Variable | Description |
+|----------|-------------|
+| SANDARB_DOMAIN | Base domain (e.g. `governance.company.com`). Auto-configures `ui.`, `api.`, `agent.` subdomains. |
+| NEXT_PUBLIC_DOMAIN | Frontend domain for subdomain detection |
+| NEXT_PUBLIC_API_SUBDOMAIN | API subdomain (default: `api`) |
+| NEXT_PUBLIC_AGENT_SUBDOMAIN | Agent subdomain (default: `agent`) |
+| CORS_ORIGINS | Comma-separated allowed origins (auto-configured from SANDARB_DOMAIN if not set) |
+
+### Security
+
+| Variable | Description |
+|----------|-------------|
+| SANDARB_ENV | Set to `production` for production security checks |
+| JWT_SECRET | Strong secret for JWT signing (required in production) |
+| WRITE_ALLOWED_EMAILS | Comma-separated emails for write access |
+| RATE_LIMIT_DEFAULT | API rate limit (default: `100/minute`) |
+| RATE_LIMIT_SEED | Seed endpoint limit (default: `5/hour`) |
+| ALLOW_SEED_IN_PRODUCTION | Enable /api/seed in production (default: false) |
+
+### OpenTelemetry
+
+| Variable | Description |
+|----------|-------------|
 | OTEL_ENABLED | Set to `true` to enable OpenTelemetry |
 | OTEL_SERVICE_NAME | Service name for traces/logs (default: sandarb) |
 | OTEL_EXPORTER_OTLP_ENDPOINT | OTLP endpoint (e.g. http://localhost:4318) for traces and logs |
 | OTEL_TRACES_EXPORTER | Trace exporter: `otlp` or `none` (default: otlp when endpoint set) |
 | OTEL_LOGS_EXPORTER | Log exporter: `otlp` or `none` (default: otlp when endpoint set) |
+
+See [.env.example](../.env.example) for a complete list of configuration options.
 
 ## Deployment
 

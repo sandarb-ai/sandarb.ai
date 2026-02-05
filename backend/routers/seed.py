@@ -1,16 +1,23 @@
-"""Seed/load sample data into Postgres. Uses DATABASE_URL or CLOUD_SQL_DATABASE_URL from env."""
+"""Seed/load sample data into Postgres. Uses DATABASE_URL or CLOUD_SQL_DATABASE_URL from env.
 
+SECURITY: This endpoint is restricted to admin users (SEED_ALLOWED_EMAILS) or disabled in production
+unless ALLOW_SEED_IN_PRODUCTION=true is set.
+"""
+
+import logging
 import os
 import subprocess
 import sys
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 
 from backend.config import settings
 from backend.schemas.common import ApiResponse
+from backend.write_auth import require_write_allowed
 
 router = APIRouter(tags=["seed"])
+logger = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SCHEMA_SQL = REPO_ROOT / "schema" / "sandarb.sql"
@@ -64,17 +71,34 @@ def _run_sql_file(sql_path: Path, url: str) -> None:
         conn.close()
 
 
+def _check_seed_allowed() -> None:
+    """Check if seed endpoint is allowed in current environment."""
+    is_production = os.environ.get("SANDARB_ENV", "").lower() == "production"
+    allow_in_prod = os.environ.get("ALLOW_SEED_IN_PRODUCTION", "").lower() in ("true", "1", "yes")
+
+    if is_production and not allow_in_prod:
+        raise HTTPException(
+            status_code=403,
+            detail="Seed endpoint is disabled in production. Set ALLOW_SEED_IN_PRODUCTION=true to enable.",
+        )
+
+
 @router.post("/seed", response_model=ApiResponse)
-def post_seed():
+def post_seed(_email: str = Depends(require_write_allowed)):
     """
     Load sample data: run schema/sandarb.sql then data/sandarb.sql (if present in image)
     or scripts/seed_postgres.py. In Cloud Run the image has schema/ and scripts/ but not data/sandarb.sql;
     use deploy --seed-only with data/sandarb.sql locally for bulk data.
+
+    SECURITY: Requires write authorization. Disabled in production unless ALLOW_SEED_IN_PRODUCTION=true.
     """
+    _check_seed_allowed()
+
     try:
         url = _get_database_url()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database URL not configured: {e}") from e
+        logger.exception("Database URL not configured")
+        raise HTTPException(status_code=500, detail="Database URL not configured") from e
 
     if not SCHEMA_SQL.exists():
         raise HTTPException(
@@ -86,14 +110,16 @@ def post_seed():
         # 1. Run schema (DDL)
         _run_sql_file(SCHEMA_SQL, url)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Schema load failed: {e}") from e
+        logger.exception("Schema load failed")
+        raise HTTPException(status_code=500, detail="Schema load failed. Check server logs for details.") from e
 
     # 2. Load data: data/sandarb.sql if present, else seed_postgres.py
     if DATA_SQL.exists():
         try:
             _run_sql_file(DATA_SQL, url)
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Data load failed: {e}") from e
+            logger.exception("Data load failed")
+            raise HTTPException(status_code=500, detail="Data load failed. Check server logs for details.") from e
     else:
         if not SEED_SCRIPT.exists():
             return ApiResponse(
@@ -113,7 +139,9 @@ def post_seed():
             timeout=120,
         )
         if r.returncode != 0:
+            # Log full error server-side, return sanitized message to client
             err = (r.stderr or r.stdout or "").strip() or "seed_postgres.py failed"
-            raise HTTPException(status_code=500, detail=err[:500])
+            logger.error(f"Seed script failed: {err[:1000]}")
+            raise HTTPException(status_code=500, detail="Seed script failed. Check server logs for details.")
 
     return ApiResponse(success=True, data={"message": "Sample data loaded."})

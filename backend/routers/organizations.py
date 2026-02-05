@@ -33,6 +33,9 @@ def list_organizations(tree: bool = False, root: bool = False):
 
 @router.post("", response_model=ApiResponse, status_code=201)
 def post_organization(body: OrganizationCreate, _email: str = Depends(require_write_allowed)):
+    import logging
+    logger = logging.getLogger(__name__)
+
     if not body.name:
         raise HTTPException(status_code=400, detail="Name is required")
     try:
@@ -41,7 +44,9 @@ def post_organization(body: OrganizationCreate, _email: str = Depends(require_wr
     except Exception as e:
         if "UNIQUE" in str(e) or "unique" in str(e).lower():
             raise HTTPException(status_code=409, detail="An organization with this slug already exists")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Log full error server-side, return sanitized message to client
+        logger.exception(f"Failed to create organization: {body.name}")
+        raise HTTPException(status_code=500, detail="Failed to create organization. Please try again.")
 
 
 @router.get("/{org_id}", response_model=ApiResponse)
