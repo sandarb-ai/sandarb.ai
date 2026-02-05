@@ -1,5 +1,6 @@
-import { getContextsPaginated } from '@/lib/contexts';
+import { getContextsPaginated } from '@/lib/api-client';
 import { ContextsListClient } from './contexts-list-client';
+import type { Context } from '@/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,14 +13,14 @@ export default async function ContextsPage({
 }) {
   const page = Math.max(1, parseInt(searchParams.page ?? '1', 10));
   const offset = (page - 1) * PAGE_SIZE;
-  let contexts: Awaited<ReturnType<typeof getContextsPaginated>>['contexts'] = [];
+  let contexts: Context[] = [];
   let total = 0;
   try {
     const result = await getContextsPaginated(PAGE_SIZE, offset);
-    contexts = result.contexts;
-    total = result.total;
+    contexts = (result.contexts ?? []) as Context[];
+    total = result.total ?? 0;
   } catch {
-    // Fallback: empty list if DB not ready
+    // Fallback: empty list if backend not ready
   }
 
   return (

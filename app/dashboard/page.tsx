@@ -5,16 +5,25 @@ import { StatsCard } from '@/components/stats-card';
 import { LoadSampleDataCard } from '@/components/load-sample-data';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { getPromptStats, getRecentPrompts } from '@/lib/prompts';
-import { getContextCount } from '@/lib/contexts';
-import { getAgentCount, getRecentAgents } from '@/lib/agents';
-import { getRootOrganization, getAllOrganizations } from '@/lib/organizations';
-import { getRecentOrganizationsWithCounts } from '@/lib/dashboard';
+import {
+  getDashboard,
+  getRecentOrganizationsWithCounts,
+  getRecentAgents,
+  getRecentPrompts,
+} from '@/lib/api-client';
 import { formatRelativeTime } from '@/lib/utils';
 import type { Prompt, RegisteredAgent } from '@/types';
-import type { OrgWithCounts } from '@/lib/dashboard';
 
 export const dynamic = 'force-dynamic';
+
+interface OrgWithCounts {
+  id: string;
+  name: string;
+  slug: string;
+  agentCount: number;
+  contextCount: number;
+  [key: string]: unknown;
+}
 
 export default async function DashboardPage() {
   let promptStats = { total: 0, active: 0 };
@@ -26,28 +35,25 @@ export default async function DashboardPage() {
   let recentPrompts: Prompt[] = [];
 
   try {
-    const [root, totalAgents, allOrgs] = await Promise.all([
-      getRootOrganization(),
-      getAgentCount(),
-      getAllOrganizations(),
-    ]);
-    promptStats = await getPromptStats();
-    contextStats = await getContextCount();
-    agentCount = root ? totalAgents - (await getAgentCount(root.id)) : totalAgents;
-    orgCount = allOrgs.filter((o) => !o.isRoot).length;
-    recentOrgs = await getRecentOrganizationsWithCounts(6);
-    const rawRecentAgents = await getRecentAgents(6);
-    recentAgents = root ? rawRecentAgents.filter((a) => a.orgId !== root.id) : rawRecentAgents;
-    recentPrompts = await getRecentPrompts(6);
+    const d = await getDashboard();
+    if (d) {
+      promptStats = (d.promptStats as { total: number; active: number }) ?? { total: 0, active: 0 };
+      contextStats = (d.contextStats as { total: number; active: number }) ?? { total: 0, active: 0 };
+      agentCount = (d.agentCount as number) ?? 0;
+      orgCount = (d.orgCount as number) ?? 0;
+      recentOrgs = (d.recentOrgs as OrgWithCounts[]) ?? [];
+      recentAgents = (d.recentAgents as RegisteredAgent[]) ?? [];
+      recentPrompts = (d.recentPrompts as Prompt[]) ?? [];
+    }
   } catch {
-    // Fallback: show zeros and empty lists if DB not ready
+    // Fallback: show zeros and empty lists if backend not ready
   }
 
   return (
     <div className="flex flex-col min-h-full">
       <Header
         title="Dashboard"
-        description="Aggregate metrics for Open Bank Inc (sample data)"
+        description={orgCount || agentCount || contextStats.active || promptStats.active ? 'Aggregate metrics from your database' : 'Aggregate metrics (load data with ./scripts/load_sandarb_data.sh)'}
       />
 
       <div className="flex-1 p-6 space-y-6">

@@ -1,0 +1,66 @@
+"""Organizations router."""
+
+from fastapi import APIRouter, HTTPException
+
+from backend.schemas.organizations import Organization, OrganizationCreate, OrganizationUpdate
+from backend.schemas.common import ApiResponse
+from backend.services.organizations import (
+    get_all_organizations,
+    get_organization_by_id,
+    get_root_organization,
+    get_organizations_tree,
+    create_organization,
+    update_organization,
+    delete_organization,
+)
+
+router = APIRouter(prefix="/organizations", tags=["organizations"])
+
+
+@router.get("", response_model=ApiResponse)
+def list_organizations(tree: bool = False, root: bool = False):
+    if root:
+        data = get_root_organization()
+        return ApiResponse(success=True, data=data)
+    if tree:
+        data = get_organizations_tree()
+        return ApiResponse(success=True, data=data)
+    data = get_all_organizations()
+    return ApiResponse(success=True, data=data)
+
+
+@router.post("", response_model=ApiResponse, status_code=201)
+def post_organization(body: OrganizationCreate):
+    if not body.name:
+        raise HTTPException(status_code=400, detail="Name is required")
+    try:
+        org = create_organization(body)
+        return ApiResponse(success=True, data=org)
+    except Exception as e:
+        if "UNIQUE" in str(e) or "unique" in str(e).lower():
+            raise HTTPException(status_code=409, detail="An organization with this slug already exists")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{org_id}", response_model=ApiResponse)
+def get_organization(org_id: str):
+    org = get_organization_by_id(org_id)
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    return ApiResponse(success=True, data=org)
+
+
+@router.patch("/{org_id}", response_model=ApiResponse)
+def patch_organization(org_id: str, body: OrganizationUpdate):
+    org = update_organization(org_id, body)
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    return ApiResponse(success=True, data=org)
+
+
+@router.delete("/{org_id}")
+def delete_organization_route(org_id: str):
+    ok = delete_organization(org_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    return ApiResponse(success=True, data=None)

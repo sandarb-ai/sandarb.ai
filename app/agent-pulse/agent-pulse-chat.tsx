@@ -4,7 +4,7 @@ import { useRef, useEffect, useState, useCallback } from 'react';
 import { Bot, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
 import { formatDateTime } from '@/lib/utils';
-import type { A2ALogEntry } from '@/lib/audit';
+import type { A2ALogEntry } from '@/types';
 
 const POLL_INTERVAL_MS = 4000;
 const DEMO_INTERVAL_MS = 6000;

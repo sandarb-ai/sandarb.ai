@@ -7,6 +7,20 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/** Ensure value is an array of strings (API may return JSON string or non-array). */
+export function toTagList(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map((x) => (typeof x === 'string' ? x : String(x)));
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed.map((x: unknown) => String(x)) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 // Format content for injection
 export function formatContent(
   content: Record<string, unknown>,
@@ -101,15 +115,18 @@ export function safeJsonParse<T>(json: string, fallback: T): T {
   }
 }
 
-// Truncate text with ellipsis
-export function truncate(text: string, maxLength: number): string {
+// Truncate text with ellipsis (handles null/undefined)
+export function truncate(text: string | null | undefined, maxLength: number): string {
+  if (text == null || typeof text !== 'string') return '';
   if (text.length <= maxLength) return text;
   return text.slice(0, maxLength - 3) + '...';
 }
 
 // Format date for display
-export function formatDate(dateString: string): string {
+export function formatDate(dateString: string | null | undefined): string {
+  if (dateString == null || dateString === '') return '—';
   const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return '—';
   return new Intl.DateTimeFormat('en-US', {
     month: 'short',
     day: 'numeric',
@@ -120,8 +137,10 @@ export function formatDate(dateString: string): string {
 }
 
 /** Format full date and time for chat logs (e.g. "Feb 3, 2026, 3:45:12 PM"). */
-export function formatDateTime(dateString: string): string {
+export function formatDateTime(dateString: string | null | undefined): string {
+  if (dateString == null || dateString === '') return '—';
   const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return '—';
   return date.toLocaleString(undefined, {
     year: 'numeric',
     month: 'short',
@@ -146,8 +165,10 @@ export function normalizeApprovedBy(approvedBy: string | null | undefined): stri
 }
 
 // Format relative time
-export function formatRelativeTime(dateString: string): string {
+export function formatRelativeTime(dateString: string | null | undefined): string {
+  if (dateString == null || dateString === '') return '—';
   const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return '—';
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.floor(diffMs / 60000);

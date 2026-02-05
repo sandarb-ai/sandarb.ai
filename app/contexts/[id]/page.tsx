@@ -15,6 +15,7 @@ import {
   Shield,
   Copy,
   ExternalLink,
+  Bot,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -23,6 +24,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ContextEditor } from '@/components/context-editor';
 import { ComplianceMetadataFields } from '@/components/compliance-metadata-fields';
+import { apiUrl } from '@/lib/api';
 import type { Context, ContextRevision, LineOfBusiness, DataClassification, RegulatoryHook } from '@/types';
 import { formatDate, formatApprovedBy } from '@/lib/utils';
 import { ContentDiffView } from '@/components/content-diff-view';
@@ -96,7 +98,7 @@ export default function EditContextPage() {
 
   const fetchContext = async () => {
     try {
-      const res = await fetch(`/api/contexts/${id}`);
+      const res = await fetch(apiUrl(`/api/contexts/${id}`));
       const data = await res.json();
       if (data.success) {
         const ctx = data.data;
@@ -116,7 +118,7 @@ export default function EditContextPage() {
 
   const fetchRevisions = async () => {
     try {
-      const res = await fetch(`/api/contexts/${id}/revisions`);
+      const res = await fetch(apiUrl(`/api/contexts/${id}/revisions`));
       const data = await res.json();
       if (data.success) setRevisions(data.data);
     } catch {
@@ -135,7 +137,7 @@ export default function EditContextPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const res = await fetch(`/api/contexts/${id}`, {
+      const res = await fetch(apiUrl(`/api/contexts/${id}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -162,7 +164,7 @@ export default function EditContextPage() {
 
   const handleApproveRevision = async (revId: string) => {
     try {
-      const res = await fetch(`/api/contexts/${id}/revisions/${revId}/approve`, {
+      const res = await fetch(apiUrl(`/api/contexts/${id}/revisions/${revId}/approve`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
@@ -177,7 +179,7 @@ export default function EditContextPage() {
 
   const handleRejectRevision = async (revId: string) => {
     try {
-      const res = await fetch(`/api/contexts/${id}/revisions/${revId}/reject`, {
+      const res = await fetch(apiUrl(`/api/contexts/${id}/revisions/${revId}/reject`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
@@ -190,7 +192,7 @@ export default function EditContextPage() {
   const handleDelete = async () => {
     if (!confirm('Are you sure you want to delete this context?')) return;
     try {
-      const res = await fetch(`/api/contexts/${id}`, { method: 'DELETE' });
+      const res = await fetch(apiUrl(`/api/contexts/${id}`), { method: 'DELETE' });
       if (res.ok) router.push('/contexts');
       else alert('Failed to delete context');
     } catch {
@@ -324,6 +326,41 @@ export default function EditContextPage() {
                       onDataClassificationChange={setDataClassification}
                       onRegulatoryHooksChange={setRegulatoryHooks}
                     />
+                  </CardContent>
+                </Card>
+                {/* Linked agents: which agent(s) this context belongs to */}
+                <Card className="border-l-4 border-l-muted shadow-sm">
+                  <CardHeader className="py-3 px-4">
+                    <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                      <Bot className="h-3.5 w-3.5 text-muted-foreground" />
+                      Linked agents
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      This context is available to these agents when they inject by name.
+                    </p>
+                  </CardHeader>
+                  <CardContent className="px-4 pb-4 pt-0">
+                    {(context.agents?.length ?? 0) > 0 ? (
+                      <ul className="space-y-1.5">
+                        {context.agents!.map((a) => (
+                          <li key={a.id}>
+                            <Link
+                              href={`/agents/${a.id}`}
+                              className="text-sm font-medium text-primary hover:underline"
+                            >
+                              {a.name}
+                              {a.agentId && (
+                                <span className="text-muted-foreground font-normal ml-1 font-mono text-xs">
+                                  ({a.agentId})
+                                </span>
+                              )}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-muted-foreground italic">Not linked to any agent</p>
+                    )}
                   </CardContent>
                 </Card>
               </div>

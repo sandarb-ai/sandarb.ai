@@ -1,19 +1,9 @@
 #!/bin/sh
-# When DATABASE_URL is set: clean and reseed Postgres (same real-world data as localhost).
-# Sandarb requires DATABASE_URL (Postgres). Demo data is visible only after login.
+# Sandarb UI only. This container runs the Next.js frontend.
+# Backend (FastAPI) runs separately; set NEXT_PUBLIC_API_URL in the image or at deploy to point to it.
+# Schema and seed: use npm run db:gcp-import-file then import to Cloud SQL; backend uses the same DB.
 
 set -e
 PORT="${PORT:-3000}"
 
-# When DATABASE_URL is set, clean and reseed Postgres so GCP has the same data as local.
-if [ -n "$DATABASE_URL" ]; then
-  echo "DATABASE_URL set: cleaning and reseeding Postgres..."
-  if node /app/scripts/full-reset-postgres.js 2>/dev/null; then
-    echo "Postgres cleaned and reseeded (real-world sample data)."
-  else
-    echo "Warning: full-reset-postgres failed; continuing. Check DATABASE_URL and connectivity."
-  fi
-fi
-
-# Start the server (DATABASE_URL required at runtime)
 exec node server.js

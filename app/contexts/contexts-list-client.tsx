@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ContextCard } from '@/components/context-card';
 import { EmptyState } from '@/components/empty-state';
+import { apiUrl } from '@/lib/api';
 import type { Context, LineOfBusiness, DataClassification, RegulatoryHook } from '@/types';
 import {
   LINE_OF_BUSINESS_OPTIONS,
@@ -47,7 +48,7 @@ export function ContextsListClient({ initialContexts, total, page, pageSize }: C
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this context?')) return;
     try {
-      const res = await fetch(`/api/contexts/${id}`, { method: 'DELETE' });
+      const res = await fetch(apiUrl(`/api/contexts/${id}`), { method: 'DELETE' });
       if (res.ok) {
         window.location.reload();
       }

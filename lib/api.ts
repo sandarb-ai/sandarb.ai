@@ -1,9 +1,10 @@
 /**
- * API base URL for client-side fetch calls.
- * - Explicit: set NEXT_PUBLIC_API_URL to override (e.g. http://localhost:4001 or https://api.sandarb.ai).
- * - Local: when UI is on localhost/127.0.0.1, defaults to http://localhost:4001.
- * - GCP (sandarb.ai): when UI host contains "sandarb.ai", defaults to https://api.sandarb.ai.
- * - Otherwise: same-origin (empty string).
+ * API base URL for fetch calls (Dashboard API: prompts, contexts, agents, etc.).
+ * Next.js UI talks to FastAPI backend; without a base URL, SSR fetch would 404 (no Next.js API routes).
+ * - NEXT_PUBLIC_API_URL: explicit override (client + server when set at build).
+ * - Client (localhost): defaults to http://localhost:8000.
+ * - Client (sandarb.ai): defaults to https://api.sandarb.ai.
+ * - Server: BACKEND_URL or NEXT_PUBLIC_API_URL; in development fallback to http://localhost:8000 so SSR shows loaded data.
  */
 export function getApiBase(): string {
   const explicit = process.env.NEXT_PUBLIC_API_URL?.trim();
@@ -11,15 +12,47 @@ export function getApiBase(): string {
 
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
-    if (host === 'localhost' || host === '127.0.0.1') return 'http://localhost:4001';
+    if (host === 'localhost' || host === '127.0.0.1') return 'http://localhost:8000';
     if (host.endsWith('sandarb.ai')) return 'https://api.sandarb.ai';
+  } else {
+    // Server-side (SSR): use BACKEND_URL or NEXT_PUBLIC_API_URL so dashboard hits FastAPI/Postgres
+    const serverBackend = process.env.BACKEND_URL?.trim() || process.env.NEXT_PUBLIC_API_URL?.trim();
+    if (serverBackend) return serverBackend;
+    // In development, default to FastAPI so Agent/Prompt/Context lists show loaded data without .env
+    if (process.env.NODE_ENV === 'development') return 'http://localhost:8000';
   }
 
   return '';
 }
 
+/**
+ * Agent base URL (A2A endpoint). When running locally, same as API (single backend on :8000).
+ * - NEXT_PUBLIC_AGENT_URL: explicit override.
+ * - Local: defaults to http://localhost:8000.
+ * - GCP: defaults to https://agent.sandarb.ai.
+ */
+export function getAgentBase(): string {
+  const explicit = process.env.NEXT_PUBLIC_AGENT_URL?.trim();
+  if (explicit) return explicit;
+
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') return 'http://localhost:8000';
+    if (host.endsWith('sandarb.ai')) return 'https://agent.sandarb.ai';
+  }
+
+  return getApiBase() || '';
+}
+
 export function apiUrl(path: string): string {
   const base = getApiBase().replace(/\/$/, '');
+  const p = path.startsWith('/') ? path : `/${path}`;
+  return `${base}${p}`;
+}
+
+/** Build full URL for agent (A2A) requests. Use when calling the agent subdomain. */
+export function agentUrl(path: string): string {
+  const base = getAgentBase().replace(/\/$/, '');
   const p = path.startsWith('/') ? path : `/${path}`;
   return `${base}${p}`;
 }

@@ -82,7 +82,7 @@ export function OrganizationsPageClient({ initialOrgs }: OrganizationsPageClient
             <EmptyState
               icon={Building2}
               title="No organizations yet"
-              description="A root organization is created automatically. Add sub-orgs for teams."
+              description="Sandarb HQ is created automatically. Add sub-orgs for teams."
               actionLabel="New organization"
               actionHref="/organizations/new"
             />

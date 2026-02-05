@@ -34,7 +34,7 @@ export function DocsNav({ groups }: { groups: TocGroup[] }) {
   }, [groups]);
 
   return (
-    <nav className="sticky top-[52px] p-4 py-6">
+    <nav className="sticky top-4 p-4 py-6">
       <p className="text-xs font-bold text-violet-600 dark:text-violet-400 uppercase tracking-wider mb-3">
         In this doc
       </p>

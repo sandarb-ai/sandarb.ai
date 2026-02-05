@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Plus, Search, Trash2, Clock, CheckCircle, AlertCircle, ExternalLink } from 'lucide-react';
+import { Plus, Search, Trash2, Clock, CheckCircle, AlertCircle, ExternalLink, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -15,7 +15,8 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { EmptyState } from '@/components/empty-state';
-import { formatRelativeTime, truncate } from '@/lib/utils';
+import { apiUrl } from '@/lib/api';
+import { formatRelativeTime, truncate, toTagList } from '@/lib/utils';
 import type { Prompt } from '@/types';
 
 interface PromptsListClientProps {
@@ -30,7 +31,7 @@ export function PromptsListClient({ initialPrompts }: PromptsListClientProps) {
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this prompt and all its versions?')) return;
     try {
-      const res = await fetch(`/api/prompts/${id}`, { method: 'DELETE' });
+      const res = await fetch(apiUrl(`/api/prompts/${id}`), { method: 'DELETE' });
       if (res.ok) {
         window.location.reload();
       }
@@ -43,7 +44,7 @@ export function PromptsListClient({ initialPrompts }: PromptsListClientProps) {
       !search ||
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.description?.toLowerCase().includes(search.toLowerCase()) ||
-      (p.tags ?? []).some((t) => t.toLowerCase().includes(search.toLowerCase()));
+      toTagList(p.tags).some((t) => t.toLowerCase().includes(search.toLowerCase()));
     return matchSearch;
   });
 
@@ -171,20 +172,47 @@ function PromptCard({ prompt, onDelete }: PromptCardProps) {
         <div className="space-y-3">
           {/* Tags */}
           <div className="flex flex-wrap gap-1">
-            {(prompt.tags ?? []).slice(0, 4).map((tag) => (
+            {toTagList(prompt.tags).slice(0, 4).map((tag) => (
               <Badge key={tag} variant="outline" className="text-xs">
                 {tag}
               </Badge>
             ))}
-            {(prompt.tags ?? []).length > 4 && (
+            {toTagList(prompt.tags).length > 4 && (
               <Badge variant="outline" className="text-xs">
-                +{(prompt.tags ?? []).length - 4}
+                +{toTagList(prompt.tags).length - 4}
               </Badge>
             )}
           </div>
 
+          {/* Linked agents: which agent(s) this prompt belongs to */}
+          <div className="border-t border-border/60 pt-2 mt-2">
+            <p className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1">
+              <Bot className="h-3 w-3" />
+              Used by
+            </p>
+            {(prompt.agents ?? []).length > 0 ? (
+              <div className="flex flex-wrap gap-1">
+                {(prompt.agents ?? []).slice(0, 4).map((a) => (
+                  <Link
+                    key={a.id}
+                    href={`/agents/${a.id}`}
+                    className="text-xs font-medium text-primary hover:underline truncate max-w-[8rem]"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {a.name}
+                  </Link>
+                ))}
+                {(prompt.agents ?? []).length > 4 && (
+                  <span className="text-xs text-muted-foreground">+{(prompt.agents ?? []).length - 4} more</span>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground italic">Not linked to any agent</p>
+            )}
+          </div>
+
           {/* Metadata */}
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <div className="flex items-center justify-between text-xs text-muted-foreground mt-2">
             <span className="flex items-center gap-1">
               <Clock className="h-3 w-3" />
               {formatRelativeTime(prompt.updatedAt)}

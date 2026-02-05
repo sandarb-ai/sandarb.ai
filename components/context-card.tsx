@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ExternalLink, Trash2 } from 'lucide-react';
+import { ExternalLink, Trash2, Bot } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -12,7 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { formatRelativeTime, truncate } from '@/lib/utils';
+import { formatRelativeTime, truncate, toTagList } from '@/lib/utils';
 import type { Context } from '@/types';
 
 interface ContextCardProps {
@@ -22,7 +22,9 @@ interface ContextCardProps {
 
 export function ContextCard({ context, onDelete }: ContextCardProps) {
   const router = useRouter();
-  const contentPreview = JSON.stringify(context.content, null, 2);
+  const contentPreview = context.content != null ? JSON.stringify(context.content, null, 2) : '';
+  const tags = toTagList(context.tags);
+  const regulatoryHooks = toTagList(context.regulatoryHooks);
 
   return (
     <Card
@@ -92,23 +94,50 @@ export function ContextCard({ context, onDelete }: ContextCardProps) {
                   {context.dataClassification}
                 </Badge>
               )}
-              {(context.regulatoryHooks ?? []).map((h) => (
+              {regulatoryHooks.map((h) => (
                 <Badge key={h} variant="outline" className="text-xs">
                   {h}
                 </Badge>
               ))}
             </div>
+            {/* Linked agents: which agent(s) this context belongs to */}
+            <div className="border-t border-border/60 pt-2">
+              <p className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1">
+                <Bot className="h-3 w-3" />
+                Used by
+              </p>
+              {(context.agents ?? []).length > 0 ? (
+                <div className="flex flex-wrap gap-1">
+                  {(context.agents ?? []).slice(0, 4).map((a) => (
+                    <Link
+                      key={a.id}
+                      href={`/agents/${a.id}`}
+                      className="text-xs font-medium text-primary hover:underline truncate max-w-[8rem]"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {a.name}
+                    </Link>
+                  ))}
+                  {(context.agents ?? []).length > 4 && (
+                    <span className="text-xs text-muted-foreground">+{(context.agents ?? []).length - 4} more</span>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground italic">Not linked to any agent</p>
+              )}
+            </div>
+
             {/* Tags and metadata */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mt-2">
               <div className="flex flex-wrap gap-1">
-                {(context.tags ?? []).slice(0, 3).map((tag) => (
+                {tags.slice(0, 3).map((tag) => (
                   <Badge key={tag} variant="outline" className="text-xs">
                     {tag}
                   </Badge>
                 ))}
-                {(context.tags ?? []).length > 3 && (
+                {tags.length > 3 && (
                   <Badge variant="outline" className="text-xs">
-                    +{(context.tags ?? []).length - 3}
+                    +{tags.length - 3}
                   </Badge>
                 )}
               </div>

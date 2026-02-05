@@ -34,7 +34,7 @@ docker compose up -d postgres
 
 Default URL (used if you don’t set `DATABASE_URL`):
 
-- `postgresql://postgres:sandarb@localhost:5432/sandarb-dev`
+- `postgresql://postgres:sandarb@localhost:5432/sandarb`
 
 To use another Postgres instance, set `DATABASE_URL` in `.env` (see step 3).
 
@@ -51,10 +51,10 @@ Important variables:
 
 | Variable | Purpose |
 |----------|--------|
-| `DATABASE_URL` | Postgres URL. Default: `postgresql://postgres:sandarb@localhost:5432/sandarb-dev` |
-| `NEXT_PUBLIC_API_URL` | Set to `http://localhost:4001` when UI and API run on different ports (default in `.env.example`) |
+| `DATABASE_URL` | Postgres URL. Default: `postgresql://postgres:sandarb@localhost:5432/sandarb` |
+| `NEXT_PUBLIC_API_URL` | Backend URL. Default: `http://localhost:8000` (see `.env.example`) |
 
-You can leave `.env` as-is for local dev; `start-sandarb.sh` will use the default Postgres URL if `DATABASE_URL` is unset.
+You can leave `.env` as-is for local dev; `start-sandarb.sh` uses the default Postgres URL if `DATABASE_URL` is unset.
 
 ---
 
@@ -71,16 +71,15 @@ This script:
 - Checks Node 18+
 - Creates `.env` from `.env.example` if missing
 - **Checks Postgres** (exits with a clear message if not running)
-- Runs `npm run db:full-reset-pg` (reset + seed)
-- Frees ports 4000 and 4001 if in use
-- Starts UI and API with `npm run dev`
+- Frees ports 3000 and 8000 if in use
+- Starts UI and backend with `npm run dev`
 
 When it’s up:
 
 | What | URL |
 |------|-----|
-| **UI** | http://localhost:4000 |
-| **API** | http://localhost:4001 |
+| **UI** | http://localhost:3000 |
+| **Backend** | http://localhost:8000 |
 
 Use the UI for dashboard, prompts, contexts, agents, and Agent Pulse (`/agent-pulse`).
 
@@ -92,11 +91,15 @@ Use the UI for dashboard, prompts, contexts, agents, and Agent Pulse (`/agent-pu
 
 | Goal | Command |
 |------|--------|
-| Start platform (UI + API + seed) | `./scripts/start-sandarb.sh` |
+| Start platform (UI + backend) | `./scripts/start-sandarb.sh` or `./scripts/dev.sh` |
 | Start Postgres only | `docker compose up -d postgres` |
-| Check Postgres | `node scripts/check-postgres.js` |
-| Reset DB + seed | `npm run db:full-reset-pg` |
-| Dev (manual) | `npm run dev` (UI on 4000, API on 4001) |
+| Check Postgres | `./scripts/check_postgres.sh` or `python scripts/check_postgres.py` |
+| Reset DB + seed | `./scripts/full_reset_pg_db.sh local` or `npm run db:full-reset-pg` |
+| Load DB (local) | `./scripts/load_db.sh local` or `npm run db:load:local` |
+| Load DB (GCP) | `./scripts/load_db.sh gcp` (set `CLOUD_SQL_DATABASE_URL` in .env) |
+| Dev (manual) | `npm run dev` (UI on 3000, backend on 8000) |
+
+**Driver scripts** (from repo root): `./scripts/dev.sh`, `./scripts/load_db.sh [local\|gcp]`, `./scripts/check_postgres.sh`, `./scripts/full_reset_pg_db.sh [local\|gcp]`.
 
 ---
 
@@ -105,11 +108,11 @@ Use the UI for dashboard, prompts, contexts, agents, and Agent Pulse (`/agent-pu
 ### "Postgres is not running or unreachable"
 
 - Start Postgres: `docker compose up -d postgres`
-- If using another host/port, set `DATABASE_URL` in `.env` and run `node scripts/check-postgres.js` to verify.
+- If using another host/port, set `DATABASE_URL` in `.env` and run `python scripts/check_postgres.py` to verify.
 
-### "Ports 4000/4001 in use"
+### "Ports 3000/8000 in use"
 
-- `start-sandarb.sh` tries to free them. If it can’t, stop the process using the port, e.g. `lsof -i :4000` then `kill <PID>`.
+- `start-sandarb.sh` tries to free them. If it can’t, stop the process using the port, e.g. `lsof -i :3000` then `kill <PID>`.
 
 ### Need a clean database
 
@@ -123,5 +126,5 @@ Then restart the app if it’s already running.
 
 ## Next steps
 
-- **In-app docs:** http://localhost:4000/docs (when the app is running)
+- **In-app docs:** http://localhost:3000/docs (when the app is running)
 - **Developer guide:** [developer-guide.md](./developer-guide.md) — API, A2A, inject, templates, env vars

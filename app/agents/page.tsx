@@ -1,5 +1,4 @@
-import { getAllAgents, getAgentStats } from '@/lib/agents';
-import { getAllOrganizations, getRootOrganization } from '@/lib/organizations';
+import { getAgents, getAgentStats, getOrganizations, getRootOrganization } from '@/lib/api-client';
 import type { RegisteredAgent } from '@/types';
 import type { Organization } from '@/types';
 import { AgentsPageClient } from './agents-client';
@@ -12,13 +11,15 @@ export default async function AgentsPage() {
   try {
     const root = await getRootOrganization();
     const [allAgents, allOrgs, agentStats] = await Promise.all([
-      getAllAgents(),
-      getAllOrganizations(),
-      getAgentStats(root?.id),
+      getAgents(),
+      getOrganizations(),
+      getAgentStats(), // global stats (match dashboard); do not pass root.id
     ]);
-    orgs = allOrgs;
-    agents = root ? allAgents.filter((a) => a.orgId !== root.id) : allAgents;
-    stats = agentStats;
+    orgs = (allOrgs ?? []) as Organization[];
+    agents = Array.isArray(allAgents)
+      ? root ? (allAgents as RegisteredAgent[]).filter((a) => a.orgId !== (root as { id?: string })?.id) : (allAgents as RegisteredAgent[])
+      : [];
+    stats = (agentStats ?? stats) as typeof stats;
   } catch (err) {
     // Fallback: empty lists if DB not ready; log in dev to debug "0 data"
     if (process.env.NODE_ENV === 'development') {

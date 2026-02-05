@@ -51,7 +51,7 @@ npm run dev
 ### Seed data (Postgres)
 
 - Run `npm run db:full-reset-pg` to reset and seed sample data.
-- **Agent names must differ per org.** In `scripts/seed-postgres.js`, each organization gets its own set of agent names (e.g. org name + role); never reuse the same agent name list across orgs.
+- **Agent names must differ per org.** In `scripts/seed_postgres.py`, each organization gets its own set of agent names (e.g. org name + role); never reuse the same agent name list across orgs.
 
 ### Optional: GCP deploy (gcloud CLI)
 

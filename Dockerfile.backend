@@ -1,0 +1,21 @@
+# Sandarb FastAPI backend. Same image used for sandarb-api and sandarb-agent (SERVICE_MODE env differentiates).
+# Build from repo root: docker build -f Dockerfile.backend -t sandarb-backend .
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install dependencies
+COPY backend/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy backend package (imports use "backend.*")
+COPY backend/ ./backend/
+ENV PYTHONPATH=/app
+
+# Cloud Run sets PORT (default 8080)
+ENV PORT=8080
+EXPOSE 8080
+
+# SERVICE_MODE=api|agent is set at deploy time
+CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port ${PORT}"]

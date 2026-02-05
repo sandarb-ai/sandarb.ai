@@ -16,6 +16,7 @@ import {
   Database,
   Calendar,
   User,
+  Building2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -97,10 +98,20 @@ export function AgentDetailClient({ initialAgent }: AgentDetailClientProps) {
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <div className="flex items-center gap-2 flex-1">
-          <Bot className="h-6 w-6 text-muted-foreground" />
-          <h1 className="text-2xl font-semibold tracking-tight">{agent.name}</h1>
-          <Badge
+        <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+          {agent.organization && (
+            <Link
+              href={`/organizations/${agent.organization.id}`}
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline w-fit"
+            >
+              <Building2 className="h-4 w-4 shrink-0" />
+              {agent.organization.name}
+            </Link>
+          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            <Bot className="h-6 w-6 text-muted-foreground shrink-0" />
+            <h1 className="text-2xl font-semibold tracking-tight">{agent.name}</h1>
+            <Badge
             variant={
               (agent.approvalStatus ?? 'draft') === 'approved'
                 ? 'success'
@@ -120,6 +131,7 @@ export function AgentDetailClient({ initialAgent }: AgentDetailClientProps) {
               (agent.approvalStatus ?? 'draft') === 'rejected' ? 'Rejected' : 'Draft'
             )}
           </Badge>
+          </div>
         </div>
         <div className="flex items-center gap-4">
           {(agent.approvalStatus ?? 'draft') === 'pending_approval' && (
@@ -162,6 +174,16 @@ export function AgentDetailClient({ initialAgent }: AgentDetailClientProps) {
                   <User className="h-3 w-3" /> Identity
                 </h4>
                 <div className="rounded-md border border-border/50 bg-muted/30 p-3">
+                  {agent.organization && (
+                    <FieldRow
+                      label="Organization"
+                      value={
+                        <Link href={`/organizations/${agent.organization.id}`} className="font-medium text-primary hover:underline">
+                          {agent.organization.name}
+                        </Link>
+                      }
+                    />
+                  )}
                   <FieldRow label="Agent ID" value={agent.agentId ?? '—'} mono />
                   <FieldRow label="Name" value={agent.name} />
                   <FieldRow label="Description" value={agent.description ?? '—'} />

@@ -16,7 +16,7 @@ docker compose up -d postgres
 ./scripts/start-sandarb.sh
 ```
 
-**UI:** http://localhost:4000 · **API:** http://localhost:4001  
+**UI:** http://localhost:3000 · **Backend:** http://localhost:8000  
 
 Full steps (env, troubleshooting): **[docs/QUICKSTART.md](docs/QUICKSTART.md)**
 

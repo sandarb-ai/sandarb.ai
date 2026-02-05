@@ -1,6 +1,5 @@
 import { notFound } from 'next/navigation';
-import { getOrganizationById, getChildOrganizations } from '@/lib/organizations';
-import { getAllAgents } from '@/lib/agents';
+import { getOrganizationById, getChildOrganizations, getAgents } from '@/lib/api-client';
 import { OrganizationDetailClient } from './organization-detail-client';
 
 interface PageProps {
@@ -12,7 +11,7 @@ export default async function OrganizationDetailPage({ params }: PageProps) {
   const [org, children, agents] = await Promise.all([
     getOrganizationById(id),
     getChildOrganizations(id),
-    getAllAgents(id),
+    getAgents(id),
   ]);
 
   if (!org) notFound();

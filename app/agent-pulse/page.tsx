@@ -2,8 +2,7 @@ import { Header } from '@/components/header';
 import { StatsCard } from '@/components/stats-card';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { getBlockedInjections, getA2ALog } from '@/lib/audit';
-import { getUnauthenticatedDetections } from '@/lib/governance';
+import { getBlockedInjections, getA2ALog, getUnauthenticatedDetections } from '@/lib/api-client';
 import { formatRelativeTime } from '@/lib/utils';
 import { ShieldAlert, Bot, Radio, Hash } from 'lucide-react';
 import { AgentPulseScanButton } from './agent-pulse-scan-button';
@@ -12,18 +11,21 @@ import { AgentPulseChat } from './agent-pulse-chat';
 export const dynamic = 'force-dynamic';
 
 export default async function AgentPulsePage() {
-  let blocked: Awaited<ReturnType<typeof getBlockedInjections>> = [];
-  let unauthenticated: Awaited<ReturnType<typeof getUnauthenticatedDetections>> = [];
-  let a2aLog: Awaited<ReturnType<typeof getA2ALog>> = [];
+  let blocked: Array<{ id: string; createdAt?: string; details?: { agentId?: string; reason?: string }; resourceName?: string; createdBy?: string }> = [];
+  let unauthenticated: Array<{ id: string; sourceUrl?: string; scanRunAt?: string; detectedAgentId?: string }> = [];
+  let a2aLog: Array<{ id: string; [key: string]: unknown }> = [];
 
   try {
-    [blocked, unauthenticated, a2aLog] = await Promise.all([
+    const [b, u, a] = await Promise.all([
       getBlockedInjections(50),
       getUnauthenticatedDetections(50),
       getA2ALog(200),
     ]);
+    blocked = Array.isArray(b) ? b : [];
+    unauthenticated = Array.isArray(u) ? u : [];
+    a2aLog = Array.isArray(a) ? a : [];
   } catch {
-    // Fallback: empty lists if DB not ready
+    // Fallback: empty lists if backend not ready
   }
 
   return (

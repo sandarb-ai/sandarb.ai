@@ -85,11 +85,11 @@ Without governing both, you cannot diagnose whether the error was a failure of *
 git clone https://github.com/openint-ai/sandarb.ai.git
 cd sandarb.ai
 npm install
-export DATABASE_URL=postgresql://postgres:sandarb@localhost:5432/sandarb-dev  # optional
+export DATABASE_URL=postgresql://postgres:sandarb@localhost:5432/sandarb  # optional
 ./scripts/start-sandarb.sh
 ```
 
-Open the UI at http://localhost:4000. Sign in to see the dashboard. Demo data is seeded on start when `DATABASE_URL` is set.
+Open the UI at http://localhost:3000. Backend runs at http://localhost:8000. Demo data: run `npm run db:full-reset-pg` once (backend uses Postgres).
 
 ## API (core)
 
@@ -183,7 +183,7 @@ Use the test suite to validate changes and to add coverage when you add or chang
 
 Sandarb uses **OpenTelemetry** for tracing and logging when enabled. All API routes are wrapped in spans and errors are logged via the OTel Logs API. Traces and logs are exported to an OTLP endpoint (e.g. OpenTelemetry Collector, Jaeger, or a cloud observability backend).
 
-**Enable OTel:** Set `OTEL_ENABLED=true` and `OTEL_EXPORTER_OTLP_ENDPOINT` (e.g. `http://localhost:4318`) in `.env`. The Next.js instrumentation (`instrumentation.ts`) registers the Node SDK on server start; `lib/otel.ts` provides `withSpan`, `logger` (info/warn/error), and `getTracer`/`getOtelLogger` for use in routes and lib.
+**Enable OTel:** Set `OTEL_ENABLED=true` and `OTEL_EXPORTER_OTLP_ENDPOINT` (e.g. `http://localhost:4318`) in `.env`. The Next.js instrumentation (`instrumentation.ts`) registers the Node SDK on server start. Backend (FastAPI) has its own OTel setup.
 
 When OTel is disabled (default), the tracer and logger are no-ops.
 
@@ -192,7 +192,7 @@ When OTel is disabled (default), the tracer and logger are no-ops.
 | Variable | Description |
 |----------|-------------|
 | DATABASE_URL | PostgreSQL URL (required) |
-| NEXT_PUBLIC_API_URL | API base URL when UI and API run on different ports |
+| NEXT_PUBLIC_API_URL | Backend API URL (e.g. http://localhost:8000 for FastAPI). UI fetches from this for all /api/*. |
 | PORT | Server port (default 3000) |
 | NODE_ENV | production / development |
 | OTEL_ENABLED | Set to `true` to enable OpenTelemetry |

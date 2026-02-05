@@ -14,7 +14,7 @@ import { apiUrl } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import type { RegisteredAgent } from '@/types';
 import type { Organization } from '@/types';
-import type { AgentStats } from '@/lib/agents';
+import type { AgentStats } from '@/types';
 
 type ViewMode = 'table' | 'card';
 
@@ -26,6 +26,40 @@ interface AgentsPageClientProps {
 
 function getOrgName(orgId: string, orgs: Organization[]): string {
   return orgs.find((o) => o.id === orgId)?.name ?? orgId;
+}
+
+/** Normalize API response to RegisteredAgent[] (accept snake_case or camelCase). */
+function normalizeAgentList(raw: unknown[]): RegisteredAgent[] {
+  return raw.map((item) => {
+    const o = item as Record<string, unknown>;
+    const str = (v: unknown) => (v == null ? undefined : String(v));
+    const arr = (v: unknown): string[] =>
+      Array.isArray(v) ? v.map((x) => (typeof x === 'string' ? x : String(x))) : [];
+    const bool = (v: unknown) => Boolean(v);
+    return {
+      id: str(o.id) ?? '',
+      orgId: str(o.orgId ?? o.org_id) ?? '',
+      agentId: (o.agentId ?? o.agent_id) != null ? str(o.agentId ?? o.agent_id) : null,
+      name: str(o.name) ?? '',
+      description: o.description != null ? str(o.description) : null,
+      a2aUrl: str(o.a2aUrl ?? o.a2a_url) ?? '',
+      agentCard: ((o.agentCard ?? o.agent_card) as RegisteredAgent['agentCard']) ?? null,
+      status: (str(o.status) || 'active') as RegisteredAgent['status'],
+      approvalStatus: (str(o.approvalStatus ?? o.approval_status) || 'draft') as RegisteredAgent['approvalStatus'],
+      approvedBy: (o.approvedBy ?? o.approved_by) != null ? str(o.approvedBy ?? o.approved_by) : null,
+      approvedAt: (o.approvedAt ?? o.approved_at) != null ? str(o.approvedAt ?? o.approved_at) : null,
+      submittedBy: (o.submittedBy ?? o.submitted_by) != null ? str(o.submittedBy ?? o.submitted_by) : null,
+      createdBy: (o.createdBy ?? o.created_by) != null ? str(o.createdBy ?? o.created_by) : null,
+      createdAt: str(o.createdAt ?? o.created_at) ?? '',
+      updatedAt: str(o.updatedAt ?? o.updated_at) ?? '',
+      updatedBy: (o.updatedBy ?? o.updated_by) != null ? str(o.updatedBy ?? o.updated_by) : null,
+      ownerTeam: (o.ownerTeam ?? o.owner_team) != null ? str(o.ownerTeam ?? o.owner_team) : null,
+      toolsUsed: arr(o.toolsUsed ?? o.tools_used),
+      allowedDataScopes: arr(o.allowedDataScopes ?? o.allowed_data_scopes),
+      piiHandling: bool(o.piiHandling ?? o.pii_handling),
+      regulatoryScope: arr(o.regulatoryScope ?? o.regulatory_scope),
+    };
+  });
 }
 
 /** Single status badge: one value per agent (Draft, Pending, Active, Rejected). No "Approved" label. */
@@ -101,7 +135,7 @@ function StatCard({
 
 export function AgentsPageClient({ initialAgents, initialOrgs, initialStats }: AgentsPageClientProps) {
   const router = useRouter();
-  const [agents, setAgents] = useState<RegisteredAgent[]>(initialAgents);
+  const [agents, setAgents] = useState<RegisteredAgent[]>(() => normalizeAgentList(initialAgents));
   const stats = initialStats;
   const [search, setSearch] = useState('');
   const [orgFilter, setOrgFilter] = useState<string>('');
@@ -114,11 +148,11 @@ export function AgentsPageClient({ initialAgents, initialOrgs, initialStats }: A
     setStatusFilterLoading(true);
     try {
       const path = approvalStatus
-        ? `/api/agents?approvalStatus=${encodeURIComponent(approvalStatus)}`
+        ? `/api/agents?approval_status=${encodeURIComponent(approvalStatus)}`
         : '/api/agents';
-      const res = await fetch(path);
+      const res = await fetch(apiUrl(path));
       const data = await res.json();
-      if (data?.data) setAgents(data.data);
+      if (data?.data) setAgents(normalizeAgentList(data.data));
       setStatusFilter(approvalStatus);
       router.refresh();
     } finally {
@@ -129,7 +163,7 @@ export function AgentsPageClient({ initialAgents, initialOrgs, initialStats }: A
   const handleDelete = async (id: string) => {
     if (!confirm('Remove this agent from the registry?')) return;
     try {
-      const res = await fetch(`/api/agents/${id}`, { method: 'DELETE' });
+      const res = await fetch(apiUrl(`/api/agents/${id}`), { method: 'DELETE' });
       if (res.ok) setAgents((prev) => prev.filter((a) => a.id !== id));
     } catch {
     }
@@ -169,7 +203,7 @@ export function AgentsPageClient({ initialAgents, initialOrgs, initialStats }: A
                     if (res.ok) {
                       const listRes = await fetch(apiUrl('/api/agents'));
                       const listData = await listRes.json();
-                      if (listData?.data) setAgents(listData.data);
+                      if (listData?.data) setAgents(normalizeAgentList(listData.data));
                       setStatusFilter(null);
                       router.refresh();
                     }
@@ -330,8 +364,14 @@ export function AgentsPageClient({ initialAgents, initialOrgs, initialStats }: A
                           <p className="text-xs text-muted-foreground truncate mt-0.5 pl-6">{agent.description}</p>
                         )}
                       </td>
-                      <td className="py-3 px-4 text-muted-foreground truncate">
-                        {getOrgName(agent.orgId, initialOrgs)}
+                      <td className="py-3 px-4">
+                        <Link
+                          href={`/organizations/${agent.orgId}`}
+                          className="font-medium text-primary hover:underline truncate block"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {getOrgName(agent.orgId, initialOrgs)}
+                        </Link>
                       </td>
                       <td className="py-3 px-4">
                         <AgentStatusBadge approvalStatus={agent.approvalStatus ?? 'draft'} />
@@ -386,9 +426,18 @@ export function AgentsPageClient({ initialAgents, initialOrgs, initialStats }: A
               >
                 <CardContent className="p-5 flex flex-col gap-3">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                      <Bot className="h-5 w-5 text-muted-foreground shrink-0" />
-                      <span className="font-semibold truncate">{agent.name}</span>
+                    <div className="flex flex-col gap-1.5 min-w-0 flex-1">
+                      <Link
+                        href={`/organizations/${agent.orgId}`}
+                        className="text-xs font-medium text-primary hover:underline truncate w-fit"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {getOrgName(agent.orgId, initialOrgs)}
+                      </Link>
+                      <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                        <Bot className="h-5 w-5 text-muted-foreground shrink-0" />
+                        <span className="font-semibold truncate">{agent.name}</span>
+                      </div>
                     </div>
                     <div className="flex shrink-0" onClick={(e) => e.stopPropagation()}>
                       <AgentStatusBadge approvalStatus={agent.approvalStatus ?? 'draft'} />
@@ -401,7 +450,7 @@ export function AgentsPageClient({ initialAgents, initialOrgs, initialStats }: A
                     {agent.a2aUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}
                   </p>
                   <div className="text-xs text-muted-foreground flex items-center justify-between mt-auto pt-2 border-t border-border/60">
-                    <span>{getOrgName(agent.orgId, initialOrgs)}</span>
+                    <span className="font-medium text-foreground">{getOrgName(agent.orgId, initialOrgs)}</span>
                     <span>{formatRelativeTime(agent.updatedAt)}{agent.updatedBy ? ` · ${formatApprovedBy(agent.updatedBy)}` : ''}</span>
                   </div>
                   <div className="flex justify-end gap-0.5 -mb-1" onClick={(e) => e.stopPropagation()}>

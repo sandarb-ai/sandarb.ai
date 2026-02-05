@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { apiUrl } from '@/lib/api';
 import type { AgentSkill } from '@/types';
 
 function CodeBlock({ children, label }: { children: React.ReactNode; label?: string }) {
@@ -35,7 +36,7 @@ export function DocsTryInject() {
     setStatus(null);
     setBody('');
     try {
-      const url = `/api/inject?name=${encodeURIComponent(name)}&format=${format}`;
+      const url = apiUrl(`/api/inject?name=${encodeURIComponent(name)}&format=${format}`);
       const res = await fetch(url, {
         headers: {
           'X-Sandarb-Agent-ID': agentId,
@@ -128,7 +129,7 @@ export function DocsTryA2a({ skills }: { skills: AgentSkill[] }) {
       };
       if (token.trim()) headers['Authorization'] = `Bearer ${token.trim()}`;
 
-      const res = await fetch('/api/a2a', {
+      const res = await fetch(apiUrl('/api/a2a'), {
         method: 'POST',
         headers,
         body: JSON.stringify(reqBody),

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
+import { apiUrl } from '@/lib/api';
 import {
   ArrowLeft,
   Save,
@@ -19,6 +20,7 @@ import {
   Hash,
   Copy,
   ExternalLink,
+  Bot,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -120,7 +122,7 @@ export default function PromptDetailPage() {
 
   const fetchPrompt = async () => {
     try {
-      const res = await fetch(`/api/prompts/${id}`);
+      const res = await fetch(apiUrl(`/api/prompts/${id}`));
       const data = await res.json();
       if (data.success) {
         const p = data.data;
@@ -152,7 +154,7 @@ export default function PromptDetailPage() {
 
     setCreatingVersion(true);
     try {
-      const res = await fetch(`/api/prompts/${id}/versions`, {
+      const res = await fetch(apiUrl(`/api/prompts/${id}/versions`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -180,7 +182,7 @@ export default function PromptDetailPage() {
 
   const handleApprove = async (versionId: string) => {
     try {
-      const res = await fetch(`/api/prompts/${id}/versions/${versionId}/approve`, {
+      const res = await fetch(apiUrl(`/api/prompts/${id}/versions/${versionId}/approve`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
@@ -194,7 +196,7 @@ export default function PromptDetailPage() {
 
   const handleReject = async (versionId: string) => {
     try {
-      const res = await fetch(`/api/prompts/${id}/versions/${versionId}/reject`, {
+      const res = await fetch(apiUrl(`/api/prompts/${id}/versions/${versionId}/reject`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
@@ -209,7 +211,7 @@ export default function PromptDetailPage() {
   const handleDelete = async () => {
     if (!confirm('Are you sure you want to delete this prompt and all its versions?')) return;
     try {
-      const res = await fetch(`/api/prompts/${id}`, { method: 'DELETE' });
+      const res = await fetch(apiUrl(`/api/prompts/${id}`), { method: 'DELETE' });
       if (res.ok) router.push('/prompts');
       else alert('Failed to delete prompt');
     } catch {
@@ -402,6 +404,42 @@ export default function PromptDetailPage() {
                     </div>
                   </CardContent>
                 </Card>
+                {/* Linked agents: which agent(s) this prompt belongs to */}
+                <Card className="border-l-4 border-l-muted shadow-sm">
+                  <CardHeader className="py-3 px-4">
+                    <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                      <Bot className="h-3.5 w-3.5 text-muted-foreground" />
+                      Linked agents
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      This prompt is available to these agents when they pull by name.
+                    </p>
+                  </CardHeader>
+                  <CardContent className="px-4 pb-4 pt-0">
+                    {(prompt?.agents?.length ?? 0) > 0 ? (
+                      <ul className="space-y-1.5">
+                        {prompt.agents!.map((a) => (
+                          <li key={a.id}>
+                            <Link
+                              href={`/agents/${a.id}`}
+                              className="text-sm font-medium text-primary hover:underline"
+                            >
+                              {a.name}
+                              {a.agentId && (
+                                <span className="text-muted-foreground font-normal ml-1 font-mono text-xs">
+                                  ({a.agentId})
+                                </span>
+                              )}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-muted-foreground italic">Not linked to any agent</p>
+                    )}
+                  </CardContent>
+                </Card>
+
                 {/* What your agent receives: pull API */}
                 {prompt?.name && (
                   <PullApiBar promptName={prompt.name} />

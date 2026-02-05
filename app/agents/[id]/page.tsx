@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { getAgentById } from '@/lib/agents';
+import { getAgentById } from '@/lib/api-client';
 import dynamic from 'next/dynamic';
 
 const AgentDetailClient = dynamic(

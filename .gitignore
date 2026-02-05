@@ -8,6 +8,7 @@ node_modules/
 out/
 build/
 dist/
+export/
 
 # Database
 data/
@@ -41,9 +42,17 @@ yarn-error.log*
 coverage/
 .nyc_output/
 
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+.Python
+*.so
+
 # Misc
 *.tsbuildinfo
 next-env.d.ts
+key.json
 
 # Logs
 logs/

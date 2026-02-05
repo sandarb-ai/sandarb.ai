@@ -95,7 +95,7 @@ The script enables APIs, creates an Artifact Registry repo if needed, builds the
 
 ### API base URL (api.sandarb.ai)
 
-When the UI is served at **sandarb.ai** (or a host containing `sandarb.ai`), the app uses **https://api.sandarb.ai** as the API base by default. On **localhost**, it uses **http://localhost:4001**. You can override with `NEXT_PUBLIC_API_URL`. To use api.sandarb.ai on GCP:
+When the UI is served at **sandarb.ai** (or a host containing `sandarb.ai`), the app uses **https://api.sandarb.ai** as the API base by default. On **localhost**, it uses **http://localhost:8000**. You can override with `NEXT_PUBLIC_API_URL`. To use api.sandarb.ai on GCP:
 
 1. Point the subdomain **api.sandarb.ai** to your API service (e.g. the same Cloud Run service, or a separate one) via DNS and load balancer / Cloud Run custom domain.
 2. Ensure the UI is served from a host that contains `sandarb.ai` (e.g. sandarb.ai or www.sandarb.ai) so the client picks https://api.sandarb.ai automatically.
@@ -135,21 +135,30 @@ Set **`CLOUD_SQL_DATABASE_URL`** in `.env` to your Cloud SQL connection string (
 
 If `CLOUD_SQL_DATABASE_URL` is unset, the script uses `DATABASE_URL`. The script will **fail** with a clear message if the chosen URL contains localhost (Cloud Run cannot reach it).
 
-**Option 2 – Reseed only (no redeploy)**  
-From your machine, seed Cloud SQL using the dedicated script (recommended) or npm:
+**Option 2 – One-time import (recommended)**  
+Generate a single SQL file (schema + seed data) and import it into Cloud SQL once:
 
 ```bash
-# Recommended: uses CLOUD_SQL_DATABASE_URL from .env, or pass the URL
-./scripts/seed-cloud-sql.sh
-# Or with URL explicitly:
-./scripts/seed-cloud-sql.sh 'postgresql://USER:PASS@HOST:5432/DB'
+# Driver script (recommended): loads .env, runs generator
+npm run db:gcp-import-file
+# Or with custom path: python scripts/generate_gcp_import_sql.py /path/to/import.sql
 
-# Alternative: set DATABASE_URL and run full-reset
-export DATABASE_URL="postgresql://..."   # your Cloud SQL URL
-npm run db:full-reset-pg
+# Or: npm run db:gcp-import-file
+# Output: export/sandarb-cloudsql-import.sql
+
+# Import to Cloud SQL via Cloud Console (SQL import), or:
+# gcloud sql connect INSTANCE --user=postgres --database=DB < export/sandarb-cloudsql-import.sql
 ```
 
-The script `scripts/seed-cloud-sql.sh` loads `CLOUD_SQL_DATABASE_URL` (or `DATABASE_URL`) from `.env`, refuses localhost URLs, and runs a full reset + seed so the GCP DB gets the same sample data as local: 30 orgs, 500+ agents, 3000+ contexts, 2000+ prompts, templates, settings.
+**Option 3 – Reseed over TCP (no redeploy)**  
+From your machine, load schema + seed to local or GCP with one script:
+
+```bash
+npm run db:load:local   # full reset + seed to DATABASE_URL (local)
+npm run db:load:gcp     # full reset + seed to CLOUD_SQL_DATABASE_URL (Cloud SQL)
+```
+
+Set `CLOUD_SQL_DATABASE_URL` in `.env` for GCP; for Cloud SQL Auth Proxy, start the proxy then run `db:load:gcp` or pass the URL: `python scripts/load_db.py 'postgresql://USER:PASS@127.0.0.1:5433/DB'`. Alternatively: `./scripts/seed-cloud-sql.sh 'postgresql://...'` or `CLOUD_SQL_DATABASE_URL=<url> npm run db:full-reset-pg`.
 
 ## Build and push the image
 

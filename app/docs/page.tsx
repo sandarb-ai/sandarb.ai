@@ -1,13 +1,22 @@
 import Link from 'next/link';
 import { headers } from 'next/headers';
-import { BookOpen, ExternalLink, Home } from 'lucide-react';
+import { BookOpen, ExternalLink, Home, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MermaidDiagram } from '@/components/mermaid-diagram';
 import { MultiAgentA2ADiagram } from '@/components/multi-agent-a2a-diagram';
-import { getAgentSkills } from '@/lib/a2a-server';
 import { DocsTryInject, DocsTryA2a } from './docs-try-api';
-import { DocsNav } from './docs-nav';
+import { DocsLayout } from './docs-layout';
+import { DocsCodeBlock } from './docs-code-block';
 import type { AgentSkill } from '@/types';
+
+/** Static A2A skills list for docs (canonical list lives in backend). */
+const DOCS_AGENT_SKILLS: AgentSkill[] = [
+  { id: 'list_contexts', name: 'List contexts', description: 'List available context names', tags: ['context'], examples: [] },
+  { id: 'get_context', name: 'Get context', description: 'Get approved context by name (requires sourceAgent)', tags: ['context'], examples: [] },
+  { id: 'get_prompt', name: 'Get prompt', description: 'Get prompt content by name with optional variables', tags: ['prompt'], examples: [] },
+  { id: 'agent/info', name: 'Agent info', description: 'Returns Sandarb agent card', tags: ['discovery'], examples: [] },
+  { id: 'skills/list', name: 'Skills list', description: 'List supported A2A skills', tags: ['discovery'], examples: [] },
+];
 
 const HANDSHAKE_MERMAID = `sequenceDiagram
     participant Worker as Worker Agent
@@ -57,42 +66,50 @@ export const metadata = {
     'Developer integration and usage guide for Sandarb: API, A2A protocol, inject API, contexts, agents, and deployment.',
 };
 
-const H2 = ({ children }: { children: React.ReactNode }) => (
-  <h2 className="mt-10 mb-4 text-lg font-semibold text-foreground border-l-4 border-violet-500 pl-4 scroll-mt-20">{children}</h2>
-);
-const H3 = ({ children }: { children: React.ReactNode }) => (
-  <h3 className="mt-6 mb-2 text-sm font-semibold text-foreground scroll-mt-20">{children}</h3>
-);
-const P = ({ children, className }: { children: React.ReactNode; className?: string }) => (
-  <p className={`text-sm text-muted-foreground mb-4 leading-relaxed ${className ?? ''}`}>{children}</p>
-);
-function CodeBlock({ children, label }: { children: React.ReactNode; label?: string }) {
+function H2WithAnchor({ id, children }: { id: string; children: React.ReactNode }) {
   return (
-    <div className="mb-5 rounded-lg border border-border bg-muted/50 overflow-hidden">
-      {label && (
-        <div className="px-3 py-1.5 text-xs font-medium text-muted-foreground border-b border-border bg-muted/80">
-          {label}
-        </div>
-      )}
-      <pre className="p-4 text-xs font-mono text-foreground overflow-x-auto">
-        <code>{children}</code>
-      </pre>
+    <h2 id={id} className="group mt-10 mb-4 text-lg font-semibold text-foreground border-l-4 border-violet-500 pl-4 scroll-mt-24">
+      <span className="inline-flex items-center gap-2">
+        {children}
+        <a href={`#${id}`} className="inline-flex opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-violet-600 dark:hover:text-violet-400 transition-opacity" aria-label={`Link to ${id}`}>#</a>
+      </span>
+    </h2>
+  );
+}
+function H3WithAnchor({ id, children }: { id?: string; children: React.ReactNode }) {
+  const slug = id ?? (typeof children === 'string' ? children.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') : '');
+  return (
+    <h3 id={slug || undefined} className="group mt-6 mb-2 text-sm font-semibold text-foreground scroll-mt-24">
+      <span className="inline-flex items-center gap-2">
+        {children}
+        {slug && <a href={`#${slug}`} className="inline-flex opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-violet-600 dark:hover:text-violet-400 transition-opacity" aria-label={`Link to section`}>#</a>}
+      </span>
+    </h3>
+  );
+}
+const P = ({ children, className }: { children: React.ReactNode; className?: string }) => (
+  <p className={`text-[15px] text-muted-foreground mb-4 leading-relaxed ${className ?? ''}`}>{children}</p>
+);
+const InlineCode = ({ children }: { children: React.ReactNode }) => (
+  <code className="rounded bg-violet-100 dark:bg-violet-900/30 px-1.5 py-0.5 text-[13px] font-mono text-violet-800 dark:text-violet-200">{children}</code>
+);
+const Ul = ({ children }: { children: React.ReactNode }) => (
+  <ul className="list-disc list-outside pl-6 text-[15px] text-muted-foreground space-y-2 mb-4 leading-relaxed">{children}</ul>
+);
+function Admonition({ children, title = 'Note', icon: Icon = Info }: { children: React.ReactNode; title?: string; icon?: React.ComponentType<{ className?: string }> }) {
+  return (
+    <div className="my-6 rounded-r-lg border border-l-4 border-l-violet-500 border-border/40 bg-violet-50/50 dark:bg-violet-900/10 p-4">
+      <p className="flex items-center gap-2 text-xs font-semibold text-violet-700 dark:text-violet-300 mb-2">
+        <Icon className="h-4 w-4 shrink-0" />
+        {title}
+      </p>
+      <div className="text-sm text-muted-foreground leading-relaxed">{children}</div>
     </div>
   );
 }
-const InlineCode = ({ children }: { children: React.ReactNode }) => (
-  <code className="rounded bg-violet-100 dark:bg-violet-900/30 px-1.5 py-0.5 text-xs font-mono text-violet-800 dark:text-violet-200">{children}</code>
-);
-const Ul = ({ children }: { children: React.ReactNode }) => (
-  <ul className="list-disc list-outside pl-5 text-sm text-muted-foreground space-y-2 mb-4 leading-relaxed">{children}</ul>
-);
-function Note({ children, title = 'Note' }: { children: React.ReactNode; title?: string }) {
-  return (
-    <div className="my-4 rounded-lg border border-violet-200 dark:border-violet-800/50 bg-violet-50/50 dark:bg-violet-900/10 p-4">
-      <p className="text-xs font-semibold text-violet-700 dark:text-violet-300 mb-1">{title}</p>
-      <div className="text-sm text-muted-foreground">{children}</div>
-    </div>
-  );
+function MethodBadge({ method }: { method: 'GET' | 'POST' | 'PUT' | 'DELETE' }) {
+  const styles = method === 'GET' ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-mono text-xs px-2 py-0.5 rounded' : 'bg-amber-500/15 text-amber-700 dark:text-amber-400 font-mono text-xs px-2 py-0.5 rounded';
+  return <span className={styles}>{method}</span>;
 }
 
 export const dynamic = 'force-dynamic';
@@ -161,18 +178,11 @@ export default async function DocsPage() {
     },
   ];
 
-  const skills = getAgentSkills() as AgentSkill[];
+  const skills = DOCS_AGENT_SKILLS;
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <div className="flex flex-1 min-h-0 flex-row">
-        {/* Left panel: sticky TOC */}
-        <aside className="shrink-0 w-56 lg:w-64 border-r border-border bg-muted/20 min-h-0 overflow-y-auto hidden sm:block">
-          <DocsNav groups={tocGroups} />
-        </aside>
-        {/* Right panel: documentation content (scrollable) – full width for diagrams */}
-        <main id="docs-main" className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden scroll-smooth">
-          <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-10">
+    <DocsLayout tocGroups={tocGroups}>
+          <div className="w-full max-w-[65ch] mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-10">
             {/* Hero */}
             <div className="mb-10">
               <div className="flex items-center gap-3 mb-3">
@@ -206,8 +216,8 @@ export default async function DocsPage() {
               </div>
             </div>
 
-            <section id="overview" className="scroll-mt-24">
-          <H2>Overview</H2>
+            <section id="overview" className="scroll-mt-24 pt-6 border-t border-border/40 first:border-t-0 first:pt-0">
+          <H2WithAnchor id="overview">Overview</H2WithAnchor>
           <P>
             Sandarb is an AI governance platform: a single place for approved prompts and context, audit trail, lineage, and a living agent registry. Your AI agents and applications integrate via <strong className="text-violet-600 dark:text-violet-400">API</strong>, <strong className="text-violet-600 dark:text-violet-400">A2A</strong>, or <strong className="text-foreground">Inject API</strong>. The <strong className="text-foreground">Sandarb AI Governance Agent</strong> is an AI agent that participates in A2A (fast becoming the industry standard for agent-to-agent communication): other agents call Sandarb for validation and approved context, and Sandarb can communicate with other agents via A2A as a first-class participant.
           </P>
@@ -219,13 +229,13 @@ export default async function DocsPage() {
           </Ul>
         </section>
 
-        <section id="governance-protocol" className="scroll-mt-24">
-          <H2>The Governance Protocol</H2>
+        <section id="governance-protocol" className="scroll-mt-24 pt-6 border-t border-border/40">
+          <H2WithAnchor id="governance-protocol">The Governance Protocol</H2WithAnchor>
           <P>
             Sandarb is a <strong className="text-foreground">protocol-first</strong> AI governance control plane. It does <strong className="text-foreground">not</strong> act as a gateway or proxy. It follows a <strong className="text-foreground">Registry &amp; Observer</strong> pattern: Worker Agents register with Sandarb, then call it over the Google A2A protocol for prompts, context validation, lineage, and audit.
           </P>
 
-          <H3>Terminology</H3>
+          <H3WithAnchor>Terminology</H3WithAnchor>
           <div className="overflow-x-auto mb-4">
             <table className="w-full text-sm border border-border rounded-lg">
               <thead>
@@ -242,13 +252,13 @@ export default async function DocsPage() {
             </table>
           </div>
 
-          <H3>The Handshake (sequence)</H3>
+          <H3WithAnchor>The Handshake (sequence)</H3WithAnchor>
           <P>Canonical flow from boot to inference and audit. The diagram below is rendered with Mermaid and shows the full handshake: check-in → get_prompt → validate_context → inference → audit_log.</P>
           <div className="my-6 w-full">
             <MermaidDiagram chart={HANDSHAKE_MERMAID} title="A2A handshake: Worker Agent, Sandarb, LLM" />
           </div>
 
-          <H3>A2A flow: Example agents → Sandarb AI Governance Agent</H3>
+          <H3WithAnchor>A2A flow: Example agents → Sandarb AI Governance Agent</H3WithAnchor>
           <P>Multiple Worker Agents (e.g. Support Bot, Trading Bot, Finance Bot) call the Sandarb AI Governance Agent via A2A for prompts, context validation, and audit. Below: an animated view of agents connecting to Sandarb, then the sequence of A2A calls.</P>
           <div className="my-6 flex flex-col items-center gap-6 w-full">
             <div className="w-full max-w-[280px] sm:max-w-xs">
@@ -259,9 +269,9 @@ export default async function DocsPage() {
             </div>
           </div>
 
-          <H3>Check-in (registration)</H3>
+          <H3WithAnchor>Check-in (registration)</H3WithAnchor>
           <P>Agents must check in at boot by sending their manifest to Sandarb. Use the A2A skill <InlineCode>register</InlineCode> or <InlineCode>POST /api/agents/ping</InlineCode>. Unregistered agents should not get access to company data.</P>
-          <CodeBlock label="register input">{`{
+          <DocsCodeBlock label="register input">{`{
   "skillId": "register",
   "input": {
     "manifest": {
@@ -276,15 +286,15 @@ export default async function DocsPage() {
       "regulatory_scope": ["GDPR"]
     }
   }
-}`}</CodeBlock>
+}`}</DocsCodeBlock>
 
-          <H3>Separation of concerns</H3>
+          <H3WithAnchor>Separation of concerns</H3WithAnchor>
           <P><strong className="text-foreground">Prompts (behavior)</strong> – Fetched at runtime via <InlineCode>get_prompt</InlineCode>. Versioned and approval-controlled. <strong className="text-foreground">Context (knowledge)</strong> – Validated before use via <InlineCode>validate_context</InlineCode> or <InlineCode>get_approved_context</InlineCode>; Sandarb logs who pulled what (lineage).</P>
-          <P>Governance requires both: versioned prompts + access-controlled context, with a single audit trail (see <a href="#data-model-lineage" className="text-violet-600 dark:text-violet-400 hover:underline">Data model &amp; lineage</a>).</P>
+          <P>Governance requires both: versioned prompts + access-controlled context, with a single audit trail (see <a href="#data-model-lineage" className="text-violet-600 dark:text-violet-400 hover:underline underline-offset-2">Data model &amp; lineage</a>).</P>
         </section>
 
-        <section id="sandarb-client-sdk" className="scroll-mt-24">
-          <H2>Sandarb Client SDK</H2>
+        <section id="sandarb-client-sdk" className="scroll-mt-24 pt-6 border-t border-border/40">
+          <H2WithAnchor id="sandarb-client-sdk">Sandarb Client SDK</H2WithAnchor>
           <P>
             To make the system usable, your Worker Agents need a tiny <strong className="text-foreground">SDK or client wrapper</strong> to talk to Sandarb easily—so developers don&apos;t write raw A2A/API calls every time. Sandarb ships a small library you drop into your agents that handles <strong className="text-foreground">Check-in</strong> and <strong className="text-foreground">Audit Push</strong> automatically.
           </P>
@@ -294,9 +304,9 @@ export default async function DocsPage() {
             <li><strong className="text-foreground">Prompts &amp; context</strong> – Use <InlineCode>getPrompt(name)</InlineCode>, <InlineCode>validateContext(name)</InlineCode>, <InlineCode>getContext(name)</InlineCode> instead of building A2A payloads by hand.</li>
           </Ul>
 
-          <H3>TypeScript/Node (in-repo client)</H3>
+          <H3WithAnchor>TypeScript/Node (in-repo client)</H3WithAnchor>
           <P>Use the client in <InlineCode>lib/sandarb-client.ts</InlineCode>. Drop it into your agent or copy the file; no separate package required.</P>
-          <CodeBlock label="TypeScript/Node">{`import { SandarbClient } from '@/lib/sandarb-client';  // or path to copied file
+          <DocsCodeBlock label="TypeScript/Node">{`import { SandarbClient } from '@/lib/sandarb-client';  // or path to copied file
 import manifest from './sandarb.json';
 
 const sandarb = new SandarbClient(process.env.SANDARB_URL ?? 'https://api.sandarb.ai', {
@@ -319,22 +329,22 @@ if (!ctx.approved) throw new Error('Context not approved');
 // const response = await openai.chat.completions.create(...);
 
 // 5. Audit push
-await sandarb.audit('inference', { details: { responseLength: response.choices[0].message.content.length } });`}</CodeBlock>
+await sandarb.audit('inference', { details: { responseLength: response.choices[0].message.content.length } });`}</DocsCodeBlock>
 
-          <H3>Python (in-repo client)</H3>
-          <P>Use the Python client in <InlineCode>sdk/python/sandarb_client.py</InlineCode>. Copy the file into your project or add the repo as a dependency; <InlineCode>pip install requests</InlineCode> is the only requirement. <InlineCode>SandarbClient</InlineCode> provides <InlineCode>check_in(manifest)</InlineCode>, <InlineCode>audit(event_type, **kwargs)</InlineCode>, <InlineCode>get_prompt(name, variables)</InlineCode>, <InlineCode>validate_context(name)</InlineCode>, <InlineCode>get_context(name)</InlineCode>, and <InlineCode>call(skill_id, input_data)</InlineCode>. See <a href="#python-integration" className="text-violet-600 dark:text-violet-400 hover:underline">Python integration</a> and <InlineCode>sdk/python/README.md</InlineCode> in the repo for install and full flow.</P>
-          <CodeBlock label="Python">{`from sandarb_client import SandarbClient
+          <H3WithAnchor>Python (in-repo client)</H3WithAnchor>
+          <P>Use the Python client in <InlineCode>sdk/python/sandarb_client.py</InlineCode>. Copy the file into your project or add the repo as a dependency; <InlineCode>pip install requests</InlineCode> is the only requirement. <InlineCode>SandarbClient</InlineCode> provides <InlineCode>check_in(manifest)</InlineCode>, <InlineCode>audit(event_type, **kwargs)</InlineCode>, <InlineCode>get_prompt(name, variables)</InlineCode>, <InlineCode>validate_context(name)</InlineCode>, <InlineCode>get_context(name)</InlineCode>, and <InlineCode>call(skill_id, input_data)</InlineCode>. See <a href="#python-integration" className="text-violet-600 dark:text-violet-400 hover:underline underline-offset-2">Python integration</a> and <InlineCode>sdk/python/README.md</InlineCode> in the repo for install and full flow.</P>
+          <DocsCodeBlock label="Python">{`from sandarb_client import SandarbClient
 
-sandarb = SandarbClient("https://api.sandarb.ai", token=os.environ.get("SANDARB_TOKEN"))
+sandarb = SandarbClient(os.environ.get("SANDARB_URL", "https://api.sandarb.ai"), token=os.environ.get("SANDARB_TOKEN"))
 sandarb.check_in(manifest)  # Check-in on startup
 prompt = sandarb.get_prompt("my-agent-v1", variables={"user_tier": "gold"})
-sandarb.audit("inference", details={"response_length": 120})  # Audit push`}</CodeBlock>
+sandarb.audit("inference", details={"response_length": 120})  # Audit push`}</DocsCodeBlock>
 
-          <Note title="No gateway">Sandarb is not a proxy. Your agent calls Sandarb over HTTP(S) for governance only; user traffic and LLM calls stay between your agent and your LLM.</Note>
+          <Admonition title="No gateway">Sandarb is not a proxy. Your agent calls Sandarb over HTTP(S) for governance only; user traffic and LLM calls stay between your agent and your LLM.</Admonition>
         </section>
 
-        <section id="prompts-vs-context" className="scroll-mt-24">
-          <H2>Prompts vs Context: Governance Perspective</H2>
+        <section id="prompts-vs-context" className="scroll-mt-24 pt-6 border-t border-border/40">
+          <H2WithAnchor id="prompts-vs-context">Prompts vs Context: Governance Perspective</H2WithAnchor>
           <P>
             In AI Governance, <strong className="text-foreground">Prompts</strong> and <strong className="text-foreground">Context</strong> are two distinct asset classes with different risks, lifecycles, and compliance requirements. Think of an AI Agent as a <strong className="text-foreground">digital employee</strong>:
           </P>
@@ -343,7 +353,7 @@ sandarb.audit("inference", details={"response_length": 120})  # Audit push`}</Co
             <li><strong className="text-foreground">Context</strong> is the <strong className="text-foreground">&quot;Reference Library&quot;</strong> (the specific files, user data, or reports the agent is allowed to read to do a task).</li>
           </Ul>
 
-          <H3>1. Prompts (The &quot;Behavior&quot;)</H3>
+          <H3WithAnchor>1. Prompts (The &quot;Behavior&quot;)</H3WithAnchor>
           <P>
             Prompts are <strong className="text-foreground">instructions</strong>. They define the agent&apos;s persona, logical constraints, and safety boundaries. In governance, prompts are treated like <strong className="text-foreground">source code</strong>.
           </P>
@@ -357,7 +367,7 @@ sandarb.audit("inference", details={"response_length": 120})  # Audit push`}</Co
             <li><strong className="text-foreground">Immutable Testing</strong> – Prompts are tested against &quot;Golden Datasets&quot; (standard questions) to ensure the new version performs as well as the old one.</li>
           </Ul>
 
-          <H3>2. Context (The &quot;Knowledge&quot;)</H3>
+          <H3WithAnchor>2. Context (The &quot;Knowledge&quot;)</H3WithAnchor>
           <P>
             Context is <strong className="text-foreground">data</strong>. It is the dynamic information injected into the agent at runtime (via RAG - Retrieval Augmented Generation) to answer a specific question. In governance, context is treated like <strong className="text-foreground">sensitive database records</strong>.
           </P>
@@ -371,7 +381,7 @@ sandarb.audit("inference", details={"response_length": 120})  # Audit push`}</Co
             <li><strong className="text-foreground">Sanitization</strong> – Automatically stripping PII (Personally Identifiable Information) from data before it enters the context window.</li>
           </Ul>
 
-          <H3>Comparison Summary</H3>
+          <H3WithAnchor>Comparison Summary</H3WithAnchor>
           <div className="overflow-x-auto">
             <table className="w-full text-sm border border-border rounded-lg">
               <thead>
@@ -411,7 +421,7 @@ sandarb.audit("inference", details={"response_length": 120})  # Audit push`}</Co
             </table>
           </div>
 
-          <H3>The Governance Intersection</H3>
+          <H3WithAnchor>The Governance Intersection</H3WithAnchor>
           <P>
             In Sandarb, these two meet in the <strong className="text-foreground">Audit Log</strong>. When an incident occurs (e.g., a user complains about a bad answer), AI Governance requires you to reconstruct the exact state of both:
           </P>
@@ -423,38 +433,38 @@ sandarb.audit("inference", details={"response_length": 120})  # Audit push`}</Co
           </P>
         </section>
 
-        <section id="quick-start" className="scroll-mt-24">
-          <H2>Quick start</H2>
+        <section id="quick-start" className="scroll-mt-24 pt-6 border-t border-border/40">
+          <H2WithAnchor id="quick-start">Quick start</H2WithAnchor>
           <P>Run Sandarb locally (Node 18+):</P>
-          <CodeBlock label="Shell">{`# Clone and install
+          <DocsCodeBlock label="Shell">{`# Clone and install
 git clone https://github.com/openint-ai/sandarb.ai.git
 cd sandarb.ai
 npm install
 
 # Optional: Postgres (demo data seeded on start)
-export DATABASE_URL=postgresql://postgres:sandarb@localhost:5432/sandarb-dev
+export DATABASE_URL=postgresql://postgres:sandarb@localhost:5432/sandarb
 
-# Start (UI on 4000, API on 4001)
+# Start (UI on 3000, backend on 8000)
 ./scripts/start-sandarb.sh
-# Or: npm run dev`}</CodeBlock>
-          <Note title="Tip">Open the UI at <InlineCode>http://localhost:4000</InlineCode>. Sign in to see the dashboard, organizations, agents, and contexts.</Note>
+# Or: npm run dev`}</DocsCodeBlock>
+          <Admonition title="Tip">Open the UI at <InlineCode>http://localhost:3000</InlineCode>. Sign in to see the dashboard, organizations, agents, and contexts.</Admonition>
         </section>
 
-        <section id="sandarb-json" className="scroll-mt-24">
-          <H2>sandarb.json manifest</H2>
+        <section id="sandarb-json" className="scroll-mt-24 pt-6 border-t border-border/40">
+          <H2WithAnchor id="sandarb-json">sandarb.json manifest</H2WithAnchor>
           <P>
             Every AI agent can maintain a <InlineCode>sandarb.json</InlineCode> file in its git repository. This manifest declares the agent&apos;s identity, governance metadata, and which prompts/contexts it needs. On agent startup, it pings Sandarb to <strong className="text-foreground">register</strong> and pull approved <strong className="text-foreground">prompts</strong> and <strong className="text-foreground">context</strong>.
           </P>
 
-          <H3>Why use sandarb.json?</H3>
+          <H3WithAnchor>Why use sandarb.json?</H3WithAnchor>
           <Ul>
             <li><strong className="text-foreground">GitOps for AI Governance</strong> – Your agent&apos;s governance config lives in version control alongside your code. Changes are tracked, reviewed, and auditable.</li>
             <li><strong className="text-foreground">Self-registering agents</strong> – On startup, your agent calls Sandarb with its manifest. Sandarb registers/updates the agent and returns approved prompts and context.</li>
             <li><strong className="text-foreground">Compliance by default</strong> – Declare regulatory scope, data scopes, and PII handling upfront. Sandarb enforces policies based on this metadata.</li>
           </Ul>
 
-          <H3>Manifest schema</H3>
-          <CodeBlock label="sandarb.json">{`{
+          <H3WithAnchor>Manifest schema</H3WithAnchor>
+          <DocsCodeBlock label="sandarb.json">{`{
   "agent_id": "kyc-verification-agent",
   "name": "KYC Verification Agent",
   "description": "Performs know-your-customer verification and document checks for onboarding and compliance.",
@@ -469,9 +479,9 @@ export DATABASE_URL=postgresql://postgres:sandarb@localhost:5432/sandarb-dev
   "allowed_data_scopes": ["pii", "identity_documents"],
   "pii_handling": true,
   "regulatory_scope": ["FINRA", "GDPR", "AML"]
-}`}</CodeBlock>
+}`}</DocsCodeBlock>
 
-          <H3>Field reference</H3>
+          <H3WithAnchor>Field reference</H3WithAnchor>
           <div className="rounded-lg border border-border overflow-hidden mb-4">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -500,9 +510,9 @@ export DATABASE_URL=postgresql://postgres:sandarb@localhost:5432/sandarb-dev
             </div>
           </div>
 
-          <H3>Startup flow</H3>
+          <H3WithAnchor>Startup flow</H3WithAnchor>
           <P>On agent startup, read <InlineCode>sandarb.json</InlineCode> and call Sandarb:</P>
-          <CodeBlock label="Startup pseudocode">{`// 1. Read manifest from your repo
+          <DocsCodeBlock label="Startup pseudocode">{`// 1. Read manifest from your repo
 const manifest = JSON.parse(fs.readFileSync('sandarb.json'));
 
 // 2. Register with Sandarb (creates or updates agent record)
@@ -522,11 +532,11 @@ for (const promptName of manifest.prompts || []) {
 for (const contextName of manifest.contexts || []) {
   const ctx = await fetch(\`https://sandarb.example.com/api/inject?name=\${contextName}\`);
   // Inject ctx.content into your agent
-}`}</CodeBlock>
+}`}</DocsCodeBlock>
 
-          <H3>A2A alternative</H3>
+          <H3WithAnchor>A2A alternative</H3WithAnchor>
           <P>Instead of REST calls, use the A2A protocol:</P>
-          <CodeBlock label="A2A skill calls">{`// Register via A2A
+          <DocsCodeBlock label="A2A skill calls">{`// Register via A2A
 POST /api/a2a
 { "skill": "register", "input": { ...manifest } }
 
@@ -536,17 +546,17 @@ POST /api/a2a
 
 // Get context via A2A
 POST /api/a2a
-{ "skill": "get_context", "input": { "name": "kyc-config" } }`}</CodeBlock>
+{ "skill": "get_context", "input": { "name": "kyc-config" } }`}</DocsCodeBlock>
 
-          <Note title="Governance approval">
+          <Admonition title="Governance approval">
             Newly registered agents enter <InlineCode>pending_approval</InlineCode> status. A governance admin must approve the agent in the Sandarb UI before it can access restricted contexts. This ensures only vetted agents operate in production.
-          </Note>
+          </Admonition>
         </section>
 
-        <section id="rest-api" className="scroll-mt-24">
-          <H2>REST API</H2>
-          <P><strong className="text-foreground">API base URL:</strong> On localhost the UI uses <InlineCode>http://localhost:4001</InlineCode>. When deployed at sandarb.ai, the UI uses <InlineCode>https://api.sandarb.ai</InlineCode>. Override with <InlineCode>NEXT_PUBLIC_API_URL</InlineCode> if needed.</P>
-          <H3>Core endpoints</H3>
+        <section id="rest-api" className="scroll-mt-24 pt-6 border-t border-border/40">
+          <H2WithAnchor id="rest-api">REST API</H2WithAnchor>
+          <P><strong className="text-foreground">API base URL:</strong> On localhost the UI uses <InlineCode>http://localhost:8000</InlineCode>. When deployed at sandarb.ai, the UI uses <InlineCode>https://api.sandarb.ai</InlineCode>. Override with <InlineCode>NEXT_PUBLIC_API_URL</InlineCode> if needed.</P>
+          <H3WithAnchor>Core endpoints</H3WithAnchor>
           <div className="rounded-lg border border-border overflow-hidden mb-4">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -558,34 +568,34 @@ POST /api/a2a
                   </tr>
                 </thead>
                 <tbody className="text-muted-foreground">
-                  <tr className="border-b border-border/50"><td className="py-2 px-3 font-mono text-xs">GET</td><td className="py-2 px-3 font-mono text-xs">/api/health</td><td className="py-2 px-3">Health check</td></tr>
-                  <tr className="border-b border-border/50"><td className="py-2 px-3 font-mono text-xs">GET</td><td className="py-2 px-3 font-mono text-xs">/api/inject?name=...</td><td className="py-2 px-3">Inject context (see Inject API)</td></tr>
-                  <tr className="border-b border-border/50"><td className="py-2 px-3 font-mono text-xs">GET</td><td className="py-2 px-3 font-mono text-xs">/api/contexts</td><td className="py-2 px-3">List contexts</td></tr>
-                  <tr className="border-b border-border/50"><td className="py-2 px-3 font-mono text-xs">GET</td><td className="py-2 px-3 font-mono text-xs">/api/contexts/:id</td><td className="py-2 px-3">Get context by ID</td></tr>
-                  <tr className="border-b border-border/50"><td className="py-2 px-3 font-mono text-xs">POST</td><td className="py-2 px-3 font-mono text-xs">/api/contexts</td><td className="py-2 px-3">Create context</td></tr>
-                  <tr className="border-b border-border/50"><td className="py-2 px-3 font-mono text-xs">GET</td><td className="py-2 px-3 font-mono text-xs">/api/agents</td><td className="py-2 px-3">List agents</td></tr>
-                  <tr className="border-b border-border/50"><td className="py-2 px-3 font-mono text-xs">GET</td><td className="py-2 px-3 font-mono text-xs">/api/agents/:id</td><td className="py-2 px-3">Get agent by ID</td></tr>
-                  <tr className="border-b border-border/50"><td className="py-2 px-3 font-mono text-xs">POST</td><td className="py-2 px-3 font-mono text-xs">/api/agents/register</td><td className="py-2 px-3">Register agent</td></tr>
-                  <tr className="border-b border-border/50"><td className="py-2 px-3 font-mono text-xs">POST</td><td className="py-2 px-3 font-mono text-xs">/api/agents/:id/approve</td><td className="py-2 px-3">Approve agent</td></tr>
-                  <tr className="border-b border-border/50"><td className="py-2 px-3 font-mono text-xs">POST</td><td className="py-2 px-3 font-mono text-xs">/api/agents/:id/reject</td><td className="py-2 px-3">Reject agent</td></tr>
-                  <tr className="border-b border-border/50"><td className="py-2 px-3 font-mono text-xs">GET</td><td className="py-2 px-3 font-mono text-xs">/api/organizations</td><td className="py-2 px-3">List organizations</td></tr>
-                  <tr className="border-b border-border/50"><td className="py-2 px-3 font-mono text-xs">POST</td><td className="py-2 px-3 font-mono text-xs">/api/organizations</td><td className="py-2 px-3">Create organization</td></tr>
-                  <tr className="border-b border-border/50"><td className="py-2 px-3 font-mono text-xs">GET</td><td className="py-2 px-3 font-mono text-xs">/api/templates</td><td className="py-2 px-3">List templates</td></tr>
-                  <tr className="border-b border-border/50"><td className="py-2 px-3 font-mono text-xs">GET</td><td className="py-2 px-3 font-mono text-xs">/api/a2a</td><td className="py-2 px-3">A2A Agent Card (discovery)</td></tr>
-                  <tr className="border-b border-border/50"><td className="py-2 px-3 font-mono text-xs">POST</td><td className="py-2 px-3 font-mono text-xs">/api/a2a</td><td className="py-2 px-3">A2A skill execution</td></tr>
-                  <tr><td className="py-2 px-3 font-mono text-xs">GET</td><td className="py-2 px-3 font-mono text-xs">/api/lineage</td><td className="py-2 px-3">Recent context deliveries (lineage)</td></tr>
+                  <tr className="border-b border-border/50"><td className="py-2 px-3"><MethodBadge method="GET" /></td><td className="py-2 px-3 font-mono text-xs">/api/health</td><td className="py-2 px-3">Health check</td></tr>
+                  <tr className="border-b border-border/50"><td className="py-2 px-3"><MethodBadge method="GET" /></td><td className="py-2 px-3 font-mono text-xs">/api/inject?name=...</td><td className="py-2 px-3">Inject context (see Inject API)</td></tr>
+                  <tr className="border-b border-border/50"><td className="py-2 px-3"><MethodBadge method="GET" /></td><td className="py-2 px-3 font-mono text-xs">/api/contexts</td><td className="py-2 px-3">List contexts</td></tr>
+                  <tr className="border-b border-border/50"><td className="py-2 px-3"><MethodBadge method="GET" /></td><td className="py-2 px-3 font-mono text-xs">/api/contexts/:id</td><td className="py-2 px-3">Get context by ID</td></tr>
+                  <tr className="border-b border-border/50"><td className="py-2 px-3"><MethodBadge method="POST" /></td><td className="py-2 px-3 font-mono text-xs">/api/contexts</td><td className="py-2 px-3">Create context</td></tr>
+                  <tr className="border-b border-border/50"><td className="py-2 px-3"><MethodBadge method="GET" /></td><td className="py-2 px-3 font-mono text-xs">/api/agents</td><td className="py-2 px-3">List agents</td></tr>
+                  <tr className="border-b border-border/50"><td className="py-2 px-3"><MethodBadge method="GET" /></td><td className="py-2 px-3 font-mono text-xs">/api/agents/:id</td><td className="py-2 px-3">Get agent by ID</td></tr>
+                  <tr className="border-b border-border/50"><td className="py-2 px-3"><MethodBadge method="POST" /></td><td className="py-2 px-3 font-mono text-xs">/api/agents/register</td><td className="py-2 px-3">Register agent</td></tr>
+                  <tr className="border-b border-border/50"><td className="py-2 px-3"><MethodBadge method="POST" /></td><td className="py-2 px-3 font-mono text-xs">/api/agents/:id/approve</td><td className="py-2 px-3">Approve agent</td></tr>
+                  <tr className="border-b border-border/50"><td className="py-2 px-3"><MethodBadge method="POST" /></td><td className="py-2 px-3 font-mono text-xs">/api/agents/:id/reject</td><td className="py-2 px-3">Reject agent</td></tr>
+                  <tr className="border-b border-border/50"><td className="py-2 px-3"><MethodBadge method="GET" /></td><td className="py-2 px-3 font-mono text-xs">/api/organizations</td><td className="py-2 px-3">List organizations</td></tr>
+                  <tr className="border-b border-border/50"><td className="py-2 px-3"><MethodBadge method="POST" /></td><td className="py-2 px-3 font-mono text-xs">/api/organizations</td><td className="py-2 px-3">Create organization</td></tr>
+                  <tr className="border-b border-border/50"><td className="py-2 px-3"><MethodBadge method="GET" /></td><td className="py-2 px-3 font-mono text-xs">/api/templates</td><td className="py-2 px-3">List templates</td></tr>
+                  <tr className="border-b border-border/50"><td className="py-2 px-3"><MethodBadge method="GET" /></td><td className="py-2 px-3 font-mono text-xs">/api/a2a</td><td className="py-2 px-3">A2A Agent Card (discovery)</td></tr>
+                  <tr className="border-b border-border/50"><td className="py-2 px-3"><MethodBadge method="POST" /></td><td className="py-2 px-3 font-mono text-xs">/api/a2a</td><td className="py-2 px-3">A2A skill execution</td></tr>
+                  <tr><td className="py-2 px-3"><MethodBadge method="GET" /></td><td className="py-2 px-3 font-mono text-xs">/api/lineage</td><td className="py-2 px-3">Recent context deliveries (lineage)</td></tr>
                 </tbody>
               </table>
             </div>
           </div>
-          <P>All mutations and inject support optional audit headers (see <a href="#audit-headers" className="text-violet-600 dark:text-violet-400 hover:underline">Audit headers</a>).</P>
+          <P>All mutations and inject support optional audit headers (see <a href="#audit-headers" className="text-violet-600 dark:text-violet-400 hover:underline underline-offset-2">Audit headers</a>).</P>
         </section>
 
-        <section id="inject" className="scroll-mt-24">
-          <H2>Inject API</H2>
+        <section id="inject" className="scroll-mt-24 pt-6 border-t border-border/40">
+          <H2WithAnchor id="inject">Inject API</H2WithAnchor>
           <P>Your AI agent or application fetches approved context by name. Sandarb returns the content and logs the request for lineage. Requires Agent-ID and Trace-ID for audit.</P>
 
-          <H3>Query parameters</H3>
+          <H3WithAnchor>Query parameters</H3WithAnchor>
           <div className="rounded-lg border border-border overflow-hidden mb-4">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -606,17 +616,17 @@ POST /api/a2a
             </div>
           </div>
 
-          <H3>Headers (required for audit)</H3>
+          <H3WithAnchor>Headers (required for audit)</H3WithAnchor>
           <Ul>
             <li><InlineCode>X-Sandarb-Agent-ID</InlineCode> – Calling agent identifier (required). Use <InlineCode>sandarb-context-preview</InlineCode> for UI test mode (skips policy).</li>
             <li><InlineCode>X-Sandarb-Trace-ID</InlineCode> – Request/correlation ID (required).</li>
             <li><InlineCode>X-Sandarb-Variables</InlineCode> – JSON object for variable substitution (optional).</li>
           </Ul>
 
-          <H3>Response</H3>
+          <H3WithAnchor>Response</H3WithAnchor>
           <P>Success: 200 with <InlineCode>content</InlineCode> (and optional <InlineCode>formatted</InlineCode>). Errors: 400 (missing name/id or invalid format), 403 (agent not registered or policy violation), 404 (context not found).</P>
 
-          <CodeBlock label="cURL">{`# API base: https://api.sandarb.ai (GCP) or http://localhost:4001 (local)
+          <DocsCodeBlock label="cURL">{`# API base: https://api.sandarb.ai (GCP) or http://localhost:8000 (local)
 curl -H "X-Sandarb-Agent-ID: my-agent" -H "X-Sandarb-Trace-ID: req-123" \\
   "https://api.sandarb.ai/api/inject?name=ib-trading-limits"
 
@@ -625,17 +635,17 @@ curl -H "X-Sandarb-Agent-ID: my-agent" -H "X-Sandarb-Trace-ID: req-123" \\
 # GET /api/inject?name=my-context&format=yaml
 
 # Variable substitution (if context has {{variable}} placeholders)
-# GET /api/inject?name=my-context&vars={"user_id":"123"}`}</CodeBlock>
+# GET /api/inject?name=my-context&vars={"user_id":"123"}`}</DocsCodeBlock>
         </section>
 
-        <section id="try-inject" className="scroll-mt-24">
-          <H2>Try Inject API</H2>
-          <P>Send a test request to the Inject API (uses API base: localhost:4001 locally, api.sandarb.ai when deployed).</P>
+        <section id="try-inject" className="scroll-mt-24 pt-6 border-t border-border/40">
+          <H2WithAnchor id="try-inject">Try Inject API</H2WithAnchor>
+          <P>Send a test request to the Inject API (uses API base: localhost:8000 locally, api.sandarb.ai when deployed).</P>
           <DocsTryInject />
         </section>
 
-        <section id="a2a" className="scroll-mt-24">
-          <H2>A2A protocol</H2>
+        <section id="a2a" className="scroll-mt-24 pt-6 border-t border-border/40">
+          <H2WithAnchor id="a2a">A2A protocol</H2WithAnchor>
           <P>
             The <strong className="text-foreground">Agent2Agent (A2A) Protocol</strong> is an open standard (see references below) that enables communication and interoperability between AI agents built on different frameworks and by different vendors. A2A allows agents to discover each other&apos;s capabilities, negotiate interaction modalities, manage collaborative tasks, and securely exchange information without accessing each other&apos;s internal state or tools.
           </P>
@@ -643,30 +653,30 @@ curl -H "X-Sandarb-Agent-ID: my-agent" -H "X-Sandarb-Trace-ID: req-123" \\
             <strong className="text-foreground">A2A as the industry standard:</strong> The Agent-to-Agent (A2A) protocol is fast becoming the standard for AI agents to discover, communicate, and collaborate across vendors and frameworks. <strong className="text-foreground">The Sandarb AI Governance Agent is central to this:</strong> Sandarb is an AI agent that participates in A2A. It acts as an <strong className="text-foreground">A2A Server (Remote Agent)</strong> so your agents can call it for governance—they discover Sandarb via its <strong className="text-foreground">Agent Card</strong> and invoke skills to get approved context, validate content, retrieve lineage, or register. Sandarb also communicates with other agents via A2A as a first-class agent, so governance lives inside the same protocol your agents already use.
           </P>
 
-          <H3>How A2A URLs work in practice</H3>
+          <H3WithAnchor>How A2A URLs work in practice</H3WithAnchor>
           <Ul>
             <li><strong className="text-foreground">Discovery</strong> – Agent A uses the A2A URL of Agent B to read its capabilities (e.g. <InlineCode>GET /api/a2a</InlineCode> returns the Agent Card).</li>
             <li><strong className="text-foreground">Interaction</strong> – Agent A sends a JSON-RPC 2.0 message over HTTP(S) to that URL to initiate a task (e.g. <InlineCode>POST /api/a2a</InlineCode> with method and params).</li>
             <li><strong className="text-foreground">Real-time updates</strong> – For long-running tasks, the A2A server may use Server-Sent Events (SSE) to send updates back to the client. Sandarb currently responds synchronously; SSE may be added for streaming or long-running flows.</li>
           </Ul>
 
-          <H3>Specification &amp; key concepts</H3>
+          <H3WithAnchor>Specification &amp; key concepts</H3WithAnchor>
           <P>For the full protocol specification and terminology (Agent Card, Task, Message, Part, Artifact, transport over HTTP/JSON-RPC, streaming, security), use the official resources:</P>
           <Ul>
-            <li><a href="https://google.github.io/A2A/specification/" target="_blank" rel="noopener noreferrer" className="text-violet-600 dark:text-violet-400 hover:underline">A2A Protocol Specification</a> (Google) – transport, Agent Card structure, RPC methods, data objects.</li>
-            <li><a href="https://google.github.io/A2A/topics/key-concepts/" target="_blank" rel="noopener noreferrer" className="text-violet-600 dark:text-violet-400 hover:underline">Key concepts</a> – A2A Client, A2A Server, Agent Card, Task, Message, Part, Artifact.</li>
+            <li><a href="https://google.github.io/A2A/specification/" target="_blank" rel="noopener noreferrer" className="text-violet-600 dark:text-violet-400 hover:underline underline-offset-2">A2A Protocol Specification</a> (Google) – transport, Agent Card structure, RPC methods, data objects.</li>
+            <li><a href="https://google.github.io/A2A/topics/key-concepts/" target="_blank" rel="noopener noreferrer" className="text-violet-600 dark:text-violet-400 hover:underline underline-offset-2">Key concepts</a> – A2A Client, A2A Server, Agent Card, Task, Message, Part, Artifact.</li>
           </Ul>
-          <Note title="Well-known URI">The spec recommends serving the Agent Card at <InlineCode>/.well-known/agent.json</InlineCode>. Sandarb exposes its Agent Card at <InlineCode>GET /api/a2a</InlineCode> for convenience and consistency with the rest of the API.</Note>
+          <Admonition title="Well-known URI">The spec recommends serving the Agent Card at <InlineCode>/.well-known/agent.json</InlineCode>. Sandarb exposes its Agent Card at <InlineCode>GET /api/a2a</InlineCode> for convenience and consistency with the rest of the API.</Admonition>
 
-          <H3>Discovery (Agent Card)</H3>
+          <H3WithAnchor>Discovery (Agent Card)</H3WithAnchor>
           <P>Clients discover Sandarb by fetching its Agent Card. The response is a JSON document describing the agent&apos;s name, description, service URL, version, capabilities, and skills.</P>
-          <CodeBlock label="cURL">{`# API base: https://api.sandarb.ai (GCP) or http://localhost:4001 (local)
-curl -s "https://api.sandarb.ai/api/a2a"`}</CodeBlock>
+          <DocsCodeBlock label="cURL">{`# API base: https://api.sandarb.ai (GCP) or http://localhost:8000 (local)
+curl -s "https://api.sandarb.ai/api/a2a"`}</DocsCodeBlock>
           <P>Returns the Agent Card with <InlineCode>name</InlineCode>, <InlineCode>description</InlineCode>, <InlineCode>url</InlineCode>, <InlineCode>version</InlineCode>, <InlineCode>capabilities</InlineCode>, and <InlineCode>skills</InlineCode> (get_context, validate_context, get_lineage, register).</P>
 
-          <H3>Skill invocation (JSON-RPC 2.0)</H3>
+          <H3WithAnchor>Skill invocation (JSON-RPC 2.0)</H3WithAnchor>
           <P>Clients send <strong className="text-foreground">POST /api/a2a</strong> with a JSON-RPC 2.0 body. Sandarb requires <InlineCode>Authorization: Bearer &lt;token&gt;</InlineCode>. Use <InlineCode>method: &quot;skills/execute&quot;</InlineCode> with <InlineCode>params: { '{ skill, input }' }</InlineCode> to run a skill. All context requests are logged for lineage and audit.</P>
-          <CodeBlock label="POST /api/a2a (skills/execute)">{`{
+          <DocsCodeBlock label="POST /api/a2a (skills/execute)">{`{
   "jsonrpc": "2.0",
   "id": 1,
   "method": "skills/execute",
@@ -677,17 +687,17 @@ curl -s "https://api.sandarb.ai/api/a2a"`}</CodeBlock>
       "sourceAgent": "your-registered-agent-id"
     }
   }
-}`}</CodeBlock>
-          <Note title="get_context policy">The <InlineCode>get_context</InlineCode> skill requires <InlineCode>sourceAgent</InlineCode> (calling agent identifier). The agent must be registered and pass LOB policy; otherwise the request fails.</Note>
+}`}</DocsCodeBlock>
+          <Admonition title="get_context policy">The <InlineCode>get_context</InlineCode> skill requires <InlineCode>sourceAgent</InlineCode> (calling agent identifier). The agent must be registered and pass LOB policy; otherwise the request fails.</Admonition>
           <P>Other methods: <InlineCode>agent/info</InlineCode> (Agent Card), <InlineCode>skills/list</InlineCode> (list skills). For production, use HTTPS and a valid Bearer token.</P>
         </section>
 
-        <section id="a2a-skills-reference" className="scroll-mt-24">
-          <H2>A2A skills reference</H2>
+        <section id="a2a-skills-reference" className="scroll-mt-24 pt-6 border-t border-border/40">
+          <H2WithAnchor id="a2a-skills-reference">A2A skills reference</H2WithAnchor>
           <P>Sandarb exposes governance as A2A skills. Discovery: <InlineCode>GET /api/a2a</InlineCode> returns the Agent Card (name, url, capabilities, skills). Invocation: <InlineCode>POST /api/a2a</InlineCode> with a JSON body containing <InlineCode>skillId</InlineCode> and <InlineCode>input</InlineCode>. The A2A protocol is JSON; Sandarb enforces <strong className="text-foreground">required fields</strong> per skill. Documented fields below are the source of truth.</P>
 
-          <H3>Request envelope (POST /api/a2a)</H3>
-          <CodeBlock label="A2A message">{`{
+          <H3WithAnchor>Request envelope (POST /api/a2a)</H3WithAnchor>
+          <DocsCodeBlock label="A2A message">{`{
   "messageId": "req-unique-id",
   "parts": [{
     "kind": "data",
@@ -696,15 +706,15 @@ curl -s "https://api.sandarb.ai/api/a2a"`}</CodeBlock>
       "input": { "name": "customer-service-main", "variables": { "user_tier": "gold" } }
     }
   }]
-}`}</CodeBlock>
+}`}</DocsCodeBlock>
 
-          <H3>Key skills (request &amp; response)</H3>
+          <H3WithAnchor>Key skills (request &amp; response)</H3WithAnchor>
 
           <div className="mb-6 rounded-lg border border-border bg-muted/10 p-4">
             <h4 className="text-sm font-semibold text-foreground mb-1 font-mono">get_prompt</h4>
             <p className="text-sm text-muted-foreground mb-2">Retrieves the current approved prompt by name, with optional <strong className="text-foreground">variable interpolation</strong> (e.g. placeholders like <InlineCode>{'{{user_tier}}'}</InlineCode> in prompt content are replaced from <InlineCode>variables</InlineCode>).</p>
             <p className="text-xs font-medium text-muted-foreground mb-1">Request: <InlineCode>name</InlineCode> (required), <InlineCode>variables</InlineCode> (optional object).</p>
-            <CodeBlock label="Response">{`{
+            <DocsCodeBlock label="Response">{`{
   "name": "customer-service-main",
   "content": "You are a helpful assistant for Gold tier users...",
   "version": 4,
@@ -712,45 +722,45 @@ curl -s "https://api.sandarb.ai/api/a2a"`}</CodeBlock>
   "systemPrompt": null,
   "temperature": null,
   "maxTokens": null
-}`}</CodeBlock>
+}`}</DocsCodeBlock>
           </div>
 
           <div className="mb-6 rounded-lg border border-border bg-muted/10 p-4">
             <h4 className="text-sm font-semibold text-foreground mb-1 font-mono">validate_context</h4>
             <p className="text-sm text-muted-foreground mb-2">Checks that a context exists and returns its current approved content. Sandarb logs who asked (lineage). Validation respects <strong className="text-foreground">regulatory hooks</strong> (FINRA, SEC, GDPR) defined on the context; access and lineage are recorded for compliance.</p>
             <p className="text-xs font-medium text-muted-foreground mb-1">Request: <InlineCode>name</InlineCode> (required), <InlineCode>sourceAgent</InlineCode>, <InlineCode>intent</InlineCode> (optional).</p>
-            <CodeBlock label="Response">{`{
+            <DocsCodeBlock label="Response">{`{
   "approved": true,
   "name": "gdpr-handling-policy",
   "content": { ... },
   "hasPendingRevisions": false
-}`}</CodeBlock>
+}`}</DocsCodeBlock>
           </div>
 
           <div className="mb-6 rounded-lg border border-border bg-muted/10 p-4">
             <h4 className="text-sm font-semibold text-foreground mb-1 font-mono">register</h4>
             <p className="text-sm text-muted-foreground mb-2">Check-in: send your Sandarb manifest (e.g. from <InlineCode>sandarb.json</InlineCode>). Creates or updates the agent in the registry. Required: <InlineCode>manifest.agent_id</InlineCode>, <InlineCode>manifest.version</InlineCode>, <InlineCode>manifest.owner_team</InlineCode>, <InlineCode>manifest.url</InlineCode>.</p>
-            <CodeBlock label="Response">{`{ "id": "uuid", "agentId": "my-bot", "name": "My Bot", "approvalStatus": "pending_approval" }`}</CodeBlock>
+            <DocsCodeBlock label="Response">{`{ "id": "uuid", "agentId": "my-bot", "name": "My Bot", "approvalStatus": "pending_approval" }`}</DocsCodeBlock>
           </div>
 
           <div className="mb-6 rounded-lg border border-border bg-muted/10 p-4">
             <h4 className="text-sm font-semibold text-foreground mb-1 font-mono">audit_log</h4>
             <p className="text-sm text-muted-foreground mb-2">Logs an event for compliance. Required: <InlineCode>eventType</InlineCode>. Optional: <InlineCode>resourceType</InlineCode>, <InlineCode>resourceId</InlineCode>, <InlineCode>resourceName</InlineCode>, <InlineCode>sourceAgent</InlineCode>, <InlineCode>details</InlineCode>.</p>
-            <CodeBlock label="Response">{`{ "logged": true, "eventType": "inference" }`}</CodeBlock>
+            <DocsCodeBlock label="Response">{`{ "logged": true, "eventType": "inference" }`}</DocsCodeBlock>
           </div>
 
           <div className="mb-6 rounded-lg border border-border bg-muted/10 p-4">
             <h4 className="text-sm font-semibold text-foreground mb-1 font-mono">mcp_poll_agent</h4>
             <p className="text-sm text-muted-foreground mb-2">Pull-based monitoring: Sandarb (as MCP client) queries a Worker Agent (MCP server) for its tools, resources, and optional state. Sandarb can actively reach out to agents via MCP to see what tools they use—no push logging required from the agent. Input: <InlineCode>agentId</InlineCode> (registered) or <InlineCode>mcpUrl</InlineCode> (direct), optional <InlineCode>timeoutMs</InlineCode>.</p>
-            <CodeBlock label="Response">{`{
+            <DocsCodeBlock label="Response">{`{
   "tools": [ { "name": "search_kb", "description": "..." } ],
   "resources": [ { "uri": "sandarb://...", "name": "..." } ],
   "state": {},
   "error": null
-}`}</CodeBlock>
+}`}</DocsCodeBlock>
           </div>
 
-          <H3>All skills (summary)</H3>
+          <H3WithAnchor>All skills (summary)</H3WithAnchor>
           <P>Each skill has required and optional input fields; see the Agent Card (<InlineCode>GET /api/a2a</InlineCode>) for full schemas.</P>
           {skills.map((s) => {
             const schema = s.inputSchema as { required?: string[]; properties?: Record<string, { type?: string; description?: string }> } | undefined;
@@ -769,26 +779,26 @@ curl -s "https://api.sandarb.ai/api/a2a"`}</CodeBlock>
                     <li key={k}><span className="font-mono">{k}</span>{required.includes(k) ? ' (required)' : ''}: {(v as { description?: string }).description ?? v.type ?? '—'}</li>
                   ))}
                 </ul>
-                <CodeBlock label={`Example: ${s.id}`}>{`{ "skillId": "${s.id}", "input": { ${required.map((r) => `"${r}": "<value>"`).join(', ')} } }`}</CodeBlock>
+                <DocsCodeBlock label={`Example: ${s.id}`}>{`{ "skillId": "${s.id}", "input": { ${required.map((r) => `"${r}": "<value>"`).join(', ')} } }`}</DocsCodeBlock>
               </div>
             );
           })}
         </section>
 
-        <section id="python-integration" className="scroll-mt-24">
-          <H2>Python integration</H2>
+        <section id="python-integration" className="scroll-mt-24 pt-6 border-t border-border/40">
+          <H2WithAnchor id="python-integration">Python integration</H2WithAnchor>
           <P>Use the <strong className="text-foreground">Sandarb Python Client SDK</strong> in <InlineCode>sdk/python/sandarb_client.py</InlineCode>. Copy the file into your project; <InlineCode>pip install requests</InlineCode> is the only dependency. The SDK handles Check-in and Audit Push automatically.</P>
 
-          <H3>Install</H3>
-          <CodeBlock label="Shell">{`pip install -r sdk/python/requirements.txt
-# or: pip install requests`}</CodeBlock>
+          <H3WithAnchor>Install</H3WithAnchor>
+          <DocsCodeBlock label="Shell">{`pip install -r sdk/python/requirements.txt
+# or: pip install requests`}</DocsCodeBlock>
 
-          <H3>Quick start</H3>
-          <CodeBlock label="Python">{`import os
+          <H3WithAnchor>Quick start</H3WithAnchor>
+          <DocsCodeBlock label="Python">{`import os
 from sandarb_client import SandarbClient
 
 sandarb = SandarbClient(
-    os.environ.get("SANDARB_URL", "http://localhost:3000"),
+    os.environ.get("SANDARB_URL", "https://api.sandarb.ai"),
     token=os.environ.get("SANDARB_TOKEN"),
 )
 
@@ -806,57 +816,57 @@ if not ctx["approved"]:
 
 # 4. Run your agent (Sandarb is NOT in the path)...
 # 5. Audit push
-sandarb.audit("inference", details={"response_length": 120})`}</CodeBlock>
+sandarb.audit("inference", details={"response_length": 120})`}</DocsCodeBlock>
 
-          <H3>SDK API</H3>
+          <H3WithAnchor>SDK API</H3WithAnchor>
           <P><InlineCode>check_in(manifest)</InlineCode> · <InlineCode>audit(event_type, **kwargs)</InlineCode> · <InlineCode>get_prompt(name, variables=None)</InlineCode> · <InlineCode>validate_context(name, **kwargs)</InlineCode> · <InlineCode>get_context(name, **kwargs)</InlineCode> · <InlineCode>call(skill_id, input_data)</InlineCode></P>
-          <P>Full guide and raw A2A format: <a href="https://github.com/openint-ai/sandarb.ai/blob/main/docs/guides/python-integration.md" target="_blank" rel="noopener noreferrer" className="text-violet-600 dark:text-violet-400 hover:underline">docs/guides/python-integration.md</a> and <InlineCode>sdk/python/README.md</InlineCode>.</P>
-          <P>For REST context-only: <InlineCode>GET /api/inject?name=my-context</InlineCode> with headers <InlineCode>X-Sandarb-Agent-ID</InlineCode> and <InlineCode>X-Sandarb-Trace-ID</InlineCode>. See <a href="#inject" className="text-violet-600 dark:text-violet-400 hover:underline">Inject API</a>.</P>
+          <P>Full guide and raw A2A format: <a href="https://github.com/openint-ai/sandarb.ai/blob/main/docs/guides/python-integration.md" target="_blank" rel="noopener noreferrer" className="text-violet-600 dark:text-violet-400 hover:underline underline-offset-2">docs/guides/python-integration.md</a> and <InlineCode>sdk/python/README.md</InlineCode>.</P>
+          <P>For REST context-only: <InlineCode>GET /api/inject?name=my-context</InlineCode> with headers <InlineCode>X-Sandarb-Agent-ID</InlineCode> and <InlineCode>X-Sandarb-Trace-ID</InlineCode>. See <a href="#inject" className="text-violet-600 dark:text-violet-400 hover:underline underline-offset-2">Inject API</a>.</P>
         </section>
 
-        <section id="try-a2a" className="scroll-mt-24">
-          <H2>Try A2A</H2>
-          <P>Send a test <InlineCode>skills/execute</InlineCode> request (API base: localhost:4001 locally, api.sandarb.ai when deployed). You need a valid Bearer token for authenticated calls.</P>
+        <section id="try-a2a" className="scroll-mt-24 pt-6 border-t border-border/40">
+          <H2WithAnchor id="try-a2a">Try A2A</H2WithAnchor>
+          <P>Send a test <InlineCode>skills/execute</InlineCode> request (API base: localhost:8000 locally, api.sandarb.ai when deployed). You need a valid Bearer token for authenticated calls.</P>
           <DocsTryA2a skills={skills} />
         </section>
 
-        <section id="data-model-lineage" className="scroll-mt-24">
-          <H2>Data model &amp; lineage</H2>
+        <section id="data-model-lineage" className="scroll-mt-24 pt-6 border-t border-border/40">
+          <H2WithAnchor id="data-model-lineage">Data model &amp; lineage</H2WithAnchor>
           <P><strong className="text-foreground">Lineage</strong> in Sandarb is the record of who requested which context (or prompt) and when. It is key for compliance and incident response.</P>
           <Ul>
             <li><InlineCode>trace_id</InlineCode> – Request/correlation ID. Every inject, prompt pull, and A2A call should send a stable trace ID. Stored in access logs and lineage entries. Use the same trace_id across a single user request to reconstruct the full chain.</li>
             <li><InlineCode>agent_id</InlineCode> – Calling agent identifier. Identifies which Worker Agent pulled the prompt or context; required for inject and for skills like <InlineCode>get_context</InlineCode> (<InlineCode>sourceAgent</InlineCode>).</li>
           </Ul>
-          <H3>Compliance fields</H3>
+          <H3WithAnchor>Compliance fields</H3WithAnchor>
           <P>From Sandarb&apos;s data model (<InlineCode>types/index.ts</InlineCode>):</P>
           <Ul>
             <li><strong className="text-foreground">LineOfBusiness</strong> – <InlineCode>retail</InlineCode> | <InlineCode>investment_banking</InlineCode> | <InlineCode>wealth_management</InlineCode>. Policy: an agent&apos;s <InlineCode>owner_team</InlineCode> maps to a LOB; it may only pull context tagged with the same LOB (or no LOB).</li>
             <li><strong className="text-foreground">DataClassification</strong> – <InlineCode>public</InlineCode> | <InlineCode>internal</InlineCode> | <InlineCode>confidential</InlineCode> | <InlineCode>restricted</InlineCode>. For MNPI and access control.</li>
             <li><strong className="text-foreground">RegulatoryHook</strong> – <InlineCode>FINRA</InlineCode> | <InlineCode>SEC</InlineCode> | <InlineCode>GDPR</InlineCode>. Marks contexts subject to specific regulatory logging; audit and lineage support &quot;why did the agent have access to this?&quot; for exams.</li>
           </Ul>
-          <Note title="Why it matters">If you tag a context as <strong className="text-foreground">confidential</strong>, Sandarb logs will flag any access by an agent with public scope. Policy and audit stay in sync with these fields.</Note>
+          <Admonition title="Why it matters">If you tag a context as <strong className="text-foreground">confidential</strong>, Sandarb logs will flag any access by an agent with public scope. Policy and audit stay in sync with these fields.</Admonition>
         </section>
 
-        <section id="security" className="scroll-mt-24">
-          <H2>Security</H2>
-          <H3>Manifest-based registration</H3>
+        <section id="security" className="scroll-mt-24 pt-6 border-t border-border/40">
+          <H2WithAnchor id="security">Security</H2WithAnchor>
+          <H3WithAnchor>Manifest-based registration</H3WithAnchor>
           <P>Every agent that should use governed prompts and context <strong className="text-foreground">registers</strong> with Sandarb by sending a Sandarb manifest. Unregistered agents should not be granted access to company data.</P>
           <P><strong className="text-foreground">Drop a <InlineCode>sandarb.json</InlineCode> in your agent&apos;s repo.</strong> When the agent boots, it pings Sandarb with this manifest (via the A2A skill <InlineCode>register</InlineCode> or <InlineCode>POST /api/agents/ping</InlineCode>). That makes onboarding feel like &quot;declare once, run anywhere.&quot;</P>
-          <H3>Shadow AI discovery</H3>
+          <H3WithAnchor>Shadow AI discovery</H3WithAnchor>
           <P>Even if developers forget to register their agents, Sandarb can <strong className="text-foreground">actively scan</strong> your internal network (or a list of known endpoints) to discover agents that look like A2A or MCP servers and are <strong className="text-foreground">not</strong> in the registry.</P>
-          <P>Sandarb&apos;s <InlineCode>runDiscoveryScan()</InlineCode> (in <InlineCode>lib/governance.ts</InlineCode>) probes scan targets and compares discovered agent identities to the agent registry. If an agent is found at a URL but not registered, Sandarb records it in <InlineCode>unauthenticated_detections</InlineCode> for security or platform teams to review and either register or shut down.</P>
+          <P>Sandarb&apos;s <InlineCode>runDiscoveryScan()</InlineCode> (backend governance) probes scan targets and compares discovered agent identities to the agent registry. If an agent is found at a URL but not registered, Sandarb records it in <InlineCode>unauthenticated_detections</InlineCode> for security or platform teams to review and either register or shut down.</P>
           <P><strong className="text-foreground">Summary:</strong> Manifest / <InlineCode>register</InlineCode> ensures only registered (and when required, approved) agents get access. Discovery scan finds agents that never registered so you can remediate.</P>
         </section>
 
-        <section id="contexts-agents" className="scroll-mt-24">
-          <H2>Contexts & agents</H2>
+        <section id="contexts-agents" className="scroll-mt-24 pt-6 border-t border-border/40">
+          <H2WithAnchor id="contexts-agents">Contexts & agents</H2WithAnchor>
           <P><strong className="text-foreground">Contexts</strong> are named, versioned blobs of configuration (e.g. trading limits, suitability policy). Create and edit in the UI or via API. Use Inject or A2A <InlineCode>get_context</InlineCode> to pull into your agent.</P>
           <P><strong className="text-foreground">Agents</strong> are registered in Sandarb (by manifest ping or API). Approved agents can request context; unregistered agents can be blocked by policy. Register via <InlineCode>POST /api/agents/register</InlineCode> or A2A <InlineCode>register</InlineCode> skill with a manifest.</P>
           <P><strong className="text-foreground">Organizations</strong> – Root org is created on first run. Create sub-orgs and attach agents to them.</P>
         </section>
 
-        <section id="templates" className="scroll-mt-24">
-          <H2>Templates for context</H2>
+        <section id="templates" className="scroll-mt-24 pt-6 border-t border-border/40">
+          <H2WithAnchor id="templates">Templates for context</H2WithAnchor>
           <P><strong className="text-foreground">Templates</strong> define a reusable structure for context content. Each template has a <strong className="text-foreground">schema</strong> (JSON Schema describing the shape of context <InlineCode>content</InlineCode>) and optional <strong className="text-foreground">default values</strong>. When you create a context, you link it to a template via <InlineCode>templateId</InlineCode> so the context follows that structure—agents and validators can rely on a known shape.</P>
           <P><strong className="text-foreground">Why templates help:</strong></P>
           <Ul>
@@ -865,9 +875,9 @@ sandarb.audit("inference", details={"response_length": 120})`}</CodeBlock>
             <li><strong className="text-foreground">Faster authoring</strong> – New contexts can be pre-filled from a template&apos;s default values and guided to include the right fields.</li>
           </Ul>
 
-          <H3>Example 1: Trading limits template</H3>
+          <H3WithAnchor>Example 1: Trading limits template</H3WithAnchor>
           <P>A template defines the schema for &quot;trading desk limits&quot; context. Every context that uses this template has <InlineCode>varLimit</InlineCode>, <InlineCode>singleNameLimit</InlineCode>, and optional <InlineCode>desk</InlineCode>.</P>
-          <CodeBlock label="Template schema (trading-limits-template)">{`{
+          <DocsCodeBlock label="Template schema (trading-limits-template)">{`{
   "type": "object",
   "properties": {
     "varLimit": { "type": "number", "description": "Daily VaR limit (USD)" },
@@ -875,18 +885,18 @@ sandarb.audit("inference", details={"response_length": 120})`}</CodeBlock>
     "desk": { "type": "string", "enum": ["equities", "fixed_income", "fx", "commodities"] }
   },
   "required": ["varLimit", "singleNameLimit"]
-}`}</CodeBlock>
+}`}</DocsCodeBlock>
           <P>A context linked to this template might have content like:</P>
-          <CodeBlock label="Context content (e.g. ib-trading-limits)">{`{
+          <DocsCodeBlock label="Context content (e.g. ib-trading-limits)">{`{
   "varLimit": 5000000,
   "singleNameLimit": 500000,
   "desk": "equities"
-}`}</CodeBlock>
+}`}</DocsCodeBlock>
           <P>Your agent fetches this context via <InlineCode>get_context(&quot;ib-trading-limits&quot;)</InlineCode> or the Inject API; the returned <InlineCode>content</InlineCode> conforms to the template schema so your agent can safely use <InlineCode>content.varLimit</InlineCode> and <InlineCode>content.singleNameLimit</InlineCode>.</P>
 
-          <H3>Example 2: Compliance policy template</H3>
+          <H3WithAnchor>Example 2: Compliance policy template</H3WithAnchor>
           <P>A template for compliance policy context: policy name, effective date, regulatory hooks, KYC flag.</P>
-          <CodeBlock label="Template schema (compliance-policy-template)">{`{
+          <DocsCodeBlock label="Template schema (compliance-policy-template)">{`{
   "type": "object",
   "properties": {
     "policy": { "type": "string", "description": "Policy name" },
@@ -895,58 +905,60 @@ sandarb.audit("inference", details={"response_length": 120})`}</CodeBlock>
     "kycRequired": { "type": "boolean" }
   },
   "required": ["policy", "effectiveDate"]
-}`}</CodeBlock>
-          <CodeBlock label="Default values">{`{ "kycRequired": true }`}</CodeBlock>
+}`}</DocsCodeBlock>
+          <DocsCodeBlock label="Default values">{`{ "kycRequired": true }`}</DocsCodeBlock>
           <P>A context created from this template can be pre-filled with <InlineCode>kycRequired: true</InlineCode>; authors supply <InlineCode>policy</InlineCode> and <InlineCode>effectiveDate</InlineCode>.</P>
 
-          <H3>Example 3: Prompt + context together</H3>
+          <H3WithAnchor>Example 3: Prompt + context together</H3WithAnchor>
           <P>Your prompt instructs the agent to use governed context. The agent fetches the prompt, then fetches context by name; the context content is shaped by its template.</P>
-          <CodeBlock label="Flow">{`# 1. Get prompt (e.g. "finance-bot" says: "Use the trading limits context for pre-trade checks")
+          <DocsCodeBlock label="Flow">{`# 1. Get prompt (e.g. "finance-bot" says: "Use the trading limits context for pre-trade checks")
 prompt = sandarb.get_prompt("finance-bot")
 # 2. Get context whose content conforms to trading-limits-template
 ctx = sandarb.get_context("ib-trading-limits")
 # 3. Use content in your logic (known shape: varLimit, singleNameLimit, desk)
 if order_value > ctx["content"]["singleNameLimit"]:
     reject("Exceeds single-name limit")
-`}</CodeBlock>
+`}</DocsCodeBlock>
 
           <P>Sample templates (seeded via <InlineCode>POST /api/seed</InlineCode>): compliance-policy-template, trading-limits-template. View under <strong className="text-foreground">Templates</strong> in the app or <InlineCode>GET /api/templates</InlineCode>.</P>
 
-          <Note title="Feature status">Templates for context are currently in progress. Full support (e.g. validation of context content against template schema at create/update, template-driven UI for context authoring) will be released in a future version of Sandarb. The schema and templateId linkage are in place today; enhanced tooling and enforcement are coming next.</Note>
+          <Admonition title="Feature status">Templates for context are currently in progress. Full support (e.g. validation of context content against template schema at create/update, template-driven UI for context authoring) will be released in a future version of Sandarb. The schema and templateId linkage are in place today; enhanced tooling and enforcement are coming next.</Admonition>
         </section>
 
-        <section id="audit-headers" className="scroll-mt-24">
-          <H2>Audit headers</H2>
+        <section id="audit-headers" className="scroll-mt-24 pt-6 border-t border-border/40">
+          <H2WithAnchor id="audit-headers">Audit headers</H2WithAnchor>
           <P>Optional headers for inject and API calls so Sandarb can record lineage (who requested what, when):</P>
           <Ul>
             <li><InlineCode>X-Sandarb-Agent-ID</InlineCode> – Identifier of the calling agent.</li>
             <li><InlineCode>X-Sandarb-Trace-ID</InlineCode> – Request/correlation ID for tracing.</li>
           </Ul>
-          <H3>Example</H3>
-          <CodeBlock label="cURL">{`# Use your API base: https://api.sandarb.ai (GCP) or http://localhost:4001 (local)
+          <H3WithAnchor>Example</H3WithAnchor>
+          <DocsCodeBlock label="cURL">{`# Use your API base: https://api.sandarb.ai (GCP) or http://localhost:8000 (local)
 curl -H "X-Sandarb-Agent-ID: my-agent" -H "X-Sandarb-Trace-ID: req-123" \\
-  "https://api.sandarb.ai/api/inject?name=my-context"`}</CodeBlock>
+  "https://api.sandarb.ai/api/inject?name=my-context"`}</DocsCodeBlock>
         </section>
 
-        <section id="environment" className="scroll-mt-24">
-          <H2>Environment variables</H2>
-          <P>API base URL is chosen automatically: <InlineCode>http://localhost:4001</InlineCode> on localhost, <InlineCode>https://api.sandarb.ai</InlineCode> when the app host contains sandarb.ai. Set <InlineCode>NEXT_PUBLIC_API_URL</InlineCode> to override.</P>
-          <CodeBlock label=".env">{`# Database (PostgreSQL, required)
-DATABASE_URL=postgresql://user:pass@host:5432/sandarb-dev
+        <section id="environment" className="scroll-mt-24 pt-6 border-t border-border/40">
+          <H2WithAnchor id="environment">Environment variables</H2WithAnchor>
+          <P>API base URL is chosen automatically: <InlineCode>http://localhost:8000</InlineCode> on localhost, <InlineCode>https://api.sandarb.ai</InlineCode> when the app host contains sandarb.ai. Set <InlineCode>NEXT_PUBLIC_API_URL</InlineCode> to override.</P>
+          <DocsCodeBlock label=".env">{`# Database (PostgreSQL, required)
+DATABASE_URL=postgresql://user:pass@host:5432/sandarb
 
-# Optional: override API base (default: localhost:4001 locally, https://api.sandarb.ai when at sandarb.ai)
-# NEXT_PUBLIC_API_URL=http://localhost:4001
+# Optional: override API base (default: localhost:8000 locally, https://api.sandarb.ai when at sandarb.ai)
+# NEXT_PUBLIC_API_URL=http://localhost:8000
+# NEXT_PUBLIC_AGENT_URL=http://localhost:8000
 # NEXT_PUBLIC_API_URL=https://api.sandarb.ai
+# NEXT_PUBLIC_AGENT_URL=https://agent.sandarb.ai
 
 # Server
 PORT=3000
-NODE_ENV=production`}</CodeBlock>
+NODE_ENV=production`}</DocsCodeBlock>
         </section>
 
-        <section id="deployment" className="scroll-mt-24">
-          <H2>Deployment</H2>
+        <section id="deployment" className="scroll-mt-24 pt-6 border-t border-border/40">
+          <H2WithAnchor id="deployment">Deployment</H2WithAnchor>
           <P>Docker: build and run with <InlineCode>docker compose up -d</InlineCode> (Postgres + app). Demo data is seeded on container start when <InlineCode>DATABASE_URL</InlineCode> is set.</P>
-          <P>GCP Cloud Run: use <InlineCode>./scripts/deploy-gcp.sh PROJECT_ID</InlineCode>. When the UI is served at sandarb.ai, API requests use <InlineCode>https://api.sandarb.ai</InlineCode> by default. Configure your API service (or reverse proxy) at api.sandarb.ai. See <Link href="https://github.com/openint-ai/sandarb.ai/blob/main/docs/deploy-gcp.md" className="text-violet-600 dark:text-violet-400 hover:underline">docs/deploy-gcp.md</Link> for permissions, Cloud SQL, and IAM.</P>
+          <P>GCP Cloud Run: use <InlineCode>./scripts/deploy-gcp.sh PROJECT_ID</InlineCode>. When the UI is served at sandarb.ai, API requests use <InlineCode>https://api.sandarb.ai</InlineCode> by default. Configure your API service (or reverse proxy) at api.sandarb.ai. See <Link href="https://github.com/openint-ai/sandarb.ai/blob/main/docs/deploy-gcp.md" className="text-violet-600 dark:text-violet-400 hover:underline underline-offset-2">docs/deploy-gcp.md</Link> for permissions, Cloud SQL, and IAM.</P>
         </section>
 
             <div className="mt-10 pt-6 border-t border-border flex flex-wrap gap-3">
@@ -964,8 +976,6 @@ NODE_ENV=production`}</CodeBlock>
               </a>
             </div>
           </div>
-        </main>
-      </div>
-    </div>
+    </DocsLayout>
   );
 }

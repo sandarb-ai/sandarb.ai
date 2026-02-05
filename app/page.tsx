@@ -52,6 +52,9 @@ export default function LandingPage() {
               </Button>
             </Link>
           </div>
+          <p className="text-sm text-muted-foreground mt-3 text-center max-w-md mx-auto">
+            <strong className="text-foreground">Demo only.</strong> No account is created; you get full access to the Sandarb UI and features for evaluation.
+          </p>
         </div>
       </section>
 

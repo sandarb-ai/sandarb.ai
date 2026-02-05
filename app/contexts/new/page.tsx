@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ContextEditor } from '@/components/context-editor';
 import { ContextPreview } from '@/components/context-preview';
 import { ComplianceMetadataFields } from '@/components/compliance-metadata-fields';
+import { apiUrl } from '@/lib/api';
 import type { LineOfBusiness, DataClassification, RegulatoryHook } from '@/types';
 
 // Validate name: lowercase alphanumeric, hyphens, underscores only
@@ -54,7 +55,7 @@ export default function NewContextPage() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/contexts', {
+      const res = await fetch(apiUrl('/api/contexts'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

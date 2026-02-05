@@ -1,15 +1,17 @@
-import { getAllOrganizations } from '@/lib/organizations';
+import { getOrganizations } from '@/lib/api-client';
 import { OrganizationsPageClient } from './organizations-client';
+import type { Organization } from '@/types';
 
 export const dynamic = 'force-dynamic';
 
 export default async function OrganizationsPage() {
-  let orgs: Awaited<ReturnType<typeof getAllOrganizations>> = [];
+  let orgs: Organization[] = [];
 
   try {
-    orgs = await getAllOrganizations();
+    const data = await getOrganizations();
+    orgs = Array.isArray(data) ? (data as Organization[]) : [];
   } catch {
-    // Fallback: empty list if DB not ready
+    // Fallback: empty list if backend not ready
   }
 
   return <OrganizationsPageClient initialOrgs={orgs} />;

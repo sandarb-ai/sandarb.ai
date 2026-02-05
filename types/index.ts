@@ -10,6 +10,13 @@ export type PromptVersionStatus = 'draft' | 'proposed' | 'approved' | 'rejected'
 
 export const PROMPT_VERSION_STATUS_OPTIONS: PromptVersionStatus[] = ['draft', 'proposed', 'approved', 'rejected', 'archived'];
 
+/** Agent linked to a prompt or context (for display: which agent it belongs to). */
+export interface LinkedAgent {
+  id: string;
+  name: string;
+  agentId: string | null;
+}
+
 export interface Prompt {
   id: string;
   name: string;                          // Unique identifier (slug)
@@ -21,6 +28,8 @@ export interface Prompt {
   createdAt: string;
   updatedAt: string;
   updatedBy: string | null;
+  /** Agents this prompt is linked to (from agent_prompts). Shown as "Used by: …". */
+  agents?: LinkedAgent[];
 }
 
 export interface PromptVersion {
@@ -109,6 +118,8 @@ export interface Context {
   dataClassification: DataClassification | null;
   /** Compliance: Subject to FINRA, SEC, or GDPR logging requirements. */
   regulatoryHooks: RegulatoryHook[];
+  /** Agents this context is linked to (from agent_contexts). Shown as "Used by: …". */
+  agents?: LinkedAgent[];
 }
 
 export interface ContextCreateInput {
@@ -597,6 +608,8 @@ export interface RegisteredAgent {
   piiHandling: boolean;
   /** Regulatory scope tags (e.g. "GDPR", "SOX") (from manifest). */
   regulatoryScope: string[];
+  /** Organization this agent belongs to (included in GET /agents/:id for display). */
+  organization?: { id: string; name: string; slug: string } | null;
 }
 
 export interface RegisteredAgentCreateInput {
@@ -629,6 +642,55 @@ export interface RegisteredAgentUpdateInput {
   allowedDataScopes?: string[];
   piiHandling?: boolean;
   regulatoryScope?: string[];
+}
+
+/** Agent list stats (counts by status). */
+export interface AgentStats {
+  total: number;
+  active: number;
+  draft: number;
+  pending_approval: number;
+  approved: number;
+  rejected: number;
+}
+
+/** Unified A2A log entry for agent ↔ Sandarb communication (Agent Pulse UI). */
+export interface A2ALogEntry {
+  id: string;
+  agentId: string;
+  traceId: string;
+  accessedAt: string;
+  actionType: 'INJECT_SUCCESS' | 'INJECT_DENIED' | 'PROMPT_USED' | 'INFERENCE_EVENT' | 'A2A_CALL';
+  contextName: string;
+  contextId: string | null;
+  contextVersionId: string | null;
+  promptName?: string;
+  promptId?: string | null;
+  promptVersionId?: string | null;
+  reason?: string;
+  intent?: string | null;
+  method?: string;
+  inputSummary?: string | null;
+  resultSummary?: string | null;
+  error?: string | null;
+}
+
+/** Governance: scan target for shadow AI discovery. */
+export interface ScanTarget {
+  id: string;
+  url: string;
+  description: string | null;
+  createdAt: string;
+}
+
+/** Governance: unauthenticated agent detection record. */
+export interface UnauthenticatedDetection {
+  id: string;
+  sourceUrl: string;
+  detectedAgentId: string | null;
+  details: Record<string, unknown>;
+  scanRunAt: string;
+  createdAt: string;
 }
 
 // ============================================================================

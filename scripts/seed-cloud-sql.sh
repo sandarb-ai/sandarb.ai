@@ -37,11 +37,17 @@ if [[ -z "$SEED_URL" ]]; then
 fi
 
 if [[ "$SEED_URL" == *"localhost"* || "$SEED_URL" == *"127.0.0.1"* ]]; then
-  echo "Error: URL looks like localhost. This script is for seeding Cloud SQL from your machine."
-  echo "  Use CLOUD_SQL_DATABASE_URL in .env (or pass the Cloud SQL URL as the first argument)."
-  exit 1
+  if [[ -n "${1:-}" ]]; then
+    echo "Using localhost URL (Cloud SQL Auth Proxy). Ensure the proxy is running, e.g.:"
+    echo "  cloud_sql_proxy --instances=PROJECT:REGION:INSTANCE=tcp:5432"
+  else
+    echo "Error: URL looks like localhost. This script is for seeding Cloud SQL from your machine."
+    echo "  Use CLOUD_SQL_DATABASE_URL in .env (or pass the Cloud SQL URL as the first argument)."
+    echo "  For Cloud SQL Auth Proxy, start the proxy then pass: ./scripts/seed-cloud-sql.sh 'postgresql://USER:PASS@127.0.0.1:5432/DB'"
+    exit 1
+  fi
 fi
 
 echo "Seeding Cloud SQL (full reset + init + seed)..."
-(cd "$REPO_ROOT" && DATABASE_URL="$SEED_URL" node scripts/full-reset-postgres.js)
+(cd "$REPO_ROOT" && DATABASE_URL="$SEED_URL" python scripts/generate_seed_sql.py --load)
 echo "Done."

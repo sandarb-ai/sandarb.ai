@@ -1,25 +1,22 @@
 # Sandarb test suite
 
-An AI governance tool must have a robust test suite so you can trust it to govern your agents. This folder contains **unit tests** and **API route tests** for Sandarb. All tests use **Vitest**; API tests mock the database and lib layer so no real DB is required.
+This folder contains **unit tests** for the Next.js frontend and shared lib. All tests use **Vitest**. API and security behavior are tested in the FastAPI backend.
 
 ## Running tests
 
 ```bash
 npm run test           # watch mode (re-runs on file changes)
 npm run test:run       # single run (use in CI)
-npm run test:coverage  # single run with coverage report (lib + app/api)
-npm run test:security  # security ACID tests only (use in security gate / CI)
+npm run test:coverage  # single run with coverage report
 ```
 
-Run these before committing. The suite is fast (no DB); typical run is under a second.
+Run these before committing. The suite is fast (no DB).
 
 ## Test structure
 
 | Directory   | Purpose |
 |------------|---------|
-| **`tests/lib/`** | Unit tests for core library code. No DB; pure logic and (when needed) mocked `@/lib/pg`. |
-| **`tests/api/`** | API route tests. Each file tests one route (or related routes). Lib modules are mocked with `vi.mock('@/lib/...')`. |
-| **`tests/security/`** | Security ACID tests. Rigorous assertions that critical security properties hold (inject: audit IDs, unregistered/cross-LOB denied; policy; input validation; approval workflow). Run with `npm run test:security`. |
+| **`tests/lib/`** | Unit tests for core library code (utils, policy, governance types). No DB; pure logic. |
 
 Test files must be named `*.test.ts` or `*.test.tsx` and live under `tests/`. Vitest is configured in `vitest.config.ts` (Node environment, `@` alias to project root).
 
@@ -29,34 +26,13 @@ Test files must be named `*.test.ts` or `*.test.tsx` and live under `tests/`. Vi
 
 - **`utils.test.ts`** — `formatApprovedBy`, `normalizeApprovedBy`, `formatDate`, `formatDateTime`, `formatRelativeTime`, `isValidResourceName` / `isValidContextName`, `slugify`, `safeJsonParse`, `truncate`, `substituteVariables`, `formatContent` (json/yaml/text), `cn`.
 - **`policy.test.ts`** — LOB policy: `ownerTeamToLOB`, `checkInjectPolicy` (cross-LOB context access); edge cases (same LOB, retail vs wealth vs investment_banking).
-- **`governance.test.ts`** — Governance types (ScanTarget, UnauthenticatedDetection).
-
-### API tests (`tests/api/`)
-
-- **`health.test.ts`** — GET /api/health: healthy response shape, 503 when DB fails.
-- **`inject.test.ts`** — Inject flow: policy checks and variable substitution (no real DB).
-- **`agents-approve.test.ts`** — POST /api/agents/[id]/approve: 200/404/500, body `approvedBy` and header fallback.
-- **`agents-reject.test.ts`** — POST /api/agents/[id]/reject: 200/404/500, body `rejectedBy`.
-- **`prompts-approve.test.ts`** — POST /api/prompts/[id]/versions/[versionId]/approve: prompt/version lookup, 400 when version not proposed or wrong prompt, 200/500, `approvedBy` from body or `x-user-id`.
-- **`prompts-reject.test.ts`** — POST /api/prompts/[id]/versions/[versionId]/reject: same validations, `rejectedBy`, optional `reason` in message.
-- **`contexts-approve.test.ts`** — POST /api/contexts/[id]/revisions/[revId]/approve: 200/404/500, body `approvedBy`.
-- **`contexts-reject.test.ts`** — POST /api/contexts/[id]/revisions/[revId]/reject: 200/404/500, body `rejectedBy`.
-- **`governance-blocked.test.ts`** — GET /api/governance/blocked-injections: items array, limit param, 500 on error.
-- **`governance-unauthenticated.test.ts`** — GET /api/governance/unauthenticated-agents: items array, limit cap 100, 500 on error.
-
-### Security tests (`tests/security/`)
-
-- **`acid.test.ts`** — Security ACID test: inject route (audit IDs required, unregistered agent 403, cross-LOB 403, inactive context 403, invalid format 400); policy (cross-LOB denied, same-LOB allowed); input validation (isValidResourceName rejects path traversal/SQL-like/empty; substituteVariables only substitutes `{{word}}`, no code execution); approval workflow (only proposed versions can be approved).
+- **`governance.test.ts`** — Governance types (ScanTarget, UnauthenticatedDetection) from `@/types`.
 
 ### Behaviors we assert
 
 1. **Governance display** — Approved-by and created-by use `@username`; formatting and normalization (utils).
-2. **Governance policy** — Cross-LOB access denied; same-LOB and unrestricted contexts allowed; LOB slug normalization.
-3. **Inject flow** — Variable substitution `{{key}}` and policy enforcement.
-4. **Resource naming** — Valid/invalid names and slugs for contexts and prompts.
-5. **Approve/reject APIs** — Success (200 + data), 404 when resource not found or not in proposable state, 400 for bad state (e.g. not proposed), 500 when lib returns null or throws; body/header `approvedBy`/`rejectedBy` passed through to lib.
-6. **Health & governance APIs** — Response shape, limit params, 500 on thrown errors.
-7. **Security ACID** — Inject: audit IDs required; unregistered agent and cross-LOB denied; inactive context denied; format/input validation. Policy: cross-LOB blocked. Input: resource names and variable substitution safe (no path traversal, no code execution). Approval: only proposed versions can be approved.
+2. **Governance policy** — Cross-LOB access denied; same-LOB and unrestricted contexts allowed; LOB slug normalization (policy.test.ts).
+3. **Types** — ScanTarget and UnauthenticatedDetection shapes (governance.test.ts).
 
 ## Extending the suite
 
@@ -160,23 +136,13 @@ Important details:
 
 ### Conventions
 
-- **Naming** — `tests/lib/<module>.test.ts`, `tests/api/<feature>-<action>.test.ts` (e.g. `agents-approve.test.ts`).
-- **No real DB** — Keep tests fast and CI-friendly by mocking `@/lib/pg` or any module that talks to the DB.
-- **Coverage** — `npm run test:coverage` reports on `lib/**` and `app/api/**`; add tests for new lib functions or API routes you add.
-
-## Security testing
-
-Run the security ACID test as part of your security gate (e.g. in CI):
-
-```bash
-npm run test:security
-```
-
-This runs only `tests/security/**/*.test.ts` and asserts critical security properties (inject audit IDs, unregistered/cross-LOB denial, input validation, approval workflow). Use it in addition to `npm run test:run` when you want a dedicated security pass.
+- **Naming** — `tests/lib/<module>.test.ts`.
+- **No real DB** — Keep tests fast and CI-friendly; lib tests use pure logic or types.
+- **Coverage** — `npm run test:coverage` reports on `lib/**`; add tests for new lib functions you add.
 
 ## Configuration
 
 - **Vitest** — `vitest.config.ts`: Node environment, `tests/**/*.test.{ts,tsx}`, `@` alias to project root.
-- **Coverage** — v8 provider; includes `lib/**/*.ts` and `app/api/**/*.ts`; excludes types, configs, node_modules, and `tests/**`.
+- **Coverage** — v8 provider; includes `lib/**/*.ts`; excludes types, configs, node_modules, and `tests/**`.
 
-If you add a new API route or lib module, consider adding a corresponding test file so the suite stays the single place to validate behavior and so others can extend it with confidence.
+If you add a new lib module, consider adding a corresponding test file so the suite stays the single place to validate behavior.
