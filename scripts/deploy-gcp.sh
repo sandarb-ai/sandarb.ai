@@ -75,7 +75,6 @@ for arg in "$@"; do
     echo "  --seed-only  Run only the seed step (no build/deploy). Uses CLOUD_SQL_DATABASE_URL from .env."
     echo "               Uses your gcloud auth; for Cloud SQL socket URLs the script starts Cloud SQL Proxy automatically."
     echo "  Run 'gcloud auth application-default login' once if you get an auth error during seed."
-    echo "  For Cloud SQL with only private IP: set CLOUD_SQL_PRIVATE_IP=1 in .env and run --seed-only from a machine that can reach your VPC (VPN or GCE VM). Or enable a public IP on the instance to seed from a laptop."
     echo "  Set CLOUD_SQL_DATABASE_URL or DATABASE_URL in .env for backend services."
     exit 0
   fi
@@ -330,14 +329,14 @@ if [[ -n "$DO_SEED" ]]; then
     SEED_PYTHON="$REPO_ROOT/.venv/bin/python3"
   elif [[ -x "$REPO_ROOT/.venv/bin/python3" ]]; then
     echo "  Installing psycopg2-binary into .venv..."
-    "$REPO_ROOT/.venv/bin/pip" install -q psycopg2-binary || { echo "Seed: pip install psycopg2-binary failed." >&2; exit 1; }
+    "$REPO_ROOT/.venv/bin/pip" install -q -r "$REPO_ROOT/requirements-seed.txt" || { echo "Seed: pip install -r requirements-seed.txt failed." >&2; exit 1; }
     SEED_PYTHON="$REPO_ROOT/.venv/bin/python3"
   else
     SEED_VENV="$REPO_ROOT/.tmp/seed-venv"
     if [[ ! -x "$SEED_VENV/bin/python3" ]]; then
       echo "  Creating seed venv at .tmp/seed-venv..."
       python3 -m venv "$SEED_VENV" || { echo "Seed: python3 -m venv failed." >&2; exit 1; }
-      "$SEED_VENV/bin/pip" install -q psycopg2-binary || { echo "Seed: pip install psycopg2-binary failed." >&2; exit 1; }
+      "$SEED_VENV/bin/pip" install -q -r "$REPO_ROOT/requirements-seed.txt" || { echo "Seed: pip install -r requirements-seed.txt failed." >&2; exit 1; }
     fi
     SEED_PYTHON="$SEED_VENV/bin/python3"
   fi
@@ -346,14 +345,7 @@ if [[ -n "$DO_SEED" ]]; then
   NEED_PROXY=""
   if [[ "$DEPLOY_DATABASE_URL" == *"/cloudsql/"* ]]; then
     NEED_PROXY=1
-    # Use --private-ip only when requested (instance has no public IP). From a laptop, private IP is unreachable unless on VPN or same VPC; prefer enabling public IP on the instance so seed works without VPN.
-    PROXY_PRIVATE_IP=""
-    if [[ -n "${CLOUD_SQL_PRIVATE_IP:-}" ]] && [[ "${CLOUD_SQL_PRIVATE_IP}" =~ ^(1|true|yes|on)$ ]]; then
-      PROXY_PRIVATE_IP="--private-ip"
-      echo "  Cloud SQL socket URL detected; starting Cloud SQL Proxy (uses your gcloud auth, --private-ip). Run from a machine that can reach your VPC (e.g. VPN or GCE VM)."
-    else
-      echo "  Cloud SQL socket URL detected; starting Cloud SQL Proxy (uses your gcloud auth; public IP). If you see 'instance does not have IP of type PUBLIC', enable public IP on the instance or set CLOUD_SQL_PRIVATE_IP=1 and run from VPN/GCP."
-    fi
+    echo "  Cloud SQL socket URL detected; starting Cloud SQL Proxy (uses your gcloud auth)..."
     # Parse URL: get connection name and build TCP URL (Python)
     SEED_PARSE=$(python3 - "$DEPLOY_DATABASE_URL" << 'PYSEED'
 import sys
@@ -410,7 +402,7 @@ PYSEED
         chmod +x "$PROXY_BIN"
       fi
     fi
-    "$PROXY_BIN" --port 5433 $PROXY_PRIVATE_IP "$CONNECTION_NAME" &
+    "$PROXY_BIN" --port 5433 "$CONNECTION_NAME" &
     PROXY_PID=$!
     # Wait for proxy to listen
     for i in 1 2 3 4 5 6 7 8 9 10; do

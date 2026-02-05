@@ -1,0 +1,3 @@
+# For scripts/init_postgres.py and scripts/seed_postgres.py (used by deploy-gcp.sh --seed / --seed-only)
+bcrypt>=4.0.0
+psycopg2-binary>=2.9.9
