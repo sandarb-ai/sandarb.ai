@@ -25,7 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ContextEditor } from '@/components/context-editor';
 import { ComplianceMetadataFields } from '@/components/compliance-metadata-fields';
 import { apiUrl } from '@/lib/api';
-import type { Context, ContextRevision, LineOfBusiness, DataClassification, RegulatoryHook } from '@/types';
+import type { Context, ContextRevision, DataClassification, RegulatoryHook, Organization } from '@/types';
 import { formatDate, formatApprovedBy } from '@/lib/utils';
 import { ContentDiffView } from '@/components/content-diff-view';
 import {
@@ -37,11 +37,8 @@ import {
 
 function InjectApiBar({ contextName }: { contextName: string }) {
   const [copied, setCopied] = useState(false);
-  // Auditable injection requires agentId and traceId (headers or query). Use preview agent for Test API / Copy URL.
-  const agentId = 'sandarb-context-preview';
-  const traceId = 'test-1';
-  const apiPath = `/api/inject?name=${encodeURIComponent(contextName)}&format=json&agentId=${encodeURIComponent(agentId)}&traceId=${encodeURIComponent(traceId)}`;
-  const fullUrl = typeof window !== 'undefined' ? `${window.location.origin}${apiPath}` : apiPath;
+  const apiPath = `/api/inject?name=${encodeURIComponent(contextName)}&format=json&agentId=preview&traceId=test`;
+  const fullUrl = apiUrl(apiPath);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(fullUrl);
@@ -49,29 +46,20 @@ function InjectApiBar({ contextName }: { contextName: string }) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleTest = () => {
-    if (typeof window !== 'undefined') window.open(fullUrl, '_blank', 'noopener');
-  };
-
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border/80 bg-muted/30 px-4 py-2.5">
-      <span className="inline-flex items-center gap-2 text-sm font-medium">
-        <span className="inline-flex items-center rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
-          Live
-        </span>
-        What your agent receives
-      </span>
-      <code className="flex-1 min-w-0 truncate rounded bg-muted/80 px-2 py-1 text-xs font-mono" title={fullUrl}>
-        GET {apiPath}
+    <div className="rounded-lg border bg-muted/30 p-3">
+      <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">API Endpoint</h4>
+      <code className="block text-[11px] font-mono bg-muted rounded px-2 py-2 break-all mb-2">
+        GET {fullUrl}
       </code>
-      <div className="flex items-center gap-1.5">
-        <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={handleCopy}>
-          {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
-          {copied ? 'Copied' : 'Copy URL'}
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" className="flex-1 h-8 text-xs" onClick={handleCopy}>
+          {copied ? <Check className="h-3 w-3 mr-1 text-green-600" /> : <Copy className="h-3 w-3 mr-1" />}
+          {copied ? 'Copied' : 'Copy'}
         </Button>
-        <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={handleTest}>
-          <ExternalLink className="h-3.5 w-3.5" />
-          Test API
+        <Button variant="outline" size="sm" className="flex-1 h-8 text-xs" onClick={() => window.open(fullUrl, '_blank')}>
+          <ExternalLink className="h-3 w-3 mr-1" />
+          Test
         </Button>
       </div>
     </div>
@@ -85,16 +73,20 @@ export default function EditContextPage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [context, setContext] = useState<Context | null>(null);
   const [description, setDescription] = useState('');
   const [content, setContent] = useState<Record<string, unknown>>({});
   const [isActive, setIsActive] = useState(true);
-  const [lineOfBusiness, setLineOfBusiness] = useState<LineOfBusiness | null>(null);
+  const [orgId, setOrgId] = useState<string | null>(null);
   const [dataClassification, setDataClassification] = useState<DataClassification | null>(null);
   const [regulatoryHooks, setRegulatoryHooks] = useState<RegulatoryHook[]>([]);
   const [revisions, setRevisions] = useState<ContextRevision[]>([]);
   const [activeTab, setActiveTab] = useState('content');
   const [diffRevision, setDiffRevision] = useState<ContextRevision | null>(null);
+  const [commitMessage, setCommitMessage] = useState('');
+  const [autoApprove, setAutoApprove] = useState(true);
+  const [creatingRevision, setCreatingRevision] = useState(false);
 
   const fetchContext = async () => {
     try {
@@ -106,7 +98,7 @@ export default function EditContextPage() {
         setDescription(ctx.description || '');
         setContent(ctx.content ?? {});
         setIsActive(ctx.isActive);
-        setLineOfBusiness(ctx.lineOfBusiness ?? null);
+        setOrgId(ctx.orgId ?? null);
         setDataClassification(ctx.dataClassification ?? null);
         setRegulatoryHooks(ctx.regulatoryHooks ?? []);
       }
@@ -129,12 +121,22 @@ export default function EditContextPage() {
     fetchContext();
   }, [id]);
 
+  useEffect(() => {
+    fetch(apiUrl('/api/organizations'))
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success && Array.isArray(d.data)) {
+          setOrganizations(d.data as Organization[]);
+        }
+      });
+  }, []);
+
   // Fetch revisions on load so History/Pending tab counts are correct without clicking
   useEffect(() => {
     if (id) fetchRevisions();
   }, [id]);
 
-  const handleSave = async () => {
+  const handleSaveMetadata = async () => {
     setSaving(true);
     try {
       const res = await fetch(apiUrl(`/api/contexts/${id}`), {
@@ -142,9 +144,8 @@ export default function EditContextPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           description,
-          content,
           isActive,
-          lineOfBusiness,
+          orgId,
           dataClassification,
           regulatoryHooks,
         }),
@@ -159,6 +160,39 @@ export default function EditContextPage() {
       alert('Failed to update context');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleCreateRevision = async () => {
+    if (!commitMessage.trim()) {
+      alert('Commit message is required');
+      return;
+    }
+
+    setCreatingRevision(true);
+    try {
+      const res = await fetch(apiUrl(`/api/contexts/${id}/revisions`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content,
+          commitMessage,
+          autoApprove,
+        }),
+      });
+      if (res.ok) {
+        setCommitMessage('');
+        setActiveTab(autoApprove ? 'history' : 'pending');
+        fetchContext();
+        fetchRevisions();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to save revision');
+      }
+    } catch {
+      alert('Failed to save revision');
+    } finally {
+      setCreatingRevision(false);
     }
   };
 
@@ -201,6 +235,12 @@ export default function EditContextPage() {
 
   const proposed = revisions.filter((r) => r.status === 'proposed');
   const history = revisions.filter((r) => r.status === 'approved' || r.status === 'rejected');
+  
+  // Get current active version (latest approved)
+  const currentVersion = history
+    .filter((r) => r.status === 'approved')
+    .sort((a, b) => (b.version || 0) - (a.version || 0))[0];
+  const nextVersion = currentVersion ? (currentVersion.version || 0) + 1 : 1;
 
   if (loading) {
     return (
@@ -225,8 +265,8 @@ export default function EditContextPage() {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <header className="sticky top-0 z-10 flex items-center justify-between border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-6 py-3">
+    <div className="flex flex-col h-full min-h-0">
+      <header className="sticky top-0 z-10 shrink-0 flex items-center justify-between border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-6 py-3">
         <div className="flex items-center gap-4">
           <Link href="/contexts">
             <Button variant="ghost" size="icon">
@@ -236,9 +276,9 @@ export default function EditContextPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-semibold tracking-tight font-mono">{context.name}</h1>
-              <Badge variant={isActive ? 'success' : 'secondary'}>
-                {isActive ? 'Active' : 'Inactive'}
-              </Badge>
+              {currentVersion && (
+                <Badge variant="outline" className="font-mono">v{currentVersion.version}</Badge>
+              )}
             </div>
             {description && (
               <p className="text-sm text-muted-foreground truncate max-w-md">{description}</p>
@@ -246,330 +286,382 @@ export default function EditContextPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setIsActive(!isActive)}>
+          <Badge variant={isActive ? 'success' : 'secondary'} className="h-8 px-3 text-xs">
+            {isActive ? 'Active' : 'Inactive'}
+          </Badge>
+          <Button variant="outline" size="sm" className="h-8" onClick={() => { setIsActive(!isActive); handleSaveMetadata(); }}>
             {isActive ? 'Deactivate' : 'Activate'}
           </Button>
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
-            className="text-destructive hover:text-destructive"
+            className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
             onClick={handleDelete}
           >
             <Trash2 className="h-4 w-4" />
           </Button>
-          <Button size="sm" onClick={handleSave} disabled={saving}>
-            <Save className="h-4 w-4 mr-1" />
-            {saving ? 'Saving...' : 'Save'}
-          </Button>
         </div>
       </header>
 
-      <div className="flex-1 p-6 overflow-auto flex flex-col min-h-0">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
-          <TabsList className="mb-4 shrink-0">
-            <TabsTrigger value="content" className="gap-2">
-              <FileEdit className="h-4 w-4" />
-              Edit content
-            </TabsTrigger>
-            <TabsTrigger value="compliance" className="gap-2">
-              <Shield className="h-4 w-4" />
-              Compliance
-            </TabsTrigger>
-            <TabsTrigger value="history" className="gap-2">
-              <History className="h-4 w-4" />
-              History ({history.length})
-            </TabsTrigger>
-            <TabsTrigger value="pending" className="gap-2">
-              <GitPullRequest className="h-4 w-4" />
-              Pending ({proposed.length})
-            </TabsTrigger>
-          </TabsList>
+      {/* Main content area — same layout as prompt detail */}
+      <div className="flex-1 flex min-h-0">
+        {/* Left: Editor and tabs */}
+        <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden">
+            <div className="flex items-center gap-1 px-6 py-3 border-b bg-muted/30 shrink-0">
+              <TabsList className="h-8 bg-transparent p-0 gap-1">
+                <TabsTrigger value="content" className="h-8 px-3 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">
+                  <FileEdit className="h-3.5 w-3.5 mr-1.5" />
+                  Edit
+                </TabsTrigger>
+                <TabsTrigger value="history" className="h-8 px-3 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">
+                  <History className="h-3.5 w-3.5 mr-1.5" />
+                  History
+                  {history.length > 0 && <span className="ml-1.5 text-xs text-muted-foreground">({history.length})</span>}
+                </TabsTrigger>
+                <TabsTrigger value="pending" className="h-8 px-3 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">
+                  <GitPullRequest className="h-3.5 w-3.5 mr-1.5" />
+                  Pending
+                  {proposed.length > 0 && <span className="ml-1.5 text-xs text-muted-foreground bg-amber-100 dark:bg-amber-900/50 px-1.5 py-0.5 rounded-full">{proposed.length}</span>}
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
-          <TabsContent value="content" className="mt-0 flex-1 min-h-0 flex flex-col">
-            <div className="grid gap-6 lg:grid-cols-[1fr,minmax(300px,340px)] min-h-0 h-[calc(100vh-160px)]">
-              {/* Left pane: Content editor + compact "What your agent receives" bar */}
-              <div className="flex flex-col gap-4 min-h-0 overflow-hidden">
-                {/* Content (JSON) — fills available height */}
-                <div className="flex flex-col min-h-0 flex-1">
-                  <div className="flex items-center justify-between mb-2 shrink-0">
-                    <h3 className="text-sm font-semibold text-foreground">Content (JSON)</h3>
-                    <p className="text-xs text-muted-foreground">
-                      <code className="rounded bg-muted px-1.5 py-0.5">{'{{var}}'}</code> for variables
-                    </p>
-                  </div>
-                  <div className="flex-1 min-h-0 rounded-xl border border-border/80 overflow-hidden bg-background shadow-sm ring-1 ring-black/5 dark:ring-white/5">
-                    <ContextEditor value={content} onChange={setContent} />
-                  </div>
+            {/* Edit tab — editor scrolls in its own area; Save Changes bar fixed at bottom, never overlaps */}
+            <TabsContent value="content" className="mt-0 flex-1 flex flex-col min-h-0 m-0 overflow-hidden">
+              <div className="flex-1 min-h-0 overflow-auto p-6">
+                <div className="h-full min-h-[300px] rounded-lg border bg-background overflow-hidden">
+                  <ContextEditor value={content} onChange={setContent} className="h-full min-w-0" />
                 </div>
-                {/* Live — What your agent receives: copy + test API */}
-                <InjectApiBar contextName={context.name} />
               </div>
-
-              {/* Right pane: Regulatory & compliance only — resized for clarity */}
-              <div className="flex flex-col min-h-0 lg:sticky lg:top-[57px] lg:self-start lg:max-h-[calc(100vh-100px)] overflow-auto">
-                <Card className="border-l-4 border-l-primary shadow-sm">
-                  <CardHeader className="py-3 px-4">
-                    <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-                      <Shield className="h-3.5 w-3.5 text-primary" />
-                      Regulatory & compliance
-                    </CardTitle>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      LOB, data classification, and regulatory hooks for governance and search.
-                    </p>
-                  </CardHeader>
-                  <CardContent className="px-4 pb-4 pt-0">
-                    <ComplianceMetadataFields
-                      lineOfBusiness={lineOfBusiness}
-                      dataClassification={dataClassification}
-                      regulatoryHooks={regulatoryHooks}
-                      onLineOfBusinessChange={setLineOfBusiness}
-                      onDataClassificationChange={setDataClassification}
-                      onRegulatoryHooksChange={setRegulatoryHooks}
+              {/* Save Changes — always at bottom of tab, never overlaps editor */}
+              <div className="flex-none border-t bg-muted/20 px-6 py-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-sm font-semibold">Save Changes</h3>
+                    <span className="text-xs text-amber-600 dark:text-amber-500 font-medium">* Change documentation required</span>
+                  </div>
+                  {currentVersion ? (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>Current:</span>
+                      <Badge variant="outline" className="font-mono">v{currentVersion.version}</Badge>
+                      <span>→</span>
+                      <Badge variant="secondary" className="font-mono">v{nextVersion}</Badge>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>New:</span>
+                      <Badge variant="secondary" className="font-mono">v1</Badge>
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-4 min-w-0">
+                  <input
+                    type="text"
+                    value={commitMessage}
+                    onChange={(e) => setCommitMessage(e.target.value)}
+                    placeholder="Describe your changes (required)..."
+                    className="min-w-[12rem] flex-1 h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                  <label className="flex shrink-0 items-center gap-2 cursor-pointer select-none text-sm text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      checked={autoApprove}
+                      onChange={(e) => setAutoApprove(e.target.checked)}
+                      className="rounded border-input h-4 w-4"
                     />
-                  </CardContent>
-                </Card>
-                {/* Linked agents: which agent(s) this context belongs to */}
-                <Card className="border-l-4 border-l-muted shadow-sm">
-                  <CardHeader className="py-3 px-4">
-                    <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-                      <Bot className="h-3.5 w-3.5 text-muted-foreground" />
-                      Linked agents
-                    </CardTitle>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      This context is available to these agents when they inject by name.
-                    </p>
-                  </CardHeader>
-                  <CardContent className="px-4 pb-4 pt-0">
-                    {(context.agents?.length ?? 0) > 0 ? (
-                      <ul className="space-y-1.5">
-                        {context.agents!.map((a) => (
-                          <li key={a.id}>
-                            <Link
-                              href={`/agents/${a.id}`}
-                              className="text-sm font-medium text-primary hover:underline"
-                            >
-                              {a.name}
-                              {a.agentId && (
-                                <span className="text-muted-foreground font-normal ml-1 font-mono text-xs">
-                                  ({a.agentId})
-                                </span>
-                              )}
-                            </Link>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-sm text-muted-foreground italic">Not linked to any agent</p>
-                    )}
-                  </CardContent>
-                </Card>
+                    Auto-approve
+                  </label>
+                  <Button
+                    type="button"
+                    onClick={handleCreateRevision}
+                    disabled={creatingRevision || !(commitMessage && commitMessage.trim())}
+                    className="shrink-0"
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    {creatingRevision ? 'Saving...' : 'Save version'}
+                  </Button>
+                </div>
+              </div>
+            </TabsContent>
+
+          <TabsContent value="history" className="mt-0 flex-1 min-h-0 flex flex-col px-6 pb-6 overflow-auto">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <GitCommit className="h-5 w-5" />
+                  Version History
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  All approved and rejected changes. Click on a revision to view the full diff.
+                </p>
               </div>
             </div>
-          </TabsContent>
-
-          <TabsContent value="compliance" className="mt-0">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Shield className="h-4 w-4" />
-                  Regulatory & compliance
-                </CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Line of business, data classification, and regulatory hooks for governance and search.
-                </p>
-              </CardHeader>
-              <CardContent>
-                <ComplianceMetadataFields
-                  lineOfBusiness={lineOfBusiness}
-                  dataClassification={dataClassification}
-                  regulatoryHooks={regulatoryHooks}
-                  onLineOfBusinessChange={setLineOfBusiness}
-                  onDataClassificationChange={setDataClassification}
-                  onRegulatoryHooksChange={setRegulatoryHooks}
-                />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="history" className="mt-0">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <GitCommit className="h-4 w-4" />
-                  Version history
-                </CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  All approved and rejected changes. Click on the diff to view full comparison.
-                </p>
-              </CardHeader>
-              <CardContent className="p-0">
-                {history.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-6 text-center px-6">
-                    No history yet. Save or approve a proposed change to see commits here.
-                  </p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-border bg-muted/50">
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Created</th>
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Created by</th>
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Submitted by</th>
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Approved by</th>
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Modified</th>
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Modified by</th>
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap w-40">Commit message</th>
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground min-w-[320px] lg:min-w-[480px]">Changes (diff)</th>
-                          <th className="text-right py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {history.map((rev) => (
-                          <tr key={rev.id} className="border-b border-border/80 hover:bg-muted/20 align-top">
-                            <td className="py-3 px-4 whitespace-nowrap text-muted-foreground">{formatDate(rev.createdAt)}</td>
-                            <td className="py-3 px-4 whitespace-nowrap">{formatApprovedBy(rev.createdBy)}</td>
-                            <td className="py-3 px-4 whitespace-nowrap">{formatApprovedBy(rev.submittedBy)}</td>
-                            <td className="py-3 px-4 whitespace-nowrap">{formatApprovedBy(rev.approvedBy)}</td>
-                            <td className="py-3 px-4 whitespace-nowrap text-muted-foreground">
-                              {rev.updatedAt ? formatDate(rev.updatedAt) : '—'}
-                            </td>
-                            <td className="py-3 px-4 whitespace-nowrap">{formatApprovedBy(rev.updatedBy)}</td>
-                            <td className="py-3 px-4 max-w-[12rem]">
-                              <p className="truncate font-medium text-foreground" title={rev.commitMessage || undefined}>
-                                {rev.commitMessage || 'No message'}
-                              </p>
-                            </td>
-                            <td className="py-2 px-4 min-w-[320px] lg:min-w-[480px]">
-                              {context && (
-                                <div 
-                                  className="rounded border border-border/60 bg-muted/20 overflow-hidden max-h-40 overflow-y-auto cursor-pointer hover:border-primary/50 transition-colors"
-                                  onClick={() => setDiffRevision(rev)}
-                                  title="Click to view full diff"
-                                >
-                                  <ContentDiffView
-                                    oldContent={rev.content}
-                                    newContent={context.content ?? {}}
-                                    oldLabel="Revision"
-                                    newLabel="Current"
-                                    className="!border-0 !rounded-none text-[11px]"
-                                  />
-                                </div>
-                              )}
-                            </td>
-                            <td className="py-3 px-4 text-right whitespace-nowrap">
-                              <Badge
-                                variant={
-                                  rev.status === 'approved'
-                                    ? 'success'
-                                    : rev.status === 'proposed'
-                                      ? 'pending_review'
-                                      : rev.status === 'rejected'
-                                        ? 'destructive'
-                                        : 'secondary'
-                                }
-                              >
-                                {rev.status}
+            
+            {history.length === 0 ? (
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center py-12">
+                  <GitCommit className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
+                  <p className="text-muted-foreground">No history yet.</p>
+                  <p className="text-sm text-muted-foreground">Save or approve a proposed change to see commits here.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 min-h-0 overflow-auto space-y-3">
+                {[...history].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map((rev, idx) => {
+                  const isLatestApproved = rev.status === 'approved' && idx === 0;
+                  return (
+                    <div 
+                      key={rev.id} 
+                      className={`rounded-lg border bg-card p-4 transition-colors hover:border-primary/30 cursor-pointer ${isLatestApproved ? 'border-l-4 border-l-primary' : ''}`}
+                      onClick={() => setDiffRevision(rev)}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          {/* Header row: status badge, active indicator */}
+                          <div className="flex items-center gap-2 mb-2">
+                            <Badge
+                              variant={
+                                rev.status === 'approved'
+                                  ? 'success'
+                                  : rev.status === 'rejected'
+                                    ? 'destructive'
+                                    : 'secondary'
+                              }
+                            >
+                              {rev.status === 'approved' ? 'Approved' : rev.status === 'rejected' ? 'Rejected' : rev.status}
+                            </Badge>
+                            {isLatestApproved && (
+                              <Badge variant="outline" className="text-primary border-primary/50">
+                                Active
                               </Badge>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                            )}
+                          </div>
+                          
+                          {/* Commit message */}
+                          <p className="font-medium text-sm mb-2">
+                            {rev.commitMessage || 'No commit message'}
+                          </p>
+                          
+                          {/* Meta info row */}
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                            <span>Created {formatDate(rev.createdAt)}</span>
+                            {rev.createdBy && <span>by {formatApprovedBy(rev.createdBy)}</span>}
+                            {rev.approvedBy && (
+                              <span className="flex items-center gap-1">
+                                <Check className="h-3 w-3 text-green-600" />
+                                Approved by {formatApprovedBy(rev.approvedBy)}
+                              </span>
+                            )}
+                          </div>
+                          
+                          {/* Inline diff preview */}
+                          {context && (
+                            <div className="mt-3 rounded border border-border/60 bg-muted/20 overflow-hidden max-h-32 overflow-y-auto">
+                              <ContentDiffView
+                                oldContent={rev.content}
+                                newContent={context.content ?? {}}
+                                oldLabel="Revision"
+                                newLabel="Current"
+                                className="!border-0 !rounded-none text-[11px]"
+                              />
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Actions */}
+                        <div className="flex flex-col gap-2 shrink-0">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDiffRevision(rev);
+                            }}
+                            className="gap-1.5"
+                          >
+                            <FileEdit className="h-3.5 w-3.5" />
+                            View diff
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </TabsContent>
 
-          <TabsContent value="pending" className="mt-0">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <GitPullRequest className="h-4 w-4" />
-                  Pending review
-                </CardTitle>
+          <TabsContent value="pending" className="mt-0 flex-1 min-h-0 flex flex-col px-6 pb-6 overflow-auto">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <GitPullRequest className="h-5 w-5" />
+                  Pending Review
+                </h2>
                 <p className="text-sm text-muted-foreground">
-                  Proposed changes waiting for approval or rejection. Click on the diff to view full comparison.
+                  Proposed changes waiting for approval or rejection.
                 </p>
-              </CardHeader>
-              <CardContent className="p-0">
-                {proposed.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-6 text-center px-6">
-                    No pending proposals. Use "Propose changes" on the Content tab.
-                  </p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-border bg-muted/50">
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Created</th>
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Created by</th>
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Submitted by</th>
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground w-40">Commit message</th>
-                          <th className="text-left py-3 px-4 font-medium text-muted-foreground min-w-[320px] lg:min-w-[480px]">Changes (diff)</th>
-                          <th className="text-right py-3 px-4 font-medium text-muted-foreground whitespace-nowrap">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {proposed.map((rev) => (
-                          <tr key={rev.id} className="border-b border-border/80 hover:bg-muted/20 align-top">
-                            <td className="py-3 px-4 whitespace-nowrap text-muted-foreground">{formatDate(rev.createdAt)}</td>
-                            <td className="py-3 px-4 whitespace-nowrap">{formatApprovedBy(rev.createdBy)}</td>
-                            <td className="py-3 px-4 whitespace-nowrap">{formatApprovedBy(rev.submittedBy)}</td>
-                            <td className="py-3 px-4 max-w-[12rem]">
-                              <p className="truncate font-medium text-foreground" title={rev.commitMessage || undefined}>
-                                {rev.commitMessage || 'No message'}
-                              </p>
-                            </td>
-                            <td className="py-2 px-4 min-w-[320px] lg:min-w-[480px]">
-                              {context && (
-                                <div 
-                                  className="rounded border border-border/60 bg-muted/20 overflow-hidden max-h-40 overflow-y-auto cursor-pointer hover:border-primary/50 transition-colors"
-                                  onClick={() => setDiffRevision(rev)}
-                                  title="Click to view full diff"
-                                >
-                                  <ContentDiffView
-                                    oldContent={context.content ?? {}}
-                                    newContent={rev.content}
-                                    oldLabel="Current"
-                                    newLabel="Proposed"
-                                    className="!border-0 !rounded-none text-[11px]"
-                                  />
-                                </div>
-                              )}
-                            </td>
-                            <td className="py-3 px-4 text-right whitespace-nowrap">
-                              <Button
-                                size="sm"
-                                variant="approve"
-                                className="mr-1"
-                                onClick={() => handleApproveRevision(rev.id)}
-                              >
-                                <Check className="h-4 w-4 mr-1" />
-                                Approve
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="text-destructive"
-                                onClick={() => handleRejectRevision(rev.id)}
-                              >
-                                <XCircle className="h-4 w-4 mr-1" />
-                                Reject
-                              </Button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+              </div>
+            </div>
+            
+            {proposed.length === 0 ? (
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center py-12">
+                  <GitPullRequest className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
+                  <p className="text-muted-foreground">No pending proposals.</p>
+                  <p className="text-sm text-muted-foreground">Use "Propose changes" on the Content tab.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 min-h-0 overflow-auto space-y-3">
+                {proposed.map((rev) => (
+                  <div 
+                    key={rev.id} 
+                    className="rounded-lg border border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-950/20 p-4"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        {/* Header row */}
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge variant="pending_review">
+                            Pending Review
+                          </Badge>
+                        </div>
+                        
+                        {/* Commit message */}
+                        <p className="font-medium text-sm mb-2">
+                          {rev.commitMessage || 'No commit message'}
+                        </p>
+                        
+                        {/* Meta info row */}
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mb-3">
+                          <span>Created {formatDate(rev.createdAt)}</span>
+                          {rev.createdBy && <span>by {formatApprovedBy(rev.createdBy)}</span>}
+                          {rev.submittedBy && <span>Submitted by {formatApprovedBy(rev.submittedBy)}</span>}
+                        </div>
+                        
+                        {/* Diff preview */}
+                        {context && (
+                          <div 
+                            className="rounded border border-border/60 bg-background/80 overflow-hidden max-h-40 overflow-y-auto cursor-pointer hover:border-primary/50 transition-colors"
+                            onClick={() => setDiffRevision(rev)}
+                            title="Click to view full diff"
+                          >
+                            <ContentDiffView
+                              oldContent={context.content ?? {}}
+                              newContent={rev.content}
+                              oldLabel="Current"
+                              newLabel="Proposed"
+                              className="!border-0 !rounded-none text-[11px]"
+                            />
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Actions */}
+                      <div className="flex flex-col gap-2 shrink-0">
+                        <Button
+                          size="sm"
+                          variant="approve"
+                          onClick={() => handleApproveRevision(rev.id)}
+                          className="gap-1.5"
+                        >
+                          <Check className="h-4 w-4" />
+                          Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-destructive gap-1.5"
+                          onClick={() => handleRejectRevision(rev.id)}
+                        >
+                          <XCircle className="h-4 w-4" />
+                          Reject
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDiffRevision(rev)}
+                          className="gap-1.5 text-xs"
+                        >
+                          <FileEdit className="h-3.5 w-3.5" />
+                          View diff
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                )}
-              </CardContent>
-            </Card>
+                ))}
+              </div>
+            )}
           </TabsContent>
-        </Tabs>
+          </Tabs>
+        </div>
 
-        {/* Version diff dialog: compare revision content vs current */}
+        {/* Right sidebar — same as prompt detail */}
+        <aside className="w-72 border-l bg-muted/10 p-5 overflow-auto shrink-0 hidden lg:block">
+          <div className="space-y-6">
+            {/* Active version */}
+            {currentVersion && (
+              <section>
+                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">Active Version</h3>
+                <div className="space-y-2">
+                  <Badge variant="success" className="font-mono">v{currentVersion.version}</Badge>
+                  {currentVersion.approvedBy && (
+                    <p className="text-xs text-muted-foreground">Approved by {formatApprovedBy(currentVersion.approvedBy)}</p>
+                  )}
+                  {currentVersion.approvedAt && (
+                    <p className="text-xs text-muted-foreground">{formatDate(currentVersion.approvedAt)}</p>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {/* Compliance */}
+            <section>
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                <Shield className="h-3 w-3" />
+                Compliance
+              </h3>
+              <ComplianceMetadataFields
+                organizations={organizations}
+                orgId={orgId}
+                onOrgIdChange={setOrgId}
+                dataClassification={dataClassification}
+                regulatoryHooks={regulatoryHooks}
+                onDataClassificationChange={setDataClassification}
+                onRegulatoryHooksChange={setRegulatoryHooks}
+              />
+            </section>
+
+            {/* Linked agents */}
+            <section>
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                <Bot className="h-3 w-3" />
+                Linked Agents
+              </h3>
+              {(context.agents?.length ?? 0) > 0 ? (
+                <ul className="space-y-1.5">
+                  {context.agents!.map((a) => (
+                    <li key={a.id}>
+                      <Link href={`/agents/${a.id}`} className="text-sm text-primary hover:underline">
+                        {a.name}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-muted-foreground">No linked agents</p>
+              )}
+            </section>
+
+            {/* API endpoint */}
+            <InjectApiBar contextName={context.name} />
+          </div>
+        </aside>
+      </div>
+
+      {/* Version diff dialog: compare revision content vs current */}
         <Dialog open={!!diffRevision} onOpenChange={(open) => !open && setDiffRevision(null)}>
           <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
             <DialogHeader>
@@ -586,7 +678,6 @@ export default function EditContextPage() {
             )}
           </DialogContent>
         </Dialog>
-      </div>
     </div>
   );
 }
