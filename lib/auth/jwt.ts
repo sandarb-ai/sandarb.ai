@@ -14,15 +14,9 @@ function getSecret(): Uint8Array {
   return new TextEncoder().encode(raw || DEV_SECRET);
 }
 
-// Fail fast in production if JWT_SECRET is missing or weak (when this module is first loaded)
-if (process.env.NODE_ENV === 'production') {
-  const raw = process.env.JWT_SECRET;
-  if (!raw || raw === DEV_SECRET) {
-    throw new Error(
-      'JWT_SECRET must be set to a strong secret in production. Do not use dev-secret-do-not-use-in-prod.'
-    );
-  }
-}
+// Note: JWT_SECRET validation happens in getSecret() when actually signing/verifying.
+// This allows the module to be imported without throwing, enabling graceful error handling
+// in contexts where JWT functionality is optional (e.g., demo signup without write access).
 
 let _cachedSecret: Uint8Array | null = null;
 

@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import { SignupForm } from './signup-form';
 import { setDemoCookies } from './actions';
 
@@ -32,7 +31,6 @@ const BOOT_LINES = [
 ];
 
 export function SignupCardOrTerminal({ from }: { from?: string }) {
-  const router = useRouter();
   const [view, setView] = useState<'card' | 'terminal'>('card');
   const [bootLineIndex, setBootLineIndex] = useState(0);
   const [accessGranted, setAccessGranted] = useState(false);
@@ -63,18 +61,15 @@ export function SignupCardOrTerminal({ from }: { from?: string }) {
     try {
       // Set cookies via server action (returns target path)
       const targetPath = await setDemoCookies(fd);
-      // Use router.push for client-side navigation (works in production)
-      router.push(targetPath);
-      // Fallback: if router.push doesn't work, use window.location after a delay
-      setTimeout(() => {
-        window.location.href = targetPath;
-      }, 1500);
+      // Use hard navigation to ensure cookies are sent with the request
+      // router.push can cause race conditions with middleware cookie checks
+      window.location.href = targetPath;
     } catch (error) {
       // Fallback to direct navigation
       const targetPath = from?.startsWith('/') ? from : '/dashboard';
       window.location.href = targetPath;
     }
-  }, [from, router, isRedirecting]);
+  }, [from, isRedirecting]);
 
   // Boot sequence: reveal one line every ~400ms
   useEffect(() => {

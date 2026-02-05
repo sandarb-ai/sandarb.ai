@@ -20,17 +20,20 @@ export async function setDemoCookies(formData?: FormData): Promise<string> {
   const cookieStore = await cookies();
   const provider = (formData?.get('provider') as string) || 'Demo';
   const email = (formData?.get('email') as string)?.trim();
+  const isProduction = process.env.NODE_ENV === 'production';
   cookieStore.set(DEMO_COOKIE_NAME, '1', {
     path: '/',
     maxAge: DEMO_COOKIE_MAX_AGE,
     sameSite: 'lax',
     httpOnly: false,
+    secure: isProduction,
   });
   cookieStore.set(DEMO_PROVIDER_COOKIE, provider, {
     path: '/',
     maxAge: DEMO_COOKIE_MAX_AGE,
     sameSite: 'lax',
     httpOnly: false,
+    secure: isProduction,
   });
   if (email) {
     try {
@@ -40,6 +43,7 @@ export async function setDemoCookies(formData?: FormData): Promise<string> {
         maxAge: WRITE_JWT_MAX_AGE,
         sameSite: 'lax',
         httpOnly: false,
+        secure: isProduction,
       });
     } catch {
       // JWT_SECRET missing or invalid; leave write cookie unset
