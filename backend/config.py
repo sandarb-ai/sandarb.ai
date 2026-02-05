@@ -17,7 +17,14 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql://postgres:sandarb@localhost:5432/sandarb"
     jwt_secret: str = DEV_SECRET_PLACEHOLDER
-    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:4000", "http://127.0.0.1:3000", "http://127.0.0.1:4000"]
+    cors_origins: list[str] = [
+        "http://localhost:3000",
+        "http://localhost:4000",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:4000",
+        "https://ui.sandarb.ai",
+        "https://sandarb-ui-hpezvkxi7q-uc.a.run.app",  # Cloud Run UI URL
+    ]
     agent_public_url: str = "http://localhost:8000"
     dev_mode: bool = Field(default=False, validation_alias="SANDARB_DEV", description="Allow preview agent without sandarb-ui key")
 
@@ -50,7 +57,14 @@ class Settings(BaseSettings):
             if origins:
                 return [o.strip() for o in origins.split(",") if o.strip()]
             return []
-        return ["http://localhost:3000", "http://localhost:4000", "http://127.0.0.1:3000", "http://127.0.0.1:4000"]
+        return [
+            "http://localhost:3000",
+            "http://localhost:4000",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:4000",
+            "https://ui.sandarb.ai",
+            "https://sandarb-ui-hpezvkxi7q-uc.a.run.app",
+        ]
 
     @field_validator("dev_mode", mode="before")
     @classmethod

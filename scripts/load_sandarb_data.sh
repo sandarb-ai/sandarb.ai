@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
 # Load demo data once: init Postgres schema (if needed) and load data/sandarb.sql.
-# Generate data first (once) with ./scripts/generate_sandarb_data.sh.
+# Generate data first with: ./scripts/generate_sandarb_data.sh
+# If you see "column lob_tag does not exist", regenerate: the schema uses org_id now.
 #
 # Usage:
 #   ./scripts/load_sandarb_data.sh [local|gcp]
