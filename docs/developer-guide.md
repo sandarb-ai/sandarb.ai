@@ -10,7 +10,6 @@ Sandarb is AI governance for your AI agents: a single place for approved prompts
 
 - **API** – CRUD for organizations, agents, contexts, prompts, templates; inject context and pull prompt by name. Context and prompt access are **gated by agent linking** (link contexts/prompts to agents in the Registry).
 - **A2A protocol** – Discovery (Agent Card) and skills: `get_context`, `validate_context`, `get_lineage`, `register`. Sandarb is an AI agent that participates in A2A as both server and first-class participant.
-- **Sandarb Client SDK** – A small library you drop into your Worker Agents so developers don’t write raw A2A/API calls every time. It handles **Check-in** (register on startup) and **Audit Push** (audit_log after inference) automatically, plus helpers for `getPrompt`, `validateContext`, `getContext`. See `lib/sandarb-client.ts` (TypeScript/Node) and the [Sandarb Client SDK](/docs#sandarb-client-sdk) section in the in-app docs.
 - **Inject API** – `GET /api/inject?name=my-context` returns approved context (JSON/YAML/text) only if the context is **linked to the calling agent** (agent_contexts). Use `sandarb-context-preview` as Agent ID for UI testing.
 - **Prompts Pull API** – `GET /api/prompts/pull?name=my-prompt` returns the current approved prompt only if it is **linked to the calling agent** (agent_prompts). Use `sandarb-prompt-preview` for UI testing.
 - **Templates** – Reusable schemas and default values for context content; link a context to a template for consistent structure
@@ -397,7 +396,7 @@ See **[sdk/python/README.md](../sdk/python/README.md)** for complete API documen
 ## Quick start
 
 ```bash
-git clone https://github.com/openint-ai/sandarb.ai.git
+git clone https://github.com/sandarb-ai/sandarb.ai.git
 cd sandarb.ai
 npm install
 export DATABASE_URL=postgresql://postgres:sandarb@localhost:5432/sandarb  # optional
@@ -550,4 +549,4 @@ Sandarb is designed to run in a **company’s control plane** for AI Governance.
 ## More
 
 - In-app docs: open **/docs** in the running Sandarb instance
-- Repository: [github.com/openint-ai/sandarb.ai](https://github.com/openint-ai/sandarb.ai)
+- Repository: [github.com/sandarb-ai/sandarb.ai](https://github.com/sandarb-ai/sandarb.ai)
