@@ -83,9 +83,7 @@ Without governing both, you cannot diagnose whether the error was a failure of *
 
 | Doc | Description |
 |-----|-------------|
-| [The Governance Protocol](reference/protocol.md) | Registry & Observer pattern, handshake (Mermaid), check-in, separation of concerns, data model and lineage. |
-| [A2A Skills (API reference)](reference/api-skills.md) | Every A2A skill from `getAgentSkills()` with request/response examples and required fields. |
-| **[Python SDK](../sdk/python/README.md)** | Full-featured Python SDK with sync/async clients, decorators, and framework integrations. |
+| **[Python SDK](../sdk/README.md)** | Full-featured Python SDK with sync/async clients, decorators, and framework integrations. |
 | [Security](SECURITY.md) | API authentication, rate limiting, security headers, error handling, and production checklist. |
 | [Deployment](DEPLOYMENT.md) | Local, GCP Cloud Run, and enterprise/on-premises deployment guides. |
 | [Environment Configuration](../.env.example) | Complete environment variable reference with examples. |

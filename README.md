@@ -79,7 +79,7 @@ We solve the "Black Box" problem of enterprise AI. Instead of scattered prompts 
 * **Pending-Review Visibility:** A clear dashboard for Compliance Officers or Engineering Leads to see every prompt change awaiting sign-off.
 * **Incident Resolution:** When an agent hallucinates, check the Audit Trail to pinpoint exactly which prompt version and context source were active at that microsecond.
 
-### 3. Prompt & Context themEngineering
+### 3. Prompt & Context Engineering
 * **Git-Like Versioning:** Roll back instantly. Fork prompts for A/B testing. Merge "Staging" prompts to "Production."
 * **Context Validation:** Sandarb ensures that the context injected (RAG) is not just "semantically relevant" but also "compliance approved" for that specific agent intent.
 
@@ -89,8 +89,7 @@ We solve the "Black Box" problem of enterprise AI. Instead of scattered prompts 
 
 Sandarb fits into your architecture however you need it to.
 
-![Integrate Your Way](./docs/images/integrate-your-way.png)
-*(Note: Add your screenshot to `docs/images/integrate-your-way.png`)*
+<!-- TODO: Add architecture diagram at docs/images/integrate-your-way.png -->
 
 * **A2A Protocol:** The Sandarb AI Governance Agent participates in A2A (the industry standard for agent-to-agent communication). Other agents call `POST /api/a2a` with skills like `get_context`, `validate_context`, and `get_lineage`; Sandarb can also communicate with other agents via A2A.
 * **API:** Standard HTTP endpoints (`GET /api/contexts`, `GET /api/agents`) for traditional integration.
@@ -214,4 +213,4 @@ llm = ChatOpenAI(callbacks=[callback])
 response = llm.invoke("Hello!")  # Automatically logged to Sandarb
 ```
 
-📚 **Full SDK Documentation:** [sdk/python/README.md](sdk/python/README.md)
+📚 **Full SDK Documentation:** [sdk/README.md](sdk/README.md)
