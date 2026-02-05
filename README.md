@@ -1,7 +1,7 @@
 # Sandarb.ai
 ### AI Governance for your AI Agents
 
-> **Our Goal:** Governance that doesn't slow shipping AI Agents. Protocol-first (A2A, MCP), versioned prompts/context, and a living agent registry.
+> **Our Goal:** Governance that doesn't slow shipping AI Agents. Protocol-first (A2A, MCP, REST API, Git), versioned prompts/context, and a living agent registry.
 
 **Sandarb** (derived from "Sandarbh" (संदर्भ), a Hindi/Sanskrit word meaning "context," "reference," or "connection") is an AI governance platform: a single place for approved prompts and context, audit trail, lineage, and a living agent registry. It is open-source and designed to be installed within your infrastructure to govern and manage your AI Agents.
 
