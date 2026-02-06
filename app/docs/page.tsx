@@ -9,13 +9,40 @@ import { DocsLayout } from './docs-layout';
 import { DocsCodeBlock } from './docs-code-block';
 import type { AgentSkill } from '@/types';
 
-/** Static A2A skills list for docs (canonical list lives in backend). */
+/** Static A2A skills list for docs (canonical list lives in backend/routers/agent_protocol.py). */
 const DOCS_AGENT_SKILLS: AgentSkill[] = [
-  { id: 'list_contexts', name: 'List contexts', description: 'List available context names', tags: ['context'], examples: [] },
-  { id: 'get_context', name: 'Get context', description: 'Get approved context by name (requires sourceAgent)', tags: ['context'], examples: [] },
-  { id: 'get_prompt', name: 'Get prompt', description: 'Get prompt content by name with optional variables', tags: ['prompt'], examples: [] },
+  // Discovery
   { id: 'agent/info', name: 'Agent info', description: 'Returns Sandarb agent card', tags: ['discovery'], examples: [] },
   { id: 'skills/list', name: 'Skills list', description: 'List supported A2A skills', tags: ['discovery'], examples: [] },
+  // Agents
+  { id: 'list_agents', name: 'List agents', description: 'List all registered agents, optionally filtered by org or approval status', tags: ['agents'], examples: [] },
+  { id: 'get_agent', name: 'Get agent', description: 'Get detailed info about a specific agent by ID', tags: ['agents'], examples: [] },
+  { id: 'get_agent_contexts', name: 'Get agent contexts', description: 'List all contexts linked to a specific agent', tags: ['agents', 'context'], examples: [] },
+  { id: 'get_agent_prompts', name: 'Get agent prompts', description: 'List all prompts linked to a specific agent', tags: ['agents', 'prompt'], examples: [] },
+  { id: 'register', name: 'Register agent', description: 'Register a new agent with the governance platform', tags: ['agents', 'registry'], examples: [] },
+  // Organizations
+  { id: 'list_organizations', name: 'List organizations', description: 'List all organizations', tags: ['organizations'], examples: [] },
+  { id: 'get_organization', name: 'Get organization', description: 'Get organization details by UUID or slug', tags: ['organizations'], examples: [] },
+  { id: 'get_organization_tree', name: 'Organization tree', description: 'Get the full organization hierarchy tree', tags: ['organizations'], examples: [] },
+  // Contexts
+  { id: 'list_contexts', name: 'List contexts', description: 'List context names available to the agent', tags: ['context'], examples: [] },
+  { id: 'get_context', name: 'Get context', description: 'Get approved context by name (requires sourceAgent)', tags: ['context'], examples: [] },
+  { id: 'get_context_by_id', name: 'Get context by ID', description: 'Get context details by UUID, including active version content', tags: ['context'], examples: [] },
+  { id: 'get_context_revisions', name: 'Context revisions', description: 'List all revisions (versions) of a context', tags: ['context'], examples: [] },
+  // Prompts
+  { id: 'list_prompts', name: 'List prompts', description: 'List prompts available to the agent', tags: ['prompt'], examples: [] },
+  { id: 'get_prompt', name: 'Get prompt', description: 'Get approved prompt content by name (requires sourceAgent)', tags: ['prompt'], examples: [] },
+  { id: 'get_prompt_by_id', name: 'Get prompt by ID', description: 'Get prompt details by UUID, including all versions', tags: ['prompt'], examples: [] },
+  { id: 'get_prompt_versions', name: 'Prompt versions', description: 'List all versions of a prompt', tags: ['prompt'], examples: [] },
+  // Audit & Lineage
+  { id: 'get_lineage', name: 'Get lineage', description: 'Get recent context delivery audit trail (successful deliveries)', tags: ['audit'], examples: [] },
+  { id: 'get_blocked_injections', name: 'Blocked injections', description: 'Get blocked/denied context injection attempts', tags: ['audit'], examples: [] },
+  { id: 'get_audit_log', name: 'Audit log', description: 'Get the full A2A audit log (inject, prompt, inference events)', tags: ['audit'], examples: [] },
+  // Dashboard & Reports
+  { id: 'get_dashboard', name: 'Dashboard', description: 'Get aggregated dashboard data (counts, recent activity)', tags: ['reports'], examples: [] },
+  { id: 'get_reports', name: 'Reports', description: 'Get governance reports (risk, regulatory, compliance)', tags: ['reports'], examples: [] },
+  // Validation
+  { id: 'validate_context', name: 'Validate context', description: 'Validate context content against governance rules', tags: ['context'], examples: [] },
 ];
 
 const HANDSHAKE_MERMAID = `sequenceDiagram
@@ -691,17 +718,29 @@ for (const contextName of manifest.contexts || []) {
 
           <H3WithAnchor>A2A alternative</H3WithAnchor>
           <P>Instead of REST calls, use the A2A protocol:</P>
-          <DocsCodeBlock label="A2A skill calls">{`// Register via A2A
+          <DocsCodeBlock label="A2A skill calls (24 skills available)">{`// Register via A2A
 POST /api/a2a
-{ "skill": "register", "input": { ...manifest } }
+{ "method": "skills/execute", "params": { "skill": "register", "input": { ...manifest } } }
+
+// List all agents
+POST /api/a2a
+{ "method": "skills/execute", "params": { "skill": "list_agents", "input": {} } }
 
 // Get prompt via A2A
 POST /api/a2a
-{ "skill": "get_prompt", "input": { "name": "kyc-verification-agent" } }
+{ "method": "skills/execute", "params": { "skill": "get_prompt", "input": { "name": "kyc-verification-agent" } } }
 
 // Get context via A2A
 POST /api/a2a
-{ "skill": "get_context", "input": { "name": "kyc-config" } }`}</DocsCodeBlock>
+{ "method": "skills/execute", "params": { "skill": "get_context", "input": { "name": "kyc-config" } } }
+
+// Get dashboard overview
+POST /api/a2a
+{ "method": "skills/execute", "params": { "skill": "get_dashboard", "input": {} } }
+
+// Get governance reports
+POST /api/a2a
+{ "method": "skills/execute", "params": { "skill": "get_reports", "input": {} } }`}</DocsCodeBlock>
 
           <Admonition title="Governance approval">
             Newly registered agents enter <InlineCode>pending_approval</InlineCode> status. A governance admin must approve the agent in the Sandarb UI before it can access restricted contexts. This ensures only vetted agents operate in production.
@@ -847,9 +886,9 @@ curl -H "X-Sandarb-Agent-ID: my-agent" -H "X-Sandarb-Trace-ID: req-123" \\
           </Admonition>
           <DocsCodeBlock label="Architecture">{`FastAPI app (backend/main.py)
   \u251c\u2500\u2500 /api/*         REST API routers
-  \u251c\u2500\u2500 /mcp           MCP server (Streamable HTTP transport)
-  \u251c\u2500\u2500 /a2a           A2A JSON-RPC endpoint
-  \u2514\u2500\u2500 /              Agent Card (when SANDARB_AGENT_SERVICE=1)`}</DocsCodeBlock>
+  \u251c\u2500\u2500 /mcp           MCP server (22 tools, Streamable HTTP transport)
+  \u251c\u2500\u2500 /a2a           A2A JSON-RPC endpoint (24 skills)
+  \u2514\u2500\u2500 /              Agent Card (when SERVICE_MODE=agent or SANDARB_AGENT_SERVICE=1)`}</DocsCodeBlock>
         </section>
 
         <section id="mcp-tools" className="scroll-mt-24 pt-6 border-t border-border/40">
@@ -1097,7 +1136,7 @@ curl -H "X-Sandarb-Agent-ID: my-agent" -H "X-Sandarb-Trace-ID: req-123" \\
           <P>Clients discover Sandarb by fetching its Agent Card. The response is a JSON document describing the agent&apos;s name, description, service URL, version, capabilities, and skills.</P>
           <DocsCodeBlock label="cURL">{`# Replace BASE_URL with your Sandarb API URL (e.g. http://localhost:8000 for local)
 curl -s "\${BASE_URL}/api/a2a"`}</DocsCodeBlock>
-          <P>Returns the Agent Card with <InlineCode>name</InlineCode>, <InlineCode>description</InlineCode>, <InlineCode>url</InlineCode>, <InlineCode>version</InlineCode>, <InlineCode>capabilities</InlineCode>, and <InlineCode>skills</InlineCode> (get_context, validate_context, get_lineage, register).</P>
+          <P>Returns the Agent Card (v0.2.0) with <InlineCode>name</InlineCode>, <InlineCode>description</InlineCode>, <InlineCode>url</InlineCode>, <InlineCode>version</InlineCode>, <InlineCode>capabilities</InlineCode>, and <InlineCode>skills</InlineCode> (24 skills across agents, organizations, contexts, prompts, audit, reports, and validation).</P>
 
           <H3WithAnchor>Skill invocation (JSON-RPC 2.0)</H3WithAnchor>
           <P>Clients send <strong className="text-foreground">POST /api/a2a</strong> with a JSON-RPC 2.0 body. Sandarb requires <InlineCode>Authorization: Bearer &lt;token&gt;</InlineCode>. Use <InlineCode>method: &quot;skills/execute&quot;</InlineCode> with <InlineCode>params: { '{ skill, input }' }</InlineCode> to run a skill. All context requests are logged for lineage and audit.</P>
@@ -1119,7 +1158,7 @@ curl -s "\${BASE_URL}/api/a2a"`}</DocsCodeBlock>
 
         <section id="a2a-skills-reference" className="scroll-mt-24 pt-6 border-t border-border/40">
           <H2WithAnchor id="a2a-skills-reference">A2A skills reference</H2WithAnchor>
-          <P>Sandarb exposes governance as A2A skills. Discovery: <InlineCode>GET /api/a2a</InlineCode> returns the Agent Card (name, url, capabilities, skills). Invocation: <InlineCode>POST /api/a2a</InlineCode> with a JSON body containing <InlineCode>skillId</InlineCode> and <InlineCode>input</InlineCode>. The A2A protocol is JSON; Sandarb enforces <strong className="text-foreground">required fields</strong> per skill. Documented fields below are the source of truth.</P>
+          <P>Sandarb exposes 24 governance skills via A2A (matching the 22 MCP tools plus 2 discovery skills). Discovery: <InlineCode>GET /api/a2a</InlineCode> returns the Agent Card (name, url, capabilities, skills). Invocation: <InlineCode>POST /api/a2a</InlineCode> with a JSON body containing <InlineCode>skillId</InlineCode> and <InlineCode>input</InlineCode>. The A2A protocol is JSON; Sandarb enforces <strong className="text-foreground">required fields</strong> per skill. Documented fields below are the source of truth.</P>
 
           <H3WithAnchor>Request envelope (POST /api/a2a)</H3WithAnchor>
           <DocsCodeBlock label="A2A message">{`{

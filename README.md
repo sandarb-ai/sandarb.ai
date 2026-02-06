@@ -273,18 +273,64 @@ The MCP server is built using the official `mcp` Python SDK (`FastMCP`) and moun
 ```
 FastAPI app (backend/main.py)
   ├── /api/*         REST API routers
-  ├── /mcp           MCP server (Streamable HTTP transport)
-  ├── /a2a           A2A JSON-RPC endpoint
-  └── /              Agent Card (when SANDARB_AGENT_SERVICE=1)
+  ├── /mcp           MCP server (22 tools, Streamable HTTP transport)
+  ├── /a2a           A2A JSON-RPC endpoint (24 skills)
+  └── /              Agent Card (when SERVICE_MODE=agent or SANDARB_AGENT_SERVICE=1)
 ```
 
-The MCP server (`backend/mcp_server.py`) uses `stateless_http=True` and `json_response=True` for optimal scalability in production. It reuses the same backend services (contexts, prompts, audit, agents) as the REST API and A2A endpoints.
+The MCP server (`backend/mcp_server.py`) and A2A handler (`backend/routers/agent_protocol.py`) use the same underlying backend services (contexts, prompts, audit, agents, organizations, reports). Both expose equivalent functionality: 22 MCP tools + 2 A2A discovery skills = 24 total A2A skills.
+
+---
+
+## 🤝 A2A Protocol (Agent-to-Agent)
+
+Sandarb is also an **AI Governance Agent** that other agents can discover and interact with using the [A2A protocol](https://a2a.dev). When deployed with `SERVICE_MODE=agent` (or `SANDARB_AGENT_SERVICE=1`), the Agent Card is served at `GET /` and A2A skills are available at `POST /a2a`.
+
+### Agent Card (Discovery)
+
+```bash
+# Fetch the Agent Card
+curl -s https://agent.sandarb.ai/
+
+# Or via the /a2a endpoint
+curl -s https://agent.sandarb.ai/a2a
+```
+
+### A2A Skills (24 total)
+
+All 22 MCP tools are available as A2A skills, plus 2 discovery methods:
+
+| Category | Skills |
+|----------|--------|
+| **Discovery** | `agent/info`, `skills/list` |
+| **Agents** | `list_agents`, `get_agent`, `get_agent_contexts`, `get_agent_prompts`, `register` |
+| **Organizations** | `list_organizations`, `get_organization`, `get_organization_tree` |
+| **Contexts** | `list_contexts`, `get_context`, `get_context_by_id`, `get_context_revisions` |
+| **Prompts** | `list_prompts`, `get_prompt`, `get_prompt_by_id`, `get_prompt_versions` |
+| **Audit & Lineage** | `get_lineage`, `get_blocked_injections`, `get_audit_log` |
+| **Dashboard & Reports** | `get_dashboard`, `get_reports` |
+| **Validation** | `validate_context` |
+
+### Invoking Skills
+
+```bash
+# List all skills
+curl -s -X POST https://agent.sandarb.ai/a2a \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"skills/list","params":{}}'
+
+# Execute a skill (requires Authorization header for governed data)
+curl -s -X POST https://agent.sandarb.ai/a2a \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"skills/execute","params":{"skill":"list_agents","input":{"sourceAgent":"my-agent","traceId":"trace-123"}}}'
+```
 
 ---
 
 ## Testing
 
-Sandarb has **120+ tests** covering both frontend and backend:
+Sandarb has **160+ tests** covering both frontend and backend:
 
 ```bash
 # Run all tests (recommended)
@@ -295,7 +341,7 @@ npm run test           # watch mode
 npm run test:run       # single run (CI)
 npm run test:coverage  # with coverage
 
-# Backend tests (Pytest) - 53 tests
+# Backend tests (Pytest) - 93 tests
 npm run test:backend        # run backend API tests
 npm run test:backend:cov    # with coverage
 ```
@@ -303,7 +349,7 @@ npm run test:backend:cov    # with coverage
 | Suite | Tests | Coverage |
 |-------|-------|----------|
 | Frontend (Vitest) | 67 | lib/, API client |
-| Backend (Pytest) | 53 | All API endpoints (agents, contexts, prompts, orgs) |
+| Backend (Pytest) | 93 | All API endpoints (agents, contexts, prompts, orgs, MCP, health) |
 
 See **[tests/README.md](tests/README.md)** for full documentation on running and extending tests.
 

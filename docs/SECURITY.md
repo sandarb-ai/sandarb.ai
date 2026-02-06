@@ -152,9 +152,21 @@ Invalid keys are rejected with a 400 error listing allowed keys.
 
 ---
 
-## 7. Agent Registration Validation
+## 7. MCP & A2A Authentication
 
-A2A agent registration (`register` skill) includes validation:
+Both the MCP server (`/mcp`) and A2A endpoint (`/a2a`) expose 22 tools / 24 skills respectively. All tools/skills that access governed data require:
+
+- **API key** via `Authorization: Bearer <api_key>` (same service_accounts table as REST API)
+- **Agent identity** (`source_agent` / `sourceAgent`) — must match a registered agent
+- **Trace ID** for audit logging
+
+Three skills (`agent/info`, `skills/list`, `validate_context`) do **not** require authentication for discovery purposes.
+
+---
+
+## 8. Agent Registration Validation
+
+A2A agent registration (`register` skill) and MCP `register_agent` tool include validation:
 
 ### URL Validation
 
@@ -173,7 +185,7 @@ A2A agent registration (`register` skill) includes validation:
 
 ---
 
-## 8. No Default or Weak Secrets in Production
+## 9. No Default or Weak Secrets in Production
 
 ### Backend (Python)
 
@@ -186,7 +198,7 @@ A2A agent registration (`register` skill) includes validation:
 
 ---
 
-## 9. Preview / Bypass Restrictions
+## 10. Preview / Bypass Restrictions
 
 The "preview" agent IDs (`sandarb-context-preview`, `sandarb-prompt-preview`) allow the docs "Try API" to work without registering a real agent. To prevent abuse:
 
@@ -197,7 +209,7 @@ The "preview" agent IDs (`sandarb-context-preview`, `sandarb-prompt-preview`) al
 
 ---
 
-## 10. Secrets Not Exposed in Logs
+## 11. Secrets Not Exposed in Logs
 
 - **Seed script** (`scripts/seed_postgres.py`): When generating new service account secrets, they are written **only** to `.env.seed.generated` (mode `0600`). Nothing is printed to stdout, so Cloud Logging (or similar) does not capture plaintext secrets.
 - **`.env.seed.generated`** is listed in `.gitignore` and must not be committed.
@@ -205,14 +217,14 @@ The "preview" agent IDs (`sandarb-context-preview`, `sandarb-prompt-preview`) al
 
 ---
 
-## 11. SQL Safety
+## 12. SQL Safety
 
 - All user- or client-controlled input is bound via **parameterized queries** (e.g. `%s` with tuple params). There are no string-concatenated SQL fragments built from user input.
 - Where dynamic SQL is used (e.g. optional columns in updates), only **allowlisted** column names are used (e.g. `update_organization`), so keys are never user-controlled.
 
 ---
 
-## 12. Deployment and Network Security
+## 13. Deployment and Network Security
 
 - The reference GCP deploy script (`scripts/deploy-gcp.sh`) documents that **`--allow-unauthenticated`** exposes the control plane to the public internet. For production, the doc recommends:
   - **Identity-Aware Proxy (IAP)** or **Cloud Identity** for access control, and/or
@@ -221,7 +233,7 @@ The "preview" agent IDs (`sandarb-context-preview`, `sandarb-prompt-preview`) al
 
 ---
 
-## 13. Environment Variables (Production Checklist)
+## 14. Environment Variables (Production Checklist)
 
 | Variable | Purpose | Production Recommendation |
 |----------|---------|--------------------------|
@@ -236,11 +248,12 @@ The "preview" agent IDs (`sandarb-context-preview`, `sandarb-prompt-preview`) al
 
 ---
 
-## 14. Summary Table
+## 15. Summary Table
 
 | Area | Control | Effect |
 |------|---------|--------|
 | **SDK endpoints** | API key + agent-id binding | No impersonation; only the key's linked agent can act as that agent |
+| **MCP & A2A** | API key + agent identity per tool/skill | Same auth as SDK; governed data requires registered agent + linked resources |
 | **Rate limiting** | slowapi with configurable limits | Prevents abuse and DoS attacks |
 | **Security headers** | X-Frame-Options, CSP, etc. | Mitigates clickjacking, XSS, MIME sniffing |
 | **Error handling** | Sanitized responses, server-side logging | No information disclosure to attackers |

@@ -17,7 +17,7 @@ Sandarb is a **control-plane** AI Governance service intended to run in your **c
 Integration details:
 
 - **API** – CRUD for organizations, agents, contexts, prompts, templates; inject context and pull prompt by name. Context and prompt access are **gated by agent linking** (link contexts/prompts to agents in the Registry).
-- **A2A protocol** – Discovery (Agent Card) and skills: `get_context`, `validate_context`, `get_lineage`, `register`. Sandarb is an AI agent that participates in A2A as both server and first-class participant.
+- **A2A protocol** – Discovery (Agent Card) and 24 skills: agents (list, get, register), organizations (list, get, tree), contexts (list, get, revisions), prompts (list, get, versions), audit (lineage, blocked injections, audit log), reports (dashboard, governance reports), and validation. Sandarb is an AI agent that participates in A2A as both server and first-class participant.
 - **Inject API** – `GET /api/inject?name=my-context` returns approved context (JSON/YAML/text) only if the context is **linked to the calling agent** (agent_contexts). Use `sandarb-context-preview` as Agent ID for UI testing.
 - **Prompts Pull API** – `GET /api/prompts/pull?name=my-prompt` returns the current approved prompt only if it is **linked to the calling agent** (agent_prompts). Use `sandarb-prompt-preview` for UI testing.
 - **Templates** – Reusable schemas and default values for context content; link a context to a template for consistent structure
@@ -454,9 +454,11 @@ The **Sandarb MCP Server** and **A2A Server** run on the `agent.sandarb.ai` subd
 | **MCP URL** (Claude Desktop / Cursor) | `https://agent.sandarb.ai/mcp` |
 | **A2A URL** (discovery + JSON-RPC) | `https://agent.sandarb.ai/a2a` |
 
-- **Discovery:** `GET https://agent.sandarb.ai` or `GET https://agent.sandarb.ai/a2a` returns the Agent Card (name, description, url, version, capabilities, skills).
-- **MCP:** Configure `https://agent.sandarb.ai/mcp` in Claude Desktop or Cursor to use Sandarb as an MCP server (JSON-RPC 2.0 at `POST /mcp`).
-- **A2A:** Use `POST https://agent.sandarb.ai/a2a` for A2A skill execution (JSON-RPC 2.0: `agent/info`, `skills/list`, `skills/execute`).
+- **Discovery:** `GET https://agent.sandarb.ai` or `GET https://agent.sandarb.ai/a2a` returns the Agent Card (v0.2.0) with 24 skills.
+- **MCP:** Configure `https://agent.sandarb.ai/mcp` in Claude Desktop or Cursor to use Sandarb as an MCP server (22 tools, Streamable HTTP transport).
+- **A2A:** Use `POST https://agent.sandarb.ai/a2a` for A2A skill execution (JSON-RPC 2.0: `agent/info`, `skills/list`, `skills/execute` with 24 skills).
+
+**Environment:** The agent service is activated by setting `SERVICE_MODE=agent` (used by `deploy-gcp.sh`) or `SANDARB_AGENT_SERVICE=1`. This mounts the Agent Card at `GET /` and the A2A endpoint at `POST /a2a`.
 
 ## A2A protocol
 
@@ -466,12 +468,23 @@ The **Sandarb MCP Server** and **A2A Server** run on the `agent.sandarb.ai` subd
 2. **Interaction** – Agent A sends a JSON-RPC 2.0 message over HTTP(S) to that URL to initiate a task (e.g. `POST /api/a2a` with method and params).
 3. **Real-time updates** – For long-running tasks, the A2A server may use Server-Sent Events (SSE) to send updates back to the client. Sandarb currently responds synchronously; SSE may be added for streaming or long-running flows.
 
-- **Discovery:** `GET /api/a2a` returns the Agent Card (name, description, url, version, capabilities, skills).
-- **Skills:** `POST /api/a2a` with body `{ "skill": "get_context", "input": { "name": "my-context" } }`.
-  - `get_context` – Retrieve context by name (lineage logged)
-  - `validate_context` – Validate context content
-  - `get_lineage` – Recent context deliveries
-  - `register` – Register an agent (manifest with agent_id, version, owner_team, url)
+- **Discovery:** `GET /api/a2a` returns the Agent Card (name, description, url, version, capabilities, 24 skills).
+- **Skills:** `POST /api/a2a` with body `{ "method": "skills/execute", "params": { "skill": "get_context", "input": { "name": "my-context" } } }`.
+
+### Available A2A skills (24)
+
+| Category | Skills |
+|----------|--------|
+| **Discovery** | `agent/info`, `skills/list` |
+| **Agents** | `list_agents`, `get_agent`, `get_agent_contexts`, `get_agent_prompts`, `register` |
+| **Organizations** | `list_organizations`, `get_organization`, `get_organization_tree` |
+| **Contexts** | `list_contexts`, `get_context`, `get_context_by_id`, `get_context_revisions` |
+| **Prompts** | `list_prompts`, `get_prompt`, `get_prompt_by_id`, `get_prompt_versions` |
+| **Audit & Lineage** | `get_lineage`, `get_blocked_injections`, `get_audit_log` |
+| **Dashboard & Reports** | `get_dashboard`, `get_reports` |
+| **Validation** | `validate_context` |
+
+These skills match the 22 MCP tools (plus 2 discovery methods). Both A2A and MCP use the same underlying backend services.
 
 Spec: [a2a.dev](https://a2a.dev), [a2a-protocol.org](https://a2a-protocol.org).
 

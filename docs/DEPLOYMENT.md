@@ -22,7 +22,7 @@ Sandarb runs as three services:
 |---------|---------|--------------|
 | **UI** (Next.js) | Dashboard, documentation, management interface | 3000 |
 | **API** (FastAPI) | REST API, CRUD operations, dashboard data | 8000 |
-| **Agent** (FastAPI) | A2A/MCP endpoints for agent-to-agent communication | 8000 |
+| **Agent** (FastAPI) | A2A (24 skills) + MCP (22 tools) for agent-to-agent communication | 8000 |
 
 In development, API and Agent run as a single service. In production, they can be separate for scaling and isolation.
 
@@ -213,11 +213,12 @@ docker run -d -p 8000:8000 \
   sandarb-backend
 
 # Run Agent (separate service)
+# Use SERVICE_MODE=agent (preferred) or SANDARB_AGENT_SERVICE=true
 docker run -d -p 8001:8000 \
   -e DATABASE_URL=postgresql://... \
   -e SANDARB_ENV=production \
   -e JWT_SECRET=<secret> \
-  -e SANDARB_AGENT_SERVICE=true \
+  -e SERVICE_MODE=agent \
   -e AGENT_BASE_URL=https://agent.governance.company.com \
   sandarb-backend
 ```
@@ -336,6 +337,8 @@ See [SECURITY.md](SECURITY.md) for detailed security documentation.
 | `BACKEND_URL` | Server-side rendering URL |
 | `AGENT_PUBLIC_URL` | Public URL for agent service |
 | `AGENT_BASE_URL` | Base URL for A2A/MCP endpoints |
+| `SERVICE_MODE` | Set to `agent` to enable A2A + Agent Card at `/` (used by deploy-gcp.sh) |
+| `SANDARB_AGENT_SERVICE` | Alternative: set to `true` to enable agent mode |
 
 ### Security
 

@@ -5,8 +5,8 @@ Runs alongside Next.js frontend; same Postgres schema.
 MCP server (Model Context Protocol) is mounted at /mcp using the official mcp Python SDK
 with Streamable HTTP transport. Connect from Claude Desktop, Cursor, or any MCP client.
 
-When SANDARB_AGENT_SERVICE=1 (e.g. on agent.sandarb.ai), the agent protocol router
-is mounted at root: GET / (Agent Card), POST /a2a (A2A JSON-RPC).
+When SANDARB_AGENT_SERVICE=1 or SERVICE_MODE=agent (e.g. on agent.sandarb.ai),
+the agent protocol router is mounted at root: GET / (Agent Card), POST /a2a (A2A JSON-RPC).
 """
 
 import logging
@@ -126,7 +126,12 @@ class _MCPMount(Mount):
 app.router.routes.append(_MCPMount("/mcp", app=_mcp_app))
 
 # Agent service (agent.sandarb.ai): mount Agent Card + A2A at root
-if os.environ.get("SANDARB_AGENT_SERVICE", "").lower() in ("1", "true", "yes"):
+# Accepts both SANDARB_AGENT_SERVICE=1 and SERVICE_MODE=agent (used by deploy-gcp.sh)
+_is_agent_service = (
+    os.environ.get("SANDARB_AGENT_SERVICE", "").lower() in ("1", "true", "yes")
+    or os.environ.get("SERVICE_MODE", "").lower() == "agent"
+)
+if _is_agent_service:
     app.include_router(agent_protocol.router, prefix="")
 else:
     @app.get("/")
