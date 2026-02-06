@@ -6,9 +6,10 @@ Developer integration and usage guide for anyone in the firm. For the full inter
 
 Sandarb (derived from "Sandarbh" (संदर्भ), a Hindi/Sanskrit word meaning "context," "reference," or "connection") is an AI governance platform: a single place for approved prompts and context, audit trail, lineage, and a living agent registry.
 
-Sandarb is designed to fit seamlessly into your existing engineering workflow. Your AI Agents and Applications integrate via **A2A**, **API**, or **Git**:
+Sandarb is designed to fit seamlessly into your existing engineering workflow. Your AI Agents and Applications integrate via **A2A**, **MCP**, **API**, or **Git**:
 
 - **A2A (Agent-to-Agent Protocol):** Enables your agent to be discovered by the broader AI ecosystem. Other agents can read your "Agent Card" to understand your capabilities and interact with you using standardized skills (like `validate_context` or `get_lineage`) without custom integration code.
+- **MCP (Model Context Protocol):** Connect Claude Desktop, Cursor, Windsurf, or any MCP client directly to Sandarb. 22 governance tools exposed via Streamable HTTP transport at `/mcp`.
 - **API (REST & SDK):** The runtime fuel for your agents. Use the API to fetch approved Prompts (instructions) and Context (knowledge) instantly during inference. It also handles management tasks like registering new agents, creating organizations, and logging audit trails.
 - **Git (Governance as Code):** Manage your Sandarb config and other governance assets like source code in your AI Agents git repo. Inject the config based on your CI/CD and deployment model for AI Agents.
 
@@ -18,6 +19,7 @@ Integration details:
 
 - **API** – CRUD for organizations, agents, contexts, prompts, templates; inject context and pull prompt by name. Context and prompt access are **gated by agent linking** (link contexts/prompts to agents in the Registry).
 - **A2A protocol** – Discovery (Agent Card) and 24 skills: agents (list, get, register), organizations (list, get, tree), contexts (list, get, revisions), prompts (list, get, versions), audit (lineage, blocked injections, audit log), reports (dashboard, governance reports), and validation. Sandarb is an AI agent that participates in A2A as both server and first-class participant.
+- **MCP protocol** – 22 governance tools via Streamable HTTP at `/mcp`. Same capabilities as A2A skills (agents, contexts, prompts, audit, reports, validation). Connect Claude Desktop, Cursor, Windsurf, or any MCP-compatible client directly.
 - **Inject API** – `GET /api/inject?name=my-context` returns approved context (JSON/YAML/text) only if the context is **linked to the calling agent** (agent_contexts). Use `sandarb-context-preview` as Agent ID for UI testing.
 - **Prompts Pull API** – `GET /api/prompts/pull?name=my-prompt` returns the current approved prompt only if it is **linked to the calling agent** (agent_prompts). Use `sandarb-prompt-preview` for UI testing.
 - **Templates** – Reusable schemas and default values for context content; link a context to a template for consistent structure

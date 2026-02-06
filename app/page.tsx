@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 export const metadata = {
   title: 'Sandarb - AI Governance for AI Agents',
   description:
-    'Manage and govern your AI Agents prompts and context in a protocol first approach (think A2A, API and Git). Every request tracked; lineage and audit built in and automated reports for AI Governance.',
+    'Manage and govern your AI Agents prompts and context in a protocol first approach (think A2A, MCP, API and Git). Every request tracked; lineage and audit built in and automated reports for AI Governance.',
 };
 
 /** Landing page. Home links here. After login (e.g. Try the demo), users go to Dashboard. */
@@ -35,7 +35,7 @@ export default function LandingPage() {
             AI Governance for your AI Agents.
           </h1>
           <p className="text-base text-muted-foreground mt-2 max-w-2xl mx-auto leading-relaxed">
-            Manage and govern your AI Agents <span className="bg-violet-100 text-violet-900 dark:bg-violet-900/40 dark:text-violet-100 px-1 rounded font-medium">prompts</span> and <span className="bg-violet-100 text-violet-900 dark:bg-violet-900/40 dark:text-violet-100 px-1 rounded font-medium">context</span> in a protocol first approach (think <span className="font-medium text-violet-600 dark:text-violet-400">A2A</span>, <span className="font-medium text-violet-600 dark:text-violet-400">API</span> and <span className="font-medium text-violet-600 dark:text-violet-400">Git-like</span>).{' '}
+            Manage and govern your AI Agents <span className="bg-violet-100 text-violet-900 dark:bg-violet-900/40 dark:text-violet-100 px-1 rounded font-medium">prompts</span> and <span className="bg-violet-100 text-violet-900 dark:bg-violet-900/40 dark:text-violet-100 px-1 rounded font-medium">context</span> in a protocol first approach (think <span className="font-medium text-violet-600 dark:text-violet-400">A2A</span>, <span className="font-medium text-violet-600 dark:text-violet-400">MCP</span>, <span className="font-medium text-violet-600 dark:text-violet-400">API</span> and <span className="font-medium text-violet-600 dark:text-violet-400">Git-like</span>).{' '}
             Every request tracked; lineage and audit built in and automated reports for AI Governance.
           </p>
           <div className="mt-5 flex flex-wrap justify-center items-center gap-3">
@@ -63,8 +63,7 @@ export default function LandingPage() {
               Goal
             </h2>
             <ol className="text-sm text-muted-foreground/90 space-y-1 list-decimal list-inside leading-relaxed">
-              <li>Governance that doesn’t slow shipping AI Agents to production</li>
-              <li>Protocol-first (A2A, MCP, HTTP)</li>
+              <li>Governance that doesn't slow shipping AI Agents to production</li>
               <li>Version mgmt & traceability for prompts and context</li>
               <li>Living AI Agents registry</li>
             </ol>
@@ -75,10 +74,10 @@ export default function LandingPage() {
               What we solve
             </h2>
             <ol className="text-sm text-muted-foreground/90 space-y-1 list-decimal list-inside leading-relaxed">
-              <li>Single place for approved prompts and context; agents pull via API or A2A</li>
+              <li>Single place for approved prompts and context; agents pull via API, A2A, or MCP</li>
               <li>Audit trail: who requested what, when</li>
               <li>Manifest-based registration; git-like versioning</li>
-              <li>Sandarb AI Governance Agent: participates in A2A (industry standard for agent-to-agent communication)</li>
+              <li>Sandarb AI Governance Agent: participates in A2A and MCP (industry standard protocols for agent-to-agent and tool-to-model communication)</li>
             </ol>
           </div>
           <a
@@ -107,7 +106,7 @@ export default function LandingPage() {
             <GitBranch className="h-4 w-4 text-violet-600 dark:text-violet-400" />
             Integrate your way
           </h2>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-lg border border-border/80 bg-background/50 p-4 hover:border-violet-200/80 dark:hover:border-violet-800/40 transition-colors">
               <h3 className="text-sm font-bold text-violet-600 dark:text-violet-400 uppercase tracking-wider flex items-center gap-2 mb-2">
                 <Bot className="h-4 w-4 text-violet-600 dark:text-violet-400" />
@@ -120,6 +119,20 @@ export default function LandingPage() {
               </p>
               <a href="https://a2a-protocol.org/" target="_blank" rel="noopener noreferrer" className="text-sm text-violet-600 dark:text-violet-400 font-medium hover:underline">
                 a2a-protocol.org →
+              </a>
+            </div>
+            <div className="rounded-lg border border-border/80 bg-background/50 p-4 hover:border-violet-200/80 dark:hover:border-violet-800/40 transition-colors">
+              <h3 className="text-sm font-bold text-violet-600 dark:text-violet-400 uppercase tracking-wider flex items-center gap-2 mb-2">
+                <Bot className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                MCP
+              </h3>
+              <p className="text-sm text-muted-foreground/90 leading-relaxed mb-2">
+                Connect Claude Desktop, Cursor, Windsurf, or any{' '}
+                <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener noreferrer" className="text-violet-600 dark:text-violet-400 hover:underline">MCP</a>
+                {' '}client directly to Sandarb. 22 governance tools (prompts, contexts, audit, agents) exposed via Streamable HTTP transport at <code className="rounded bg-muted px-1">POST /mcp</code>.
+              </p>
+              <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener noreferrer" className="text-sm text-violet-600 dark:text-violet-400 font-medium hover:underline">
+                modelcontextprotocol.io →
               </a>
             </div>
             <div className="rounded-lg border border-border/80 bg-background/50 p-4 hover:border-violet-200/80 dark:hover:border-violet-800/40 transition-colors">

@@ -44,7 +44,7 @@ export default function AboutPage() {
                 Sandarb (derived from &quot;Sandarbh&quot; (संदर्भ), a Hindi/Sanskrit word meaning &quot;context,&quot; &quot;reference,&quot; or &quot;connection&quot;) is an AI governance platform: a single place for approved prompts and context, audit trail, lineage, and a living agent registry.
               </p>
               <p className="text-muted-foreground mt-2">
-                Sandarb is designed to fit seamlessly into your existing engineering workflow. Your AI agents and applications integrate via <strong className="text-foreground">A2A</strong>, <strong className="text-foreground">API</strong>, or <strong className="text-foreground">Git</strong>—so teams can ship agents without skipping governance.
+                Sandarb is designed to fit seamlessly into your existing engineering workflow. Your AI agents and applications integrate via <strong className="text-foreground">A2A</strong>, <strong className="text-foreground">MCP</strong>, <strong className="text-foreground">API</strong>, or <strong className="text-foreground">Git</strong>—so teams can ship agents without skipping governance.
               </p>
             </div>
           </section>
@@ -59,7 +59,7 @@ export default function AboutPage() {
               Tech orgs need to ship AI agents quickly, but they also need approval workflows, audit trails, and a single place to manage which prompts and context go to which agents. Without that, you get shadow agents, unapproved context, and no lineage when something goes wrong.
             </p>
             <p className="text-muted-foreground mt-2 leading-relaxed">
-              Sandarb sits in the control plane: approved prompts and context live here; agents request them via API or A2A. Every request is logged, so you get “who asked for what, when” for compliance and incident review.
+              Sandarb sits in the control plane: approved prompts and context live here; agents request them via API, A2A, or MCP. Every request is logged, so you get "who asked for what, when" for compliance and incident review.
             </p>
           </section>
 
@@ -75,7 +75,7 @@ export default function AboutPage() {
             <ul className="text-muted-foreground mt-3 space-y-1.5 list-disc list-inside">
               <li>Approved prompts and context; propose / edit / approve workflows</li>
               <li>Audit trail and lineage: who requested which context, when</li>
-              <li>Sandarb AI Governance Agent: Sandarb is an AI agent that participates in A2A (industry standard for agent-to-agent communication); other agents call Sandarb for validation and approved context, and Sandarb communicates with other agents via A2A</li>
+              <li>Sandarb AI Governance Agent: Sandarb is an AI agent that participates in A2A and MCP (industry standard protocols for agent-to-agent and tool-to-model communication); other agents call Sandarb for validation and approved context via A2A or MCP</li>
             </ul>
           </section>
 
@@ -86,10 +86,10 @@ export default function AboutPage() {
               How it works
             </h2>
             <p className="text-muted-foreground mt-3 leading-relaxed">
-              Agents register with Sandarb (by URL or by pinging with a manifest). When an agent needs context, it calls Sandarb’s API or A2A skill; Sandarb returns the approved content and logs the request. The Sandarb AI Governance Agent participates in A2A (the industry standard for agent-to-agent communication)—you get organizations, an agent registry, versioned prompts and contexts, and lineage, all exposed as an API and as an A2A participant so other agents can talk to Sandarb directly and Sandarb can communicate with them via A2A.
+              Agents register with Sandarb (by URL or by pinging with a manifest). When an agent needs context, it calls Sandarb's API, A2A skill, or MCP tool; Sandarb returns the approved content and logs the request. The Sandarb AI Governance Agent participates in A2A and MCP—you get organizations, an agent registry, versioned prompts and contexts, and lineage, all exposed as an API, A2A participant, and MCP server so other agents and AI tools can talk to Sandarb directly.
             </p>
             <p className="text-muted-foreground mt-2 leading-relaxed">
-              Optional: Sandarb can also pull state from agents via MCP (Model Context Protocol) for monitoring, so you get visibility without forcing every agent to push logs.
+              Sandarb also exposes a fully compliant MCP server (22 tools via Streamable HTTP at <code className="rounded bg-muted px-1 text-sm">/mcp</code>)—connect Claude Desktop, Cursor, Windsurf, or any MCP client directly for governed prompts, contexts, and audit lineage.
             </p>
           </section>
 

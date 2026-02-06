@@ -7,9 +7,10 @@
 
 **Sandarb** (derived from "Sandarbh" (संदर्भ), a Hindi/Sanskrit word meaning "context," "reference," or "connection") is an AI governance platform: a single place for approved prompts and context, audit trail, lineage, and a living agent registry. It is open-source and designed to be installed within your infrastructure to govern and manage your AI Agents.
 
-Sandarb is designed to fit seamlessly into your existing engineering workflow. Your AI Agents and Applications integrate via **A2A**, **API**, or **Git**:
+Sandarb is designed to fit seamlessly into your existing engineering workflow. Your AI Agents and Applications integrate via **A2A**, **MCP**, **API**, or **Git**:
 
 - **A2A (Agent-to-Agent Protocol):** Enables your agent to be discovered by the broader AI ecosystem. Other agents can read your "Agent Card" to understand your capabilities and interact with you using standardized skills (like `validate_context` or `get_lineage`) without custom integration code.
+- **MCP (Model Context Protocol):** Connect Claude Desktop, Cursor, Windsurf, or any MCP client directly to Sandarb. 22 governance tools exposed via Streamable HTTP transport at `/mcp`. See [Connecting to Sandarb MCP Server](#-connecting-to-sandarb-mcp-server) below.
 - **API (REST & SDK):** The runtime fuel for your agents. Use the API to fetch approved Prompts (instructions) and Context (knowledge) instantly during inference. It also handles management tasks like registering new agents, creating organizations, and logging audit trails.
 - **Git (Governance as Code):** Manage your Sandarb config and other governance assets like source code in your AI Agents git repo. Inject the config based on your CI/CD and deployment model for AI Agents.
 
@@ -61,7 +62,7 @@ Sandarb addresses this through **AI Governance in the control plane**—governin
 ## 🎯 What We Solve
 We solve the "Black Box" problem of enterprise AI. Instead of scattered prompts and untraceable decisions, Sandarb provides:
 
-* **Single Source of Truth:** A centralized place for approved prompts and context. Your agents pull validated instructions via API or A2A protocols.
+* **Single Source of Truth:** A centralized place for approved prompts and context. Your agents pull validated instructions via API, A2A, or MCP protocols.
 * **Audit Trail & Lineage:** Complete tracking of who requested what and when. This provides the lineage required for compliance and incident resolution.
 * **Manifest-Based Registration:** Agents register via strict manifests (using MCP standards where applicable), ensuring every bot in your network is known, authorized, and versioned.
 * **Git-like Versioning:** Prompts and context chunks are treated like code—versioned, branched, and diffable.
@@ -71,9 +72,10 @@ We solve the "Black Box" problem of enterprise AI. Instead of scattered prompts 
 
 ## 🏗 Core Capabilities
 
-### 1. A2A (Agent-to-Agent) Governance
-**The Sandarb AI Governance Agent is crucial.** A2A is fast becoming the industry standard for AI agents to discover, communicate, and collaborate across vendors and frameworks. Sandarb is an AI agent that participates in A2A: it communicates with other agents via A2A and runs as an A2A server so your agents can call it for governance.
-* Other agents in your network communicate with Sandarb (via A2A) to request validation, fetch approved context, or log decisions.
+### 1. Protocol-First Governance (A2A & MCP)
+**The Sandarb AI Governance Agent is crucial.** A2A and MCP are the industry standard protocols for agent-to-agent and tool-to-model communication. Sandarb participates in both: it runs as an A2A server (24 skills at `POST /a2a`) and an MCP server (22 tools at `POST /mcp`) so your agents and AI tools can call it for governance.
+* Other agents communicate with Sandarb via A2A or MCP to request validation, fetch approved context, or log decisions.
+* MCP clients (Claude Desktop, Cursor, Windsurf) connect directly to Sandarb for governed prompts, contexts, and audit lineage.
 * Sandarb acts as the governance agent in the agent mesh, verifying that the requesting agent has the correct permissions (via its manifest) before releasing sensitive prompt instructions or context data.
 
 ### 2. Enterprise Workflow & Compliance
@@ -328,28 +330,110 @@ curl -s -X POST https://agent.sandarb.ai/a2a \
 
 ---
 
+## Enterprise Readiness
+
+Sandarb is built for production enterprise workloads. The platform includes features that support high-availability, secure multi-tenant operation, and compliance at scale.
+
+### Database Connection Pooling
+
+The backend uses **`psycopg2.ThreadedConnectionPool`** instead of a single shared connection, supporting concurrent requests without connection contention.
+
+| Setting | Default | Environment Variable |
+|---------|---------|---------------------|
+| Minimum pool connections | 2 | `DB_POOL_MIN` |
+| Maximum pool connections | 10 | `DB_POOL_MAX` |
+| Connection timeout | 10s | `DB_CONNECT_TIMEOUT` |
+
+Connections are automatically returned to the pool after each request. The pool is gracefully closed on application shutdown.
+
+### API Key Expiration
+
+Service account API keys support an optional **`expires_at`** timestamp. When set, the key is automatically rejected after expiry with a `401 Unauthorized` response (REST) or JSON-RPC error (A2A). Keys without an expiration date remain valid indefinitely.
+
+```sql
+-- Set a key to expire in 90 days
+ALTER TABLE service_accounts
+  ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP WITH TIME ZONE;
+
+UPDATE service_accounts
+  SET expires_at = NOW() + INTERVAL '90 days'
+  WHERE client_id = 'my-service';
+```
+
+### Pagination
+
+All list endpoints (REST API, A2A skills, and MCP tools) support **`limit`** and **`offset`** parameters for paginated responses. The default page size is 50, with a maximum of 500 items per request.
+
+**REST API response shape:**
+```json
+{
+  "success": true,
+  "data": {
+    "agents": [...],
+    "total": 951,
+    "limit": 50,
+    "offset": 0
+  }
+}
+```
+
+**Paginated endpoints:** `/api/agents`, `/api/organizations`, `/api/prompts`, `/api/contexts`, and all A2A list/get skills.
+
+### Per-Skill A2A Rate Limiting
+
+A2A skills are rate-limited by tier using a **sliding window** algorithm, applied per API key:
+
+| Tier | Skills | Default Limit | Environment Variable |
+|------|--------|---------------|---------------------|
+| Discovery | `agent/info`, `skills/list`, `validate_context` | Unlimited | — |
+| List | `list_agents`, `list_organizations`, `list_contexts`, `list_prompts` | 30/min | `RATE_LIMIT_A2A_LIST` |
+| Get | `get_agent`, `get_context`, `get_prompt`, etc. | 60/min | `RATE_LIMIT_A2A_GET` |
+| Audit | `get_lineage`, `get_blocked_injections`, `get_audit_log` | 10/min | `RATE_LIMIT_A2A_AUDIT` |
+| Reports | `get_dashboard`, `get_reports` | 10/min | `RATE_LIMIT_A2A_REPORTS` |
+| Register | `register` | 5/min | `RATE_LIMIT_A2A_REGISTER` |
+
+When a rate limit is exceeded, the A2A endpoint returns a **429** response with `retry_after` metadata.
+
+### REST API Rate Limiting
+
+REST endpoints are protected by **slowapi** with configurable per-endpoint limits:
+
+| Endpoint Category | Default Limit | Environment Variable |
+|-------------------|---------------|---------------------|
+| General API | 100/minute | `RATE_LIMIT_DEFAULT` |
+| Seed endpoint | 5/hour | `RATE_LIMIT_SEED` |
+| Authentication | 20/minute | `RATE_LIMIT_AUTH` |
+
+### Security Headers & Error Sanitization
+
+All responses include security headers (CSP, X-Frame-Options, X-Content-Type-Options, XSS protection). Error responses are sanitized to prevent information disclosure—database errors, stack traces, and file paths are logged server-side only.
+
+For full security documentation, see **[docs/SECURITY.md](docs/SECURITY.md)**.
+
+---
+
 ## Testing
 
-Sandarb has **160+ tests** covering both frontend and backend:
+Sandarb has **198 tests** covering both frontend and backend:
 
 ```bash
 # Run all tests (recommended)
 npm run test:all
 
-# Frontend tests (Vitest) - 67 tests
+# Frontend tests (Vitest) - 76 tests
 npm run test           # watch mode
 npm run test:run       # single run (CI)
 npm run test:coverage  # with coverage
 
-# Backend tests (Pytest) - 93 tests
+# Backend tests (Pytest) - 122 tests
 npm run test:backend        # run backend API tests
 npm run test:backend:cov    # with coverage
 ```
 
 | Suite | Tests | Coverage |
 |-------|-------|----------|
-| Frontend (Vitest) | 67 | lib/, API client |
-| Backend (Pytest) | 93 | All API endpoints (agents, contexts, prompts, orgs, MCP, health) |
+| Frontend (Vitest) | 76 | lib/, API client, pagination handling |
+| Backend (Pytest) | 122 | All API endpoints, enterprise features (pooling, expiration, pagination, rate limits) |
 
 See **[tests/README.md](tests/README.md)** for full documentation on running and extending tests.
 

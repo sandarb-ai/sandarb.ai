@@ -213,6 +213,16 @@ export default async function DocsPage() {
       ],
     },
     {
+      label: 'Enterprise',
+      items: [
+        { id: 'enterprise-readiness', label: 'Enterprise readiness' },
+        { id: 'enterprise-connection-pooling', label: 'Connection pooling' },
+        { id: 'enterprise-api-key-expiration', label: 'API key expiration' },
+        { id: 'enterprise-pagination', label: 'Pagination' },
+        { id: 'enterprise-rate-limiting', label: 'Rate limiting' },
+      ],
+    },
+    {
       label: 'Operations',
       items: [
     { id: 'environment', label: 'Environment variables' },
@@ -256,6 +266,9 @@ export default async function DocsPage() {
                 <a href="#security" className="inline-flex items-center rounded-md bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/80 transition-colors">
                   Security
                 </a>
+                <a href="#enterprise-readiness" className="inline-flex items-center rounded-md bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/80 transition-colors">
+                  Enterprise
+                </a>
               </div>
             </div>
 
@@ -265,10 +278,11 @@ export default async function DocsPage() {
             Sandarb (derived from &quot;Sandarbh&quot; (संदर्भ), a Hindi/Sanskrit word meaning &quot;context,&quot; &quot;reference,&quot; or &quot;connection&quot;) is an AI governance platform: a single place for approved prompts and context, audit trail, lineage, and a living agent registry.
           </P>
           <P>
-            Sandarb is designed to fit seamlessly into your existing engineering workflow. Your AI agents and applications integrate via <strong className="text-violet-600 dark:text-violet-400">A2A</strong>, <strong className="text-violet-600 dark:text-violet-400">API</strong>, or <strong className="text-violet-600 dark:text-violet-400">Git</strong>.
+            Sandarb is designed to fit seamlessly into your existing engineering workflow. Your AI agents and applications integrate via <strong className="text-violet-600 dark:text-violet-400">A2A</strong>, <strong className="text-violet-600 dark:text-violet-400">MCP</strong>, <strong className="text-violet-600 dark:text-violet-400">API</strong>, or <strong className="text-violet-600 dark:text-violet-400">Git</strong>.
           </P>
           <Ul>
             <li><strong className="text-violet-600 dark:text-violet-400">A2A (Agent-to-Agent Protocol)</strong> – Enables your agent to be discovered by the broader AI ecosystem. Other agents can read your &quot;Agent Card&quot; to understand your capabilities and interact with you using standardized skills (like <InlineCode>validate_context</InlineCode> or <InlineCode>get_lineage</InlineCode>) without custom integration code.</li>
+            <li><strong className="text-violet-600 dark:text-violet-400">MCP (Model Context Protocol)</strong> – Connect Claude Desktop, Cursor, Windsurf, or any MCP client directly to Sandarb. 22 governance tools exposed via Streamable HTTP transport at <InlineCode>/mcp</InlineCode>.</li>
             <li><strong className="text-violet-600 dark:text-violet-400">API (REST &amp; SDK)</strong> – The runtime fuel for your agents. Use the API to fetch approved Prompts (instructions) and Context (knowledge) instantly during inference. It also handles management tasks like registering new agents, creating organizations, and logging audit trails.</li>
             <li><strong className="text-violet-600 dark:text-violet-400">Git (Governance as Code)</strong> – Manage your Sandarb config and other governance assets like source code in your AI Agents git repo. Inject the config based on your CI/CD and deployment model for AI Agents.</li>
           </Ul>
@@ -1400,6 +1414,109 @@ if order_value > ctx["content"]["singleNameLimit"]:
           <DocsCodeBlock label="cURL">{`# Replace BASE_URL with your Sandarb API URL (e.g. http://localhost:8000 for local)
 curl -H "X-Sandarb-Agent-ID: my-agent" -H "X-Sandarb-Trace-ID: req-123" \\
   "\${BASE_URL}/api/inject?name=my-context"`}</DocsCodeBlock>
+        </section>
+
+        <section id="enterprise-readiness" className="scroll-mt-24 pt-6 border-t border-border/40">
+          <H2WithAnchor id="enterprise-readiness">Enterprise Readiness</H2WithAnchor>
+          <P>Sandarb is built for production enterprise workloads. The platform includes features for high-availability, secure multi-tenant operation, and compliance at scale.</P>
+
+          <H3WithAnchor id="enterprise-connection-pooling">Database connection pooling</H3WithAnchor>
+          <P>The backend uses <InlineCode>psycopg2.ThreadedConnectionPool</InlineCode> for concurrent request handling without connection contention. Connections are automatically returned to the pool after each request and the pool is gracefully closed on shutdown.</P>
+          <div className="overflow-x-auto mb-4">
+            <table className="w-full text-sm border border-border/40 rounded-lg overflow-hidden">
+              <thead className="bg-muted/30"><tr>
+                <th className="text-left px-4 py-2 font-semibold text-foreground border-b border-border/40">Setting</th>
+                <th className="text-left px-4 py-2 font-semibold text-foreground border-b border-border/40">Default</th>
+                <th className="text-left px-4 py-2 font-semibold text-foreground border-b border-border/40">Environment Variable</th>
+              </tr></thead>
+              <tbody className="text-muted-foreground">
+                <tr className="border-b border-border/20"><td className="px-4 py-2">Min pool connections</td><td className="px-4 py-2">2</td><td className="px-4 py-2"><InlineCode>DB_POOL_MIN</InlineCode></td></tr>
+                <tr className="border-b border-border/20"><td className="px-4 py-2">Max pool connections</td><td className="px-4 py-2">10</td><td className="px-4 py-2"><InlineCode>DB_POOL_MAX</InlineCode></td></tr>
+                <tr><td className="px-4 py-2">Connection timeout</td><td className="px-4 py-2">10s</td><td className="px-4 py-2"><InlineCode>DB_CONNECT_TIMEOUT</InlineCode></td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <H3WithAnchor id="enterprise-api-key-expiration">API key expiration</H3WithAnchor>
+          <P>Service account API keys support an optional <InlineCode>expires_at</InlineCode> timestamp. When set, the key is automatically rejected after expiry with a <InlineCode>401 Unauthorized</InlineCode> response (REST API) or JSON-RPC error code (A2A). Keys without an expiration date remain valid indefinitely.</P>
+          <DocsCodeBlock label="SQL: Set expiry on a service account">{`-- Set a key to expire in 90 days
+UPDATE service_accounts
+  SET expires_at = NOW() + INTERVAL '90 days'
+  WHERE client_id = 'my-service';
+
+-- Remove expiration (never expires)
+UPDATE service_accounts
+  SET expires_at = NULL
+  WHERE client_id = 'my-service';`}</DocsCodeBlock>
+          <Admonition title="Best practice">Rotate API keys regularly and set expiration dates on all production service accounts. Expired keys are immediately rejected; no grace period is applied.</Admonition>
+
+          <H3WithAnchor id="enterprise-pagination">Pagination</H3WithAnchor>
+          <P>All list endpoints (REST API, A2A skills, and MCP tools) support <InlineCode>limit</InlineCode> and <InlineCode>offset</InlineCode> parameters for paginated responses. The default page size is 50 items, with a maximum of 500 per request.</P>
+          <DocsCodeBlock label="Paginated REST response">{`GET /api/agents?limit=50&offset=0
+
+{
+  "success": true,
+  "data": {
+    "agents": [ ... ],
+    "total": 951,
+    "limit": 50,
+    "offset": 0
+  }
+}`}</DocsCodeBlock>
+          <DocsCodeBlock label="Paginated A2A skill call">{`POST /a2a
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "skills/execute",
+  "params": {
+    "skill": "list_agents",
+    "input": {
+      "sourceAgent": "my-agent",
+      "traceId": "trace-123",
+      "limit": 50,
+      "offset": 100
+    }
+  }
+}`}</DocsCodeBlock>
+          <P><strong className="text-foreground">Paginated endpoints:</strong> <InlineCode>/api/agents</InlineCode>, <InlineCode>/api/organizations</InlineCode>, <InlineCode>/api/prompts</InlineCode>, <InlineCode>/api/contexts</InlineCode>, and all A2A list/get skills.</P>
+
+          <H3WithAnchor id="enterprise-rate-limiting">Per-skill A2A rate limiting</H3WithAnchor>
+          <P>A2A skills are rate-limited by tier using a <strong className="text-foreground">sliding window</strong> algorithm, applied per API key. This protects the platform from abuse while allowing legitimate high-volume integrations.</P>
+          <div className="overflow-x-auto mb-4">
+            <table className="w-full text-sm border border-border/40 rounded-lg overflow-hidden">
+              <thead className="bg-muted/30"><tr>
+                <th className="text-left px-4 py-2 font-semibold text-foreground border-b border-border/40">Tier</th>
+                <th className="text-left px-4 py-2 font-semibold text-foreground border-b border-border/40">Skills</th>
+                <th className="text-left px-4 py-2 font-semibold text-foreground border-b border-border/40">Default</th>
+                <th className="text-left px-4 py-2 font-semibold text-foreground border-b border-border/40">Env Var</th>
+              </tr></thead>
+              <tbody className="text-muted-foreground">
+                <tr className="border-b border-border/20"><td className="px-4 py-2">Discovery</td><td className="px-4 py-2"><InlineCode>agent/info</InlineCode>, <InlineCode>skills/list</InlineCode>, <InlineCode>validate_context</InlineCode></td><td className="px-4 py-2">Unlimited</td><td className="px-4 py-2">&mdash;</td></tr>
+                <tr className="border-b border-border/20"><td className="px-4 py-2">List</td><td className="px-4 py-2"><InlineCode>list_agents</InlineCode>, <InlineCode>list_organizations</InlineCode>, <InlineCode>list_contexts</InlineCode>, <InlineCode>list_prompts</InlineCode></td><td className="px-4 py-2">30/min</td><td className="px-4 py-2"><InlineCode>RATE_LIMIT_A2A_LIST</InlineCode></td></tr>
+                <tr className="border-b border-border/20"><td className="px-4 py-2">Get</td><td className="px-4 py-2"><InlineCode>get_agent</InlineCode>, <InlineCode>get_context</InlineCode>, <InlineCode>get_prompt</InlineCode>, etc.</td><td className="px-4 py-2">60/min</td><td className="px-4 py-2"><InlineCode>RATE_LIMIT_A2A_GET</InlineCode></td></tr>
+                <tr className="border-b border-border/20"><td className="px-4 py-2">Audit</td><td className="px-4 py-2"><InlineCode>get_lineage</InlineCode>, <InlineCode>get_blocked_injections</InlineCode>, <InlineCode>get_audit_log</InlineCode></td><td className="px-4 py-2">10/min</td><td className="px-4 py-2"><InlineCode>RATE_LIMIT_A2A_AUDIT</InlineCode></td></tr>
+                <tr className="border-b border-border/20"><td className="px-4 py-2">Reports</td><td className="px-4 py-2"><InlineCode>get_dashboard</InlineCode>, <InlineCode>get_reports</InlineCode></td><td className="px-4 py-2">10/min</td><td className="px-4 py-2"><InlineCode>RATE_LIMIT_A2A_REPORTS</InlineCode></td></tr>
+                <tr><td className="px-4 py-2">Register</td><td className="px-4 py-2"><InlineCode>register</InlineCode></td><td className="px-4 py-2">5/min</td><td className="px-4 py-2"><InlineCode>RATE_LIMIT_A2A_REGISTER</InlineCode></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <P>When a rate limit is exceeded, the A2A endpoint returns <InlineCode>429 Too Many Requests</InlineCode> with a <InlineCode>retry_after</InlineCode> field in the response metadata. REST API rate limiting is handled separately by <strong className="text-foreground">slowapi</strong> (see <a href="#security" className="text-violet-600 dark:text-violet-400 hover:underline underline-offset-2">Security</a>).</P>
+          <DocsCodeBlock label="Environment: customize rate limits">{`# A2A per-skill rate limits (requests per minute)
+RATE_LIMIT_A2A_LIST=30
+RATE_LIMIT_A2A_GET=60
+RATE_LIMIT_A2A_AUDIT=10
+RATE_LIMIT_A2A_REPORTS=10
+RATE_LIMIT_A2A_REGISTER=5
+
+# REST API rate limits
+RATE_LIMIT_DEFAULT=100/minute
+RATE_LIMIT_SEED=5/hour
+RATE_LIMIT_AUTH=20/minute
+
+# Connection pooling
+DB_POOL_MIN=2
+DB_POOL_MAX=10
+DB_CONNECT_TIMEOUT=10`}</DocsCodeBlock>
         </section>
 
         <section id="environment" className="scroll-mt-24 pt-6 border-t border-border/40">
