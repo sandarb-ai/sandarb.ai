@@ -1,9 +1,11 @@
 """
-Agent protocol router: Agent Card (discovery), MCP JSON-RPC, and A2A JSON-RPC.
+Agent protocol router: Agent Card (discovery) and A2A JSON-RPC.
 
-Mounted at root when running as the Sandarb Agent service (agent.sandarb.ai).
+MCP is now served via the official mcp Python SDK (see backend/mcp_server.py),
+mounted separately on FastAPI using Streamable HTTP transport at /mcp.
+
+This module handles:
 - GET / -> Agent Card (A2A discovery)
-- POST /mcp -> MCP JSON-RPC
 - POST /a2a -> A2A JSON-RPC
 """
 
@@ -55,54 +57,9 @@ def _build_agent_card() -> dict[str, Any]:
 
 
 # -----------------------------------------------------------------------------
-# MCP router (JSON-RPC 2.0 at POST /mcp)
+# MCP is now served via the official mcp Python SDK (backend/mcp_server.py).
+# It is mounted on the FastAPI app in main.py using Streamable HTTP transport.
 # -----------------------------------------------------------------------------
-
-mcp_router = APIRouter(prefix="/mcp", tags=["mcp"])
-
-
-@mcp_router.post("")
-async def mcp_jsonrpc(request: Request):
-    """MCP JSON-RPC 2.0 endpoint. Configure in Claude Desktop / Cursor as https://agent.sandarb.ai/mcp."""
-    try:
-        body = await request.json()
-    except Exception:
-        return JSONResponse(
-            status_code=400,
-            content={"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"}, "id": None},
-        )
-    req_id = body.get("id")
-    method = body.get("method")
-    params = body.get("params") or {}
-
-    def ok(result: Any) -> JSONResponse:
-        return JSONResponse(content={"jsonrpc": "2.0", "result": result, "id": req_id})
-
-    def err(code: int, message: str) -> JSONResponse:
-        return JSONResponse(
-            content={"jsonrpc": "2.0", "error": {"code": code, "message": message}, "id": req_id},
-        )
-
-    if method == "initialize":
-        return ok({
-            "protocolVersion": "2024-11-05",
-            "capabilities": {"resources": {}, "tools": {}, "prompts": {}},
-            "serverInfo": {"name": "sandarb-mcp", "version": "0.1.0"},
-        })
-    if method == "resources/list":
-        return ok({"resources": []})
-    if method == "resources/read":
-        return err(-32602, "Sandarb MCP: resources/read not implemented")
-    if method == "tools/list":
-        return ok({"tools": []})
-    if method == "tools/call":
-        return err(-32602, "Sandarb MCP: tools/call not implemented")
-    if method == "prompts/list":
-        return ok({"prompts": []})
-    if method == "prompts/get":
-        return err(-32602, "Sandarb MCP: prompts/get not implemented")
-    return err(-32601, f"Method not found: {method}")
-
 
 # -----------------------------------------------------------------------------
 # A2A router (JSON-RPC 2.0 at POST /a2a)
@@ -206,10 +163,10 @@ async def _execute_a2a_skill(request: Request, skill: str, inp: dict[str, Any]) 
             return {"error": f"Context not found: {name}"}
         agent = get_agent_by_identifier(source_agent)
         if not agent:
-            log_inject_denied(source_agent, trace_id, name, "Agent not registered with Sandarb.")
+            log_inject_denied(source_agent, trace_id, context["id"], name, "Agent not registered with Sandarb.")
             return {"error": "Agent not registered with Sandarb."}
         if not is_context_linked_to_agent(agent.id, context["id"]):
-            log_inject_denied(source_agent, trace_id, name, "Context is not linked to this agent.")
+            log_inject_denied(source_agent, trace_id, context["id"], name, "Context is not linked to this agent.")
             return {"error": "Context is not linked to this agent."}
         log_inject_success(source_agent, trace_id, context["id"], context.get("name", ""))
         content = context.get("content")
@@ -302,7 +259,7 @@ async def _execute_a2a_skill(request: Request, skill: str, inp: dict[str, Any]) 
 
 
 # -----------------------------------------------------------------------------
-# Agent protocol router (root: GET /, and includes /mcp, /a2a)
+# Agent protocol router (root: GET /, and includes /a2a)
 # -----------------------------------------------------------------------------
 
 router = APIRouter(tags=["agent-protocol"])
@@ -314,5 +271,4 @@ def agent_card_root():
     return _build_agent_card()
 
 
-router.include_router(mcp_router)
 router.include_router(a2a_router)

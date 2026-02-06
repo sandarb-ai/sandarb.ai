@@ -93,9 +93,137 @@ Sandarb fits into your architecture however you need it to.
 
 <!-- TODO: Add architecture diagram at docs/images/integrate-your-way.png -->
 
+* **MCP (Model Context Protocol):** Connect Claude Desktop, Cursor, Windsurf, or any MCP client directly to Sandarb. Governed prompts, contexts, and audit lineage are exposed as MCP tools via Streamable HTTP transport. See [Connecting to Sandarb MCP Server](#-connecting-to-sandarb-mcp-server) below.
 * **A2A Protocol:** The Sandarb AI Governance Agent participates in A2A (the industry standard for agent-to-agent communication). Other agents call `POST /api/a2a` with skills like `get_context`, `validate_context`, and `get_lineage`; Sandarb can also communicate with other agents via A2A.
 * **API:** Standard HTTP endpoints (`GET /api/contexts`, `GET /api/agents`) for traditional integration.
 * **Git-like Flow:** Propose edits with commit messages. Contexts and prompts get versioned history. Sandarb tracks approvals and revisions like a lightweight Pull Request flow.
+
+---
+
+## 🔗 Connecting to Sandarb MCP Server
+
+Sandarb exposes a fully compliant MCP server at `/mcp` using the [official mcp Python SDK](https://github.com/modelcontextprotocol/python-sdk) with **Streamable HTTP transport**. This means Claude Desktop, Cursor, Windsurf, VS Code Copilot, and any MCP-compatible client can connect directly.
+
+### Available MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `list_contexts` | List context names available to your agent |
+| `get_context` | Get approved context content by name (agent must be linked) |
+| `get_prompt` | Get approved prompt content by name (agent must be linked) |
+| `get_lineage` | Get recent context delivery audit trail |
+| `register_agent` | Register a new agent with the governance platform |
+| `validate_context` | Validate context content against governance rules |
+
+### Prerequisites
+
+1. **Sandarb backend running** (locally or deployed)
+2. **A registered service account** with an API key (created via the Sandarb UI or database)
+3. **An agent registered** in Sandarb and linked to the prompts/contexts it needs access to
+
+### Claude Desktop
+
+Add to your Claude Desktop MCP config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS, `%APPDATA%\Claude\claude_desktop_config.json` on Windows):
+
+**Direct connection (Streamable HTTP):**
+
+```json
+{
+  "mcpServers": {
+    "sandarb": {
+      "url": "http://localhost:8000/mcp"
+    }
+  }
+}
+```
+
+**Production (via mcp-remote proxy for SSE compatibility):**
+
+```json
+{
+  "mcpServers": {
+    "sandarb": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://api.your-company.com/mcp"
+      ]
+    }
+  }
+}
+```
+
+### Cursor / Windsurf
+
+In your project's `.cursor/mcp.json` or equivalent config:
+
+```json
+{
+  "mcpServers": {
+    "sandarb": {
+      "url": "http://localhost:8000/mcp"
+    }
+  }
+}
+```
+
+Or for production:
+
+```json
+{
+  "mcpServers": {
+    "sandarb": {
+      "url": "https://api.your-company.com/mcp"
+    }
+  }
+}
+```
+
+### Claude Code (CLI)
+
+```bash
+claude mcp add sandarb --transport http http://localhost:8000/mcp
+```
+
+### Using the MCP Tools
+
+Once connected, the AI assistant has access to Sandarb governance tools. Each tool that accesses governed data requires three parameters:
+
+- **`api_key`** — Your Sandarb service account API key
+- **`source_agent`** — The registered agent ID making the request
+- **`trace_id`** — A unique trace identifier for audit logging
+
+Example interaction in Claude Desktop:
+
+> "Use the sandarb MCP server to get the approved prompt named 'customer-support'."
+
+The assistant will call the `get_prompt` tool with the required parameters and return the governed prompt content.
+
+### Testing the MCP Endpoint
+
+You can verify the MCP server is running with a simple curl:
+
+```bash
+# Check MCP endpoint (Streamable HTTP)
+curl -X POST http://localhost:8000/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'
+```
+
+### Architecture
+
+The MCP server is built using the official `mcp` Python SDK (`FastMCP`) and mounted on the existing FastAPI application:
+
+```
+FastAPI app (backend/main.py)
+  ├── /api/*         REST API routers
+  ├── /mcp           MCP server (Streamable HTTP transport)
+  ├── /a2a           A2A JSON-RPC endpoint
+  └── /              Agent Card (when SANDARB_AGENT_SERVICE=1)
+```
+
+The MCP server (`backend/mcp_server.py`) uses `stateless_http=True` and `json_response=True` for optimal scalability in production. It reuses the same backend services (contexts, prompts, audit, agents) as the REST API and A2A endpoints.
 
 ---
 

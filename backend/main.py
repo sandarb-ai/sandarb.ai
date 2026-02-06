@@ -2,12 +2,16 @@
 Sandarb FastAPI backend.
 Runs alongside Next.js frontend; same Postgres schema.
 
+MCP server (Model Context Protocol) is mounted at /mcp using the official mcp Python SDK
+with Streamable HTTP transport. Connect from Claude Desktop, Cursor, or any MCP client.
+
 When SANDARB_AGENT_SERVICE=1 (e.g. on agent.sandarb.ai), the agent protocol router
-is mounted at root: GET / (Agent Card), POST /mcp (MCP JSON-RPC), POST /a2a (A2A JSON-RPC).
+is mounted at root: GET / (Agent Card), POST /a2a (A2A JSON-RPC).
 """
 
 import logging
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,6 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.config import settings as config
 from backend.middleware.security import setup_security_middleware
 from backend.routers import health, agents, organizations, dashboard, governance, agent_pulse, lineage, contexts, prompts, templates, settings, inject, reports, audit, samples, seed, agent_protocol
+from backend.mcp_server import mcp as sandarb_mcp
 
 # Configure logging
 logging.basicConfig(
@@ -23,10 +28,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage MCP session manager lifecycle alongside the FastAPI app."""
+    async with sandarb_mcp.session_manager.run():
+        logger.info("Sandarb MCP server started (Streamable HTTP at /mcp)")
+        yield
+    logger.info("Sandarb MCP server stopped")
+
+
 app = FastAPI(
     title="Sandarb API",
     description="Backend for Sandarb AI Governance Platform",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 # CORS: allow configured origins + localhost/127.0.0.1 (for IDEs using MCP) and optionally wildcard for agents
@@ -77,7 +93,10 @@ app.include_router(audit.router, prefix="/api")
 app.include_router(samples.router, prefix="/api")
 app.include_router(seed.router, prefix="/api")
 
-# Agent service (agent.sandarb.ai): mount Agent Card + MCP + A2A at root
+# Mount MCP server at /mcp (Streamable HTTP transport — works with Claude Desktop, Cursor, mcp-remote)
+app.mount("/mcp", sandarb_mcp.streamable_http_app())
+
+# Agent service (agent.sandarb.ai): mount Agent Card + A2A at root
 if os.environ.get("SANDARB_AGENT_SERVICE", "").lower() in ("1", "true", "yes"):
     app.include_router(agent_protocol.router, prefix="")
 else:
