@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { FileCheck, GitBranch, Code, Bot, GitMerge, BookOpen, Shield, ArrowRight, Github } from 'lucide-react';
+import { FileCheck, GitBranch, Code, Bot, GitMerge, BookOpen, Shield, ArrowRight, Github, LayoutDashboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export const metadata = {
@@ -63,7 +63,7 @@ export default function LandingPage() {
               Goal
             </h2>
             <ol className="text-sm text-muted-foreground/90 space-y-1 list-decimal list-inside leading-relaxed">
-              <li>Governance that doesn't slow shipping AI Agents to production</li>
+              <li>AI Governance that doesn't slow shipping AI Agents to production</li>
               <li>Version mgmt & traceability for prompts and context</li>
               <li>Living AI Agents registry</li>
             </ol>
@@ -91,8 +91,11 @@ export default function LandingPage() {
               Open source
             </h2>
             <p className="text-sm text-muted-foreground/90 leading-relaxed mb-1.5">
-              Run it yourself, extend the API, or contribute. Protocol-first.
+              Run it yourself, extend the API, or contribute.
             </p>
+            <div className="flex items-center gap-2 mb-1">
+              <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT License" className="h-5" />
+            </div>
             <span className="text-sm text-violet-600 dark:text-violet-400 font-medium">
               github.com/sandarb-ai/sandarb.ai
             </span>
@@ -143,6 +146,18 @@ export default function LandingPage() {
               <p className="text-sm text-muted-foreground/90 leading-relaxed">
                 All resources and actions over HTTP. Inject context from your agent: <code className="rounded bg-muted px-1">GET /api/inject?name=my-context</code>. List and manage via <code className="rounded bg-muted px-1">/api/contexts</code>, <code className="rounded bg-muted px-1">/api/agents</code>, <code className="rounded bg-muted px-1">/api/organizations</code>.
               </p>
+            </div>
+            <div className="rounded-lg border border-border/80 bg-background/50 p-4 hover:border-violet-200/80 dark:hover:border-violet-800/40 transition-colors">
+              <h3 className="text-sm font-bold text-violet-600 dark:text-violet-400 uppercase tracking-wider flex items-center gap-2 mb-2">
+                <LayoutDashboard className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                GUI
+              </h3>
+              <p className="text-sm text-muted-foreground/90 leading-relaxed mb-2">
+                Full governance dashboard: approve or reject prompts and context, browse the agent registry, view audit trail and lineage, generate governance reports, and explore version history. Built-in API playground included.
+              </p>
+              <Link href="/dashboard" className="text-sm text-violet-600 dark:text-violet-400 font-medium hover:underline">
+                Open Dashboard →
+              </Link>
             </div>
             <div className="rounded-lg border border-border/80 bg-background/50 p-4 hover:border-violet-200/80 dark:hover:border-violet-800/40 transition-colors">
               <h3 className="text-sm font-bold text-violet-600 dark:text-violet-400 uppercase tracking-wider flex items-center gap-2 mb-2">
