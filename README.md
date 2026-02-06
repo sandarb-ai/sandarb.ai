@@ -38,7 +38,7 @@ Sandarb is designed to run in a **company’s control plane** to implement AI Go
 | **Local development** | You on your laptop | UI: `http://localhost:3000`, API: `http://localhost:8000`. Use the Quick Start above for localhost integration. |
 | **Production** | Your company (platform/security team) | Sandarb is designed to run on a **control plane**—hosted behind a **load balancer** or on a **separate, fully protected server**. API and UI URLs are provided by the company (e.g. `https://sandarb.your-company.com`, `https://api.sandarb.your-company.com`). Your agents and SDK point at those URLs; you do not run or expose Sandarb yourself. |
 
-When you go to production, the service must be hosted and fully protected by your organization—not exposed directly from a developer machine. See **[docs/developer-guide.md](docs/developer-guide.md#deployment)** and **[docs/deploy-gcp.md](docs/deploy-gcp.md)** for how to host Sandarb (e.g. behind LB, GCP Cloud Run, or a dedicated server).
+When you go to production, the service must be hosted and fully protected by your organization. See **[docs/developer-guide.md](docs/developer-guide.md#deployment)** and **[docs/deploy-gcp.md](docs/deploy-gcp.md)** for how to host Sandarb (e.g. behind LB, GCP Cloud Run, or a dedicated server).
 
 ### Security
 
