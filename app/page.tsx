@@ -78,15 +78,15 @@ export default function LandingPage() {
             AI Governance for your AI Agents
           </h1>
           <p className="text-base sm:text-lg text-foreground/70 mt-4 max-w-2xl mx-auto leading-relaxed font-bold tracking-[-0.01em]">
-            Manage and govern your AI Agents{' '}
+            Manage and govern your AI Agents&apos;{' '}
             <span className="bg-violet-100 text-violet-900 dark:bg-violet-900/40 dark:text-violet-100 px-1.5 py-0.5 rounded">prompts</span> and{' '}
-            <span className="bg-violet-100 text-violet-900 dark:bg-violet-900/40 dark:text-violet-100 px-1.5 py-0.5 rounded">context</span>{' '}
-            in a protocol first approach (think{' '}
+            <span className="bg-violet-100 text-violet-900 dark:bg-violet-900/40 dark:text-violet-100 px-1.5 py-0.5 rounded">contexts</span>{' '}
+            using a protocol-first approach (think{' '}
             <span className="text-violet-600 dark:text-violet-400">A2A</span>,{' '}
             <span className="text-violet-600 dark:text-violet-400">MCP</span>,{' '}
             <span className="text-violet-600 dark:text-violet-400">API</span> and{' '}
             <span className="text-violet-600 dark:text-violet-400">Git-like</span>).{' '}
-            Every request tracked; lineage and audit built in and automated reports for AI Governance.
+            Every request is tracked, with built-in lineage, auditing, and automated reports for AI Governance.
           </p>
           <div className="mt-5 flex flex-wrap justify-center items-center gap-3">
             <Link href="/docs">
