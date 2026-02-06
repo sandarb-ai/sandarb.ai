@@ -781,6 +781,38 @@ export interface ReportsCompliance {
   agentsByPiiHandling?: Record<string, number>;
 }
 
+export interface ReportsContext {
+  totalContexts: number;
+  approvedVersions: number;
+  totalInjects: number;
+  totalDenied: number;
+  renderedCount: number;
+  orphanedContexts: number;
+  injectTimeSeries: { date: string; success: number; denied: number }[];
+  topContexts: { name: string; count: number }[];
+  blockedReasons: { name: string; count: number }[];
+  classificationAccess: { name: string; count: number }[];
+  renderingBreakdown: { name: string; count: number }[];
+  coverage: {
+    agentsWithContexts: number;
+    agentsWithoutContexts: number;
+    linkedContexts: number;
+    orphanedContexts: number;
+  };
+  staleness: {
+    name: string;
+    version: number;
+    approvedAt: string;
+    daysSince: number;
+  }[];
+  approvalVelocity: {
+    avgDays: number;
+    minDays: number;
+    maxDays: number;
+  };
+  contextsByOrg: { name: string; count: number }[];
+}
+
 export interface ReportsPayload {
   overview: ReportsOverview;
   unregisteredAgents: UnauthenticatedDetection[];

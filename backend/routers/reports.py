@@ -7,6 +7,7 @@ from backend.services.reports import (
     get_reports_overview,
     get_regulatory_report,
     get_compliance_report,
+    get_context_report,
     get_all_reports,
 )
 from backend.services.governance import get_unauthenticated_detections
@@ -46,4 +47,11 @@ def reports_regulatory():
 def reports_compliance():
     """Compliance report: access events, success/denied, lineage."""
     data = get_compliance_report()
+    return ApiResponse(success=True, data=data)
+
+
+@router.get("/context", response_model=ApiResponse)
+def reports_context():
+    """Context governance report: proof-of-delivery, coverage, staleness, rendering analytics."""
+    data = get_context_report()
     return ApiResponse(success=True, data=data)

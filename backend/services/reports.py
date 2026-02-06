@@ -179,6 +179,198 @@ def get_compliance_report() -> dict:
     }
 
 
+def get_context_report() -> dict:
+    """Context-focused report: governance proof, usage, coverage, staleness, rendering.
+
+    Returns a comprehensive payload covering the 10 context-centric report types
+    described in the reports design:
+
+      1. Governance proof-of-delivery (inject success with hash)
+      2. Access violations (blocked injections with reason breakdown)
+      3. Data classification risk (high-classification access counts)
+      4. Agent-context coverage matrix (linked vs orphaned)
+      5. Context version drift / staleness
+      6. Top consumed contexts (by inject count)
+      7. Template rendering analytics (rendered vs raw)
+      8. Inject success vs denied time series (last 30 days)
+      9. Blocked reason breakdown (pie)
+     10. Approval chain velocity (avg days to approve)
+    """
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+
+    # --- 1. Summary KPI cards ---
+    total_contexts = query_one("SELECT COUNT(*)::int AS c FROM contexts")
+    total_contexts_count = int(total_contexts["c"] or 0) if total_contexts else 0
+
+    approved_versions = query_one("SELECT COUNT(*)::int AS c FROM context_versions WHERE status = 'Approved'")
+    approved_versions_count = int(approved_versions["c"] or 0) if approved_versions else 0
+
+    total_injects = query_one(
+        """SELECT COUNT(*)::int AS c FROM sandarb_access_logs
+           WHERE metadata->>'action_type' = 'INJECT_SUCCESS'"""
+    )
+    total_injects_count = int(total_injects["c"] or 0) if total_injects else 0
+
+    total_denied = query_one(
+        """SELECT COUNT(*)::int AS c FROM sandarb_access_logs
+           WHERE metadata->>'action_type' = 'INJECT_DENIED'"""
+    )
+    total_denied_count = int(total_denied["c"] or 0) if total_denied else 0
+
+    rendered_count_row = query_one(
+        """SELECT COUNT(*)::int AS c FROM sandarb_access_logs
+           WHERE metadata->>'action_type' = 'INJECT_SUCCESS'
+             AND metadata->>'rendered' = 'true'"""
+    )
+    rendered_count = int(rendered_count_row["c"] or 0) if rendered_count_row else 0
+
+    linked_contexts = query_one(
+        "SELECT COUNT(DISTINCT context_id)::int AS c FROM agent_contexts"
+    )
+    linked_count = int(linked_contexts["c"] or 0) if linked_contexts else 0
+    orphaned_count = max(0, total_contexts_count - linked_count)
+
+    # --- 2. Inject success vs denied time series (last 30 days) ---
+    ts_rows = query(
+        """SELECT date_trunc('day', accessed_at AT TIME ZONE 'UTC')::date AS day,
+                  COUNT(*) FILTER (WHERE metadata->>'action_type' = 'INJECT_SUCCESS')::int AS success,
+                  COUNT(*) FILTER (WHERE metadata->>'action_type' = 'INJECT_DENIED')::int AS denied
+           FROM sandarb_access_logs
+           WHERE accessed_at >= %s
+             AND metadata->>'action_type' IN ('INJECT_SUCCESS', 'INJECT_DENIED')
+           GROUP BY day ORDER BY day""",
+        (cutoff,),
+    )
+    inject_time_series = [
+        {"date": str(r["day"]), "success": int(r["success"] or 0), "denied": int(r["denied"] or 0)}
+        for r in ts_rows
+    ]
+
+    # --- 3. Top consumed contexts (top 10 by inject count) ---
+    top_rows = query(
+        """SELECT metadata->>'contextName' AS name, COUNT(*)::int AS count
+           FROM sandarb_access_logs
+           WHERE metadata->>'action_type' = 'INJECT_SUCCESS'
+             AND metadata->>'contextName' IS NOT NULL
+           GROUP BY metadata->>'contextName'
+           ORDER BY count DESC LIMIT 10"""
+    )
+    top_contexts = [{"name": str(r["name"]), "count": int(r["count"] or 0)} for r in top_rows]
+
+    # --- 4. Blocked reason breakdown ---
+    reason_rows = query(
+        """SELECT COALESCE(metadata->>'reason', 'Unknown') AS reason, COUNT(*)::int AS count
+           FROM sandarb_access_logs
+           WHERE metadata->>'action_type' = 'INJECT_DENIED'
+           GROUP BY metadata->>'reason'
+           ORDER BY count DESC"""
+    )
+    blocked_reasons = [{"name": str(r["reason"]), "count": int(r["count"] or 0)} for r in reason_rows]
+
+    # --- 5. Data classification access heatmap ---
+    # How many injects per classification level
+    class_access_rows = query(
+        """SELECT COALESCE(c.data_classification, 'Internal') AS classification,
+                  COUNT(*)::int AS count
+           FROM sandarb_access_logs sal
+           JOIN contexts c ON c.id = sal.context_id
+           WHERE metadata->>'action_type' = 'INJECT_SUCCESS'
+           GROUP BY c.data_classification
+           ORDER BY count DESC"""
+    )
+    classification_access = [
+        {"name": str(r["classification"]), "count": int(r["count"] or 0)}
+        for r in class_access_rows
+    ]
+
+    # --- 6. Template rendering ratio ---
+    raw_count = max(0, total_injects_count - rendered_count)
+    rendering_breakdown = [
+        {"name": "Rendered (with variables)", "count": rendered_count},
+        {"name": "Raw (no variables)", "count": raw_count},
+    ]
+
+    # --- 7. Agent-context coverage ---
+    agents_with_contexts = query_one(
+        "SELECT COUNT(DISTINCT agent_id)::int AS c FROM agent_contexts"
+    )
+    agents_with = int(agents_with_contexts["c"] or 0) if agents_with_contexts else 0
+    total_agents = query_one("SELECT COUNT(*)::int AS c FROM agents")
+    total_agents_count = int(total_agents["c"] or 0) if total_agents else 0
+    agents_without = max(0, total_agents_count - agents_with)
+
+    coverage = {
+        "agentsWithContexts": agents_with,
+        "agentsWithoutContexts": agents_without,
+        "linkedContexts": linked_count,
+        "orphanedContexts": orphaned_count,
+    }
+
+    # --- 8. Context staleness (versions not updated in 90+ days) ---
+    stale_rows = query(
+        """SELECT c.name, cv.version,
+                  cv.approved_at,
+                  EXTRACT(EPOCH FROM (NOW() - cv.approved_at)) / 86400 AS days_since
+           FROM contexts c
+           JOIN context_versions cv ON cv.context_id = c.id AND cv.is_active = true
+           WHERE cv.approved_at IS NOT NULL
+           ORDER BY cv.approved_at ASC
+           LIMIT 20"""
+    )
+    staleness = [
+        {
+            "name": str(r["name"]),
+            "version": int(r["version"] or 1),
+            "approvedAt": r["approved_at"].isoformat() if hasattr(r["approved_at"], "isoformat") else str(r["approved_at"]),
+            "daysSince": round(float(r["days_since"] or 0), 1),
+        }
+        for r in stale_rows
+    ]
+
+    # --- 9. Approval velocity (avg days from created_at to approved_at) ---
+    velocity = query_one(
+        """SELECT
+             AVG(EXTRACT(EPOCH FROM (approved_at - created_at)) / 86400)::numeric(10,1) AS avg_days,
+             MIN(EXTRACT(EPOCH FROM (approved_at - created_at)) / 86400)::numeric(10,1) AS min_days,
+             MAX(EXTRACT(EPOCH FROM (approved_at - created_at)) / 86400)::numeric(10,1) AS max_days
+           FROM context_versions
+           WHERE approved_at IS NOT NULL AND created_at IS NOT NULL"""
+    )
+    approval_velocity = {
+        "avgDays": float(velocity["avg_days"] or 0) if velocity else 0,
+        "minDays": float(velocity["min_days"] or 0) if velocity else 0,
+        "maxDays": float(velocity["max_days"] or 0) if velocity else 0,
+    }
+
+    # --- 10. Contexts by organization ---
+    org_rows = query(
+        """SELECT COALESCE(o.name, 'Unassigned') AS org, COUNT(*)::int AS count
+           FROM contexts c
+           LEFT JOIN organizations o ON c.org_id = o.id
+           GROUP BY o.name
+           ORDER BY count DESC LIMIT 10"""
+    )
+    contexts_by_org = [{"name": str(r["org"]), "count": int(r["count"] or 0)} for r in org_rows]
+
+    return {
+        "totalContexts": total_contexts_count,
+        "approvedVersions": approved_versions_count,
+        "totalInjects": total_injects_count,
+        "totalDenied": total_denied_count,
+        "renderedCount": rendered_count,
+        "orphanedContexts": orphaned_count,
+        "injectTimeSeries": inject_time_series,
+        "topContexts": top_contexts,
+        "blockedReasons": blocked_reasons,
+        "classificationAccess": classification_access,
+        "renderingBreakdown": rendering_breakdown,
+        "coverage": coverage,
+        "staleness": staleness,
+        "approvalVelocity": approval_velocity,
+        "contextsByOrg": contexts_by_org,
+    }
+
+
 def get_all_reports(unregistered_limit: int = 50) -> dict:
     """Single payload: overview, unregistered agents list, regulatory, compliance."""
     overview = get_reports_overview()

@@ -46,6 +46,7 @@ const workspaceNav = [
 const reportsNav = [
   { title: 'Overview', href: '/reports', icon: LayoutGrid },
   { title: 'Risk & Controls', href: '/reports/risk-controls', icon: ShieldCheck },
+  { title: 'Context Governance', href: '/reports/context', icon: FileJson },
   { title: 'Un-Registered Agents', href: '/reports/unregistered', icon: AlertTriangle },
   { title: 'Regulatory', href: '/reports/regulatory', icon: Scale },
   { title: 'Compliance', href: '/reports/compliance', icon: FileCheck },

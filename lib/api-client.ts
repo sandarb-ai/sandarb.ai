@@ -352,3 +352,8 @@ export async function getReportsCompliance(): Promise<import('@/types').ReportsC
   const r = await fetchApi<import('@/types').ReportsCompliance>('/api/reports/compliance');
   return r.success && r.data ? r.data : null;
 }
+
+export async function getReportsContext(): Promise<import('@/types').ReportsContext | null> {
+  const r = await fetchApi<import('@/types').ReportsContext>('/api/reports/context');
+  return r.success && r.data ? r.data : null;
+}

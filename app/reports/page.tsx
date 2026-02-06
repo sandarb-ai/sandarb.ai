@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   Scale,
   FileCheck,
+  FileJson,
   BarChart3,
   ArrowRight,
 } from 'lucide-react';
@@ -21,6 +22,14 @@ const reportLinks = [
     icon: ShieldCheck,
     color: 'text-violet-600 dark:text-violet-400',
     bg: 'bg-violet-100 dark:bg-violet-900/30',
+  },
+  {
+    title: 'Context Governance',
+    description: 'Proof-of-delivery, coverage matrix, staleness, rendering analytics, approval velocity, and classification access.',
+    href: '/reports/context',
+    icon: FileJson,
+    color: 'text-indigo-600 dark:text-indigo-400',
+    bg: 'bg-indigo-100 dark:bg-indigo-900/30',
   },
   {
     title: 'Un-Registered Agents',
