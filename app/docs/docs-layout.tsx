@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { BookOpen, Menu, X } from 'lucide-react';
+import { BookOpen, ChevronRight, Home, List, Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { DocsNav, type TocGroup } from './docs-nav';
+import { DocsNav, resolveIcon, type TocGroup } from './docs-nav';
 
 export function DocsLayout({
   tocGroups,
@@ -17,19 +17,22 @@ export function DocsLayout({
 
   const leftNav = (
     <nav className="p-4 py-6 space-y-1">
-      <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-3">
+      <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-3 flex items-center gap-1.5">
+        <List className="h-3.5 w-3.5" />
         Sections
       </p>
       {tocGroups.map((group) => {
         const firstId = group.items[0]?.id;
         if (!firstId) return null;
+        const GroupIcon = resolveIcon(group.icon);
         return (
           <Link
             key={group.label}
             href={`#${firstId}`}
-            className="block py-2 px-3 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-violet-100/50 dark:hover:bg-violet-900/20 transition-colors"
+            className="flex items-center gap-2 py-2 px-3 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-violet-100/50 dark:hover:bg-violet-900/20 transition-colors"
             onClick={() => setMobileOpen(false)}
           >
+            {GroupIcon && <GroupIcon className="h-3.5 w-3.5 shrink-0" />}
             {group.label}
           </Link>
         );
@@ -52,12 +55,17 @@ export function DocsLayout({
         >
           {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </Button>
-        <Link href="/docs" className="flex items-center gap-2 min-w-0">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/30">
-            <BookOpen className="h-4 w-4 text-violet-600 dark:text-violet-400" />
-          </div>
-          <span className="font-semibold text-foreground truncate">Developer Documentation</span>
-        </Link>
+        <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-sm min-w-0">
+          <Link href="/" className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors shrink-0">
+            <Home className="h-3.5 w-3.5" />
+            Home
+          </Link>
+          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
+          <span className="font-medium text-foreground truncate flex items-center gap-1">
+            <BookOpen className="h-3.5 w-3.5" />
+            Documentation
+          </span>
+        </nav>
       </header>
 
       {/* Mobile drawer */}

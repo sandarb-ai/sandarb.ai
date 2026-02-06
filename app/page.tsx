@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { FileCheck, GitBranch, Code, Bot, GitMerge, BookOpen, Shield, ArrowRight, Github, LayoutDashboard } from 'lucide-react';
+import { FileCheck, GitBranch, Code, Bot, GitMerge, BookOpen, Shield, ArrowRight, Github, LayoutDashboard, Network, Lock, Eye, ScrollText, Cpu, Workflow, ShieldCheck, FileKey, Fingerprint, Radio } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export const metadata = {
@@ -7,6 +7,39 @@ export const metadata = {
   description:
     'Manage and govern your AI Agents prompts and context in a protocol first approach (think A2A, MCP, API and Git). Every request tracked; lineage and audit built in and automated reports for AI Governance.',
 };
+
+/* Floating background icons — hero section, edges & corners only (clear center for text) */
+const bgIcons = [
+  // Top-left cluster
+  { Icon: Bot,          top: '4%',  left: '2%',   size: 52, rotate: -15 },
+  { Icon: Network,      top: '6%',  left: '18%',  size: 44, rotate: 10 },
+  { Icon: Shield,       top: '25%', left: '3%',   size: 48, rotate: 12 },
+  { Icon: ShieldCheck,  top: '22%', left: '16%',  size: 40, rotate: -8 },
+  // Top-right cluster
+  { Icon: FileCheck,    top: '5%',  left: '80%',  size: 48, rotate: 18 },
+  { Icon: Lock,         top: '3%',  left: '93%',  size: 52, rotate: -12 },
+  { Icon: Workflow,     top: '24%', left: '82%',  size: 44, rotate: -15 },
+  { Icon: Cpu,          top: '20%', left: '94%',  size: 40, rotate: 20 },
+  // Mid-left
+  { Icon: Code,         top: '48%', left: '2%',   size: 48, rotate: -10 },
+  { Icon: ScrollText,   top: '50%', left: '15%',  size: 44, rotate: 22 },
+  { Icon: Eye,          top: '42%', left: '8%',   size: 40, rotate: 8 },
+  // Mid-right
+  { Icon: Radio,        top: '46%', left: '88%',  size: 48, rotate: 14 },
+  { Icon: Bot,          top: '50%', left: '94%',  size: 44, rotate: -18 },
+  { Icon: Fingerprint,  top: '44%', left: '82%',  size: 40, rotate: -6 },
+  // Bottom-left cluster
+  { Icon: GitMerge,     top: '72%', left: '3%',   size: 52, rotate: 16 },
+  { Icon: FileKey,      top: '75%', left: '17%',  size: 44, rotate: -12 },
+  { Icon: Shield,       top: '92%', left: '5%',   size: 44, rotate: -8 },
+  // Bottom-right cluster
+  { Icon: ShieldCheck,  top: '70%', left: '84%',  size: 48, rotate: 8 },
+  { Icon: Network,      top: '74%', left: '94%',  size: 44, rotate: -20 },
+  { Icon: LayoutDashboard, top: '90%', left: '85%', size: 48, rotate: 15 },
+  // Bottom center (below buttons area, safe)
+  { Icon: Lock,         top: '92%', left: '35%',  size: 40, rotate: -10 },
+  { Icon: Cpu,          top: '90%', left: '60%',  size: 44, rotate: 20 },
+];
 
 /** Landing page. Home links here. After login (e.g. Try the demo), users go to Dashboard. */
 export default function LandingPage() {
@@ -29,24 +62,41 @@ export default function LandingPage() {
         />
       </div>
 
-      <section className="relative flex-shrink-0 border-b border-border bg-muted/20 px-6 py-5">
-        <div className="max-w-4xl mx-auto text-center">
-          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight leading-tight">
-            AI Governance for your AI Agents.
+      <section className="relative flex-shrink-0 border-b border-border px-6 py-5 overflow-hidden">
+        {/* Floating governance & protocol icons — hero background only */}
+        <div className="pointer-events-none absolute inset-0 z-0" aria-hidden>
+          {bgIcons.map(({ Icon, top, left, size, rotate }, i) => (
+            <Icon
+              key={i}
+              className="absolute text-violet-400/[0.12] dark:text-violet-400/[0.10]"
+              style={{ top, left, width: size, height: size, transform: `rotate(${rotate}deg)` }}
+            />
+          ))}
+        </div>
+        <div className="relative z-10 max-w-4xl mx-auto text-center">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight leading-tight pb-1 bg-gradient-to-r from-violet-600 via-purple-500 to-indigo-600 dark:from-violet-400 dark:via-purple-300 dark:to-indigo-400 bg-clip-text text-transparent drop-shadow-sm">
+            AI Governance for your AI Agents
           </h1>
-          <p className="text-base text-muted-foreground mt-2 max-w-2xl mx-auto leading-relaxed">
-            Manage and govern your AI Agents <span className="bg-violet-100 text-violet-900 dark:bg-violet-900/40 dark:text-violet-100 px-1 rounded font-medium">prompts</span> and <span className="bg-violet-100 text-violet-900 dark:bg-violet-900/40 dark:text-violet-100 px-1 rounded font-medium">context</span> in a protocol first approach (think <span className="font-medium text-violet-600 dark:text-violet-400">A2A</span>, <span className="font-medium text-violet-600 dark:text-violet-400">MCP</span>, <span className="font-medium text-violet-600 dark:text-violet-400">API</span> and <span className="font-medium text-violet-600 dark:text-violet-400">Git-like</span>).{' '}
+          <p className="text-base sm:text-lg text-foreground/70 mt-4 max-w-2xl mx-auto leading-relaxed font-bold tracking-[-0.01em]">
+            Manage and govern your AI Agents{' '}
+            <span className="bg-violet-100 text-violet-900 dark:bg-violet-900/40 dark:text-violet-100 px-1.5 py-0.5 rounded">prompts</span> and{' '}
+            <span className="bg-violet-100 text-violet-900 dark:bg-violet-900/40 dark:text-violet-100 px-1.5 py-0.5 rounded">context</span>{' '}
+            in a protocol first approach (think{' '}
+            <span className="text-violet-600 dark:text-violet-400">A2A</span>,{' '}
+            <span className="text-violet-600 dark:text-violet-400">MCP</span>,{' '}
+            <span className="text-violet-600 dark:text-violet-400">API</span> and{' '}
+            <span className="text-violet-600 dark:text-violet-400">Git-like</span>).{' '}
             Every request tracked; lineage and audit built in and automated reports for AI Governance.
           </p>
           <div className="mt-5 flex flex-wrap justify-center items-center gap-3">
             <Link href="/docs">
-              <Button size="sm" variant="outline" className="gap-1.5">
+              <Button size="sm" className="gap-1.5 h-9 px-4 bg-foreground/10 hover:bg-foreground/15 text-foreground border border-border font-semibold">
                 <BookOpen className="h-4 w-4" />
                 Documentation
               </Button>
             </Link>
             <Link href="/signup">
-              <Button size="sm" className="gap-1.5 bg-violet-600 hover:bg-violet-700 text-white">
+              <Button size="sm" className="gap-1.5 h-9 px-4 bg-violet-600 hover:bg-violet-700 text-white">
                 Try the demo
                 <ArrowRight className="h-4 w-4" />
               </Button>
@@ -91,7 +141,7 @@ export default function LandingPage() {
               Open source
             </h2>
             <p className="text-sm text-muted-foreground/90 leading-relaxed mb-1.5">
-              Run it yourself, extend the API, or contribute.
+              Run it anywhere, build on it, or contribute back.
             </p>
             <div className="flex items-center gap-2 mb-1">
               <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="Apache License 2.0" className="h-5" />

@@ -15,10 +15,18 @@ export function ThemeSync() {
       .then((d) => {
         if (d.success && d.data?.theme) {
           const t = d.data.theme as ThemeValue;
-          if (t === 'light' || t === 'dark' || t === 'system') setTheme(t);
+          if (t === 'light' || t === 'dark' || t === 'system') {
+            setTheme(t);
+            return;
+          }
         }
+        // No saved theme from API — ensure light default
+        // (clears any stale localStorage value from previous sessions)
+        setTheme('light');
       })
-      .catch(() => {});
+      .catch(() => {
+        setTheme('light');
+      });
   }, [setTheme]);
 
   return null;

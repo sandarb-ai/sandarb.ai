@@ -343,6 +343,8 @@ export function AgentPulseTerminal({
         </div>
         
         <div className="flex items-center gap-2">
+          {/* Simulated note */}
+          <span className="text-[10px] text-[#8b949e] italic">simulated A2A communication</span>
           {/* Live indicator */}
           {isPlaying && (
             <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-[#238636]/20 text-[#3fb950]">
