@@ -1,7 +1,7 @@
 # Sandarb.ai
 ### AI Governance for your AI Agents
 
-> **Our Goal:** Governance that doesn't slow shipping AI Agents. Protocol-first (A2A, MCP, REST API, Git), versioned prompts/context, and a living agent registry.
+> **Our Goal:** AI Governance that doesn't slow shipping AI Agents to production. Protocol-first (A2A, MCP, REST API, Git), versioned prompts/context, and a living agent registry.
 
 > ⚠️ **Note:** This project is under active development. Documentation is being updated and may be incomplete in some areas. Contributions and feedback are welcome!
 
