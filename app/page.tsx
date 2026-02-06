@@ -168,7 +168,7 @@ export default function LandingPage() {
               <p className="text-sm text-muted-foreground/90 leading-relaxed mb-2">
                 Sandarb is an AI Agent for AI Governance. It can communicate with other AI Agents over the{' '}
                 <a href="https://a2a.dev" target="_blank" rel="noopener noreferrer" className="text-violet-600 dark:text-violet-400 hover:underline">A2A protocol</a>
-                . Other agents call <code className="rounded bg-muted px-1">GET /api/a2a</code> for discovery, then <code className="rounded bg-muted px-1">POST /api/a2a</code> with a skill (<code>get_context</code>, <code>validate_context</code>, <code>get_lineage</code>, <code>register</code>).
+                . Other agents call <code className="rounded bg-muted px-1">GET /a2a</code> for discovery, then <code className="rounded bg-muted px-1">POST /a2a</code> with a skill (<code>get_context</code>, <code>validate_context</code>, <code>get_lineage</code>, <code>register</code>).
               </p>
               <a href="https://a2a-protocol.org/" target="_blank" rel="noopener noreferrer" className="text-sm text-violet-600 dark:text-violet-400 font-medium hover:underline">
                 a2a-protocol.org →

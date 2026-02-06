@@ -741,27 +741,27 @@ for (const contextName of manifest.contexts || []) {
           <H3WithAnchor>A2A alternative</H3WithAnchor>
           <P>Instead of REST calls, use the A2A protocol:</P>
           <DocsCodeBlock label="A2A skill calls (24 skills available)">{`// Register via A2A
-POST /api/a2a
+POST /a2a
 { "method": "skills/execute", "params": { "skill": "register", "input": { ...manifest } } }
 
 // List all agents
-POST /api/a2a
+POST /a2a
 { "method": "skills/execute", "params": { "skill": "list_agents", "input": {} } }
 
 // Get prompt via A2A
-POST /api/a2a
+POST /a2a
 { "method": "skills/execute", "params": { "skill": "get_prompt", "input": { "name": "kyc-verification-agent" } } }
 
 // Get context via A2A
-POST /api/a2a
+POST /a2a
 { "method": "skills/execute", "params": { "skill": "get_context", "input": { "name": "kyc-config" } } }
 
 // Get dashboard overview
-POST /api/a2a
+POST /a2a
 { "method": "skills/execute", "params": { "skill": "get_dashboard", "input": {} } }
 
 // Get governance reports
-POST /api/a2a
+POST /a2a
 { "method": "skills/execute", "params": { "skill": "get_reports", "input": {} } }`}</DocsCodeBlock>
 
           <Admonition title="Governance approval">
@@ -802,8 +802,8 @@ POST /api/a2a
                   <tr className="border-b border-border/50"><td className="py-2 px-3"><MethodBadge method="GET" /></td><td className="py-2 px-3 font-mono text-xs">/api/organizations</td><td className="py-2 px-3">List organizations</td></tr>
                   <tr className="border-b border-border/50"><td className="py-2 px-3"><MethodBadge method="POST" /></td><td className="py-2 px-3 font-mono text-xs">/api/organizations</td><td className="py-2 px-3">Create organization</td></tr>
                   <tr className="border-b border-border/50"><td className="py-2 px-3"><MethodBadge method="GET" /></td><td className="py-2 px-3 font-mono text-xs">/api/templates</td><td className="py-2 px-3">List templates</td></tr>
-                  <tr className="border-b border-border/50"><td className="py-2 px-3"><MethodBadge method="GET" /></td><td className="py-2 px-3 font-mono text-xs">/api/a2a</td><td className="py-2 px-3">A2A Agent Card (discovery)</td></tr>
-                  <tr className="border-b border-border/50"><td className="py-2 px-3"><MethodBadge method="POST" /></td><td className="py-2 px-3 font-mono text-xs">/api/a2a</td><td className="py-2 px-3">A2A skill execution</td></tr>
+                  <tr className="border-b border-border/50"><td className="py-2 px-3"><MethodBadge method="GET" /></td><td className="py-2 px-3 font-mono text-xs">/a2a</td><td className="py-2 px-3">A2A Agent Card (discovery)</td></tr>
+                  <tr className="border-b border-border/50"><td className="py-2 px-3"><MethodBadge method="POST" /></td><td className="py-2 px-3 font-mono text-xs">/a2a</td><td className="py-2 px-3">A2A skill execution</td></tr>
                   <tr><td className="py-2 px-3"><MethodBadge method="GET" /></td><td className="py-2 px-3 font-mono text-xs">/api/lineage</td><td className="py-2 px-3">Recent context deliveries (lineage)</td></tr>
                 </tbody>
               </table>
@@ -1141,8 +1141,8 @@ curl -H "X-Sandarb-Agent-ID: my-agent" -H "X-Sandarb-Trace-ID: req-123" \\
 
           <H3WithAnchor>How A2A URLs work in practice</H3WithAnchor>
           <Ul>
-            <li><strong className="text-foreground">Discovery</strong> – Agent A uses the A2A URL of Agent B to read its capabilities (e.g. <InlineCode>GET /api/a2a</InlineCode> returns the Agent Card).</li>
-            <li><strong className="text-foreground">Interaction</strong> – Agent A sends a JSON-RPC 2.0 message over HTTP(S) to that URL to initiate a task (e.g. <InlineCode>POST /api/a2a</InlineCode> with method and params).</li>
+            <li><strong className="text-foreground">Discovery</strong> – Agent A uses the A2A URL of Agent B to read its capabilities (e.g. <InlineCode>GET /a2a</InlineCode> returns the Agent Card).</li>
+            <li><strong className="text-foreground">Interaction</strong> – Agent A sends a JSON-RPC 2.0 message over HTTP(S) to that URL to initiate a task (e.g. <InlineCode>POST /a2a</InlineCode> with method and params).</li>
             <li><strong className="text-foreground">Real-time updates</strong> – For long-running tasks, the A2A server may use Server-Sent Events (SSE) to send updates back to the client. Sandarb currently responds synchronously; SSE may be added for streaming or long-running flows.</li>
           </Ul>
 
@@ -1152,17 +1152,17 @@ curl -H "X-Sandarb-Agent-ID: my-agent" -H "X-Sandarb-Trace-ID: req-123" \\
             <li><a href="https://google.github.io/A2A/specification/" target="_blank" rel="noopener noreferrer" className="text-violet-600 dark:text-violet-400 hover:underline underline-offset-2">A2A Protocol Specification</a> (Google) – transport, Agent Card structure, RPC methods, data objects.</li>
             <li><a href="https://google.github.io/A2A/topics/key-concepts/" target="_blank" rel="noopener noreferrer" className="text-violet-600 dark:text-violet-400 hover:underline underline-offset-2">Key concepts</a> – A2A Client, A2A Server, Agent Card, Task, Message, Part, Artifact.</li>
           </Ul>
-          <Admonition title="Well-known URI">The spec recommends serving the Agent Card at <InlineCode>/.well-known/agent.json</InlineCode>. Sandarb exposes its Agent Card at <InlineCode>GET /api/a2a</InlineCode> for convenience and consistency with the rest of the API.</Admonition>
+          <Admonition title="Well-known URI">The spec recommends serving the Agent Card at <InlineCode>/.well-known/agent.json</InlineCode>. Sandarb exposes its Agent Card at <InlineCode>GET /a2a</InlineCode> for convenience and consistency with the rest of the API.</Admonition>
 
           <H3WithAnchor>Discovery (Agent Card)</H3WithAnchor>
           <P>Clients discover Sandarb by fetching its Agent Card. The response is a JSON document describing the agent&apos;s name, description, service URL, version, capabilities, and skills.</P>
           <DocsCodeBlock label="cURL">{`# Replace BASE_URL with your Sandarb API URL (e.g. http://localhost:8000 for local)
-curl -s "\${BASE_URL}/api/a2a"`}</DocsCodeBlock>
+curl -s "\${BASE_URL}/a2a"`}</DocsCodeBlock>
           <P>Returns the Agent Card (v0.2.0) with <InlineCode>name</InlineCode>, <InlineCode>description</InlineCode>, <InlineCode>url</InlineCode>, <InlineCode>version</InlineCode>, <InlineCode>capabilities</InlineCode>, and <InlineCode>skills</InlineCode> (24 skills across agents, organizations, contexts, prompts, audit, reports, and validation).</P>
 
           <H3WithAnchor>Skill invocation (JSON-RPC 2.0)</H3WithAnchor>
-          <P>Clients send <strong className="text-foreground">POST /api/a2a</strong> with a JSON-RPC 2.0 body. Sandarb requires <InlineCode>Authorization: Bearer &lt;token&gt;</InlineCode>. Use <InlineCode>method: &quot;skills/execute&quot;</InlineCode> with <InlineCode>params: { '{ skill, input }' }</InlineCode> to run a skill. All context requests are logged for lineage and audit.</P>
-          <DocsCodeBlock label="POST /api/a2a (skills/execute)">{`{
+          <P>Clients send <strong className="text-foreground">POST /a2a</strong> with a JSON-RPC 2.0 body. Sandarb requires <InlineCode>Authorization: Bearer &lt;token&gt;</InlineCode>. Use <InlineCode>method: &quot;skills/execute&quot;</InlineCode> with <InlineCode>params: { '{ skill, input }' }</InlineCode> to run a skill. All context requests are logged for lineage and audit.</P>
+          <DocsCodeBlock label="POST /a2a (skills/execute)">{`{
   "jsonrpc": "2.0",
   "id": 1,
   "method": "skills/execute",
@@ -1180,9 +1180,9 @@ curl -s "\${BASE_URL}/api/a2a"`}</DocsCodeBlock>
 
         <section id="a2a-skills-reference" className="scroll-mt-24 pt-6 border-t border-border/40">
           <H2WithAnchor id="a2a-skills-reference">A2A skills reference</H2WithAnchor>
-          <P>Sandarb exposes 24 governance skills via A2A (matching the 22 MCP tools plus 2 discovery skills). Discovery: <InlineCode>GET /api/a2a</InlineCode> returns the Agent Card (name, url, capabilities, skills). Invocation: <InlineCode>POST /api/a2a</InlineCode> with a JSON body containing <InlineCode>skillId</InlineCode> and <InlineCode>input</InlineCode>. The A2A protocol is JSON; Sandarb enforces <strong className="text-foreground">required fields</strong> per skill. Documented fields below are the source of truth.</P>
+          <P>Sandarb exposes 24 governance skills via A2A (matching the 22 MCP tools plus 2 discovery skills). Discovery: <InlineCode>GET /a2a</InlineCode> returns the Agent Card (name, url, capabilities, skills). Invocation: <InlineCode>POST /a2a</InlineCode> with a JSON body containing <InlineCode>skillId</InlineCode> and <InlineCode>input</InlineCode>. The A2A protocol is JSON; Sandarb enforces <strong className="text-foreground">required fields</strong> per skill. Documented fields below are the source of truth.</P>
 
-          <H3WithAnchor>Request envelope (POST /api/a2a)</H3WithAnchor>
+          <H3WithAnchor>Request envelope (POST /a2a)</H3WithAnchor>
           <DocsCodeBlock label="A2A message">{`{
   "messageId": "req-unique-id",
   "parts": [{
@@ -1247,7 +1247,7 @@ curl -s "\${BASE_URL}/api/a2a"`}</DocsCodeBlock>
           </div>
 
           <H3WithAnchor>All skills (summary)</H3WithAnchor>
-          <P>Each skill has required and optional input fields; see the Agent Card (<InlineCode>GET /api/a2a</InlineCode>) for full schemas.</P>
+          <P>Each skill has required and optional input fields; see the Agent Card (<InlineCode>GET /a2a</InlineCode>) for full schemas.</P>
           {skills.map((s) => {
             const schema = s.inputSchema as { required?: string[]; properties?: Record<string, { type?: string; description?: string }> } | undefined;
             const required = schema?.required ?? [];

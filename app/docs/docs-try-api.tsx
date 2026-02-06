@@ -217,7 +217,7 @@ export function DocsTryA2a({ skills }: { skills: AgentSkill[] }) {
       };
       if (token.trim()) headers['Authorization'] = `Bearer ${token.trim()}`;
 
-      const res = await fetch(apiUrl('/api/a2a'), {
+      const res = await fetch(apiUrl('/a2a'), {
         method: 'POST',
         headers,
         body: JSON.stringify(reqBody),
@@ -245,7 +245,7 @@ export function DocsTryA2a({ skills }: { skills: AgentSkill[] }) {
   return (
     <div className="space-y-4 rounded-lg border border-border bg-muted/20 p-4">
       <p className="text-sm text-muted-foreground">
-        Try A2A <code className="rounded bg-muted px-1">skills/execute</code>. POST /api/a2a requires <strong>Authorization: Bearer &lt;token&gt;</strong>; leave blank to see 401.
+        Try A2A <code className="rounded bg-muted px-1">skills/execute</code>. POST /a2a requires <strong>Authorization: Bearer &lt;token&gt;</strong>; leave blank to see 401.
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
@@ -293,7 +293,7 @@ export function DocsTryA2a({ skills }: { skills: AgentSkill[] }) {
         )}
       </div>
       <Button onClick={run} disabled={loading} size="sm">
-        {loading ? 'Sending…' : 'Send POST /api/a2a'}
+        {loading ? 'Sending…' : 'Send POST /a2a'}
       </Button>
       {status != null && (
         <div>

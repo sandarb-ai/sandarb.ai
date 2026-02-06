@@ -155,7 +155,7 @@ function RegisterAgentForm() {
                         id="a2aUrl"
                         value={a2aUrl}
                         onChange={(e) => setA2aUrl(e.target.value)}
-                        placeholder="https://agent.example.com/api/a2a or https://agent.example.com"
+                        placeholder="https://agent.example.com/a2a or https://agent.example.com"
                         required
                       />
                     </div>
@@ -236,7 +236,7 @@ function RegisterAgentForm() {
                         id="a2aUrlManual"
                         value={a2aUrlManual}
                         onChange={(e) => setA2aUrlManual(e.target.value)}
-                        placeholder="https://agent.example.com/api/a2a"
+                        placeholder="https://agent.example.com/a2a"
                         required
                       />
                     </div>

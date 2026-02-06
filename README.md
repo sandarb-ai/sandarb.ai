@@ -95,7 +95,7 @@ Sandarb fits into your architecture however you need it to.
 <!-- TODO: Add architecture diagram at docs/images/integrate-your-way.png -->
 
 * **MCP (Model Context Protocol):** Connect Claude Desktop, Cursor, Windsurf, or any MCP client directly to Sandarb. Governed prompts, contexts, and audit lineage are exposed as MCP tools via Streamable HTTP transport. See [Connecting to Sandarb MCP Server](#-connecting-to-sandarb-mcp-server) below.
-* **A2A Protocol:** The Sandarb AI Governance Agent participates in A2A (the industry standard for agent-to-agent communication). Other agents call `POST /api/a2a` with skills like `get_context`, `validate_context`, and `get_lineage`; Sandarb can also communicate with other agents via A2A.
+* **A2A Protocol:** The Sandarb AI Governance Agent participates in A2A (the industry standard for agent-to-agent communication). Other agents call `POST /a2a` with skills like `get_context`, `validate_context`, and `get_lineage`; Sandarb can also communicate with other agents via A2A.
 * **API:** Standard HTTP endpoints (`GET /api/contexts`, `GET /api/agents`) for traditional integration.
 * **Git-like Flow:** Propose edits with commit messages. Contexts and prompts get versioned history. Sandarb tracks approvals and revisions like a lightweight Pull Request flow.
 

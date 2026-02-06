@@ -430,8 +430,8 @@ Open the UI at http://localhost:3000. Backend (FastAPI) runs at http://localhost
 | POST | /api/agents/:id/approve | Approve agent |
 | GET | /api/organizations | List organizations |
 | POST | /api/organizations | Create organization |
-| GET | /api/a2a | A2A Agent Card (discovery) |
-| POST | /api/a2a | A2A skill execution |
+| GET | /a2a | A2A Agent Card (discovery) |
+| POST | /a2a | A2A skill execution |
 | GET | /api/lineage | Recent context deliveries |
 
 ## Inject API
@@ -466,12 +466,12 @@ The **Sandarb MCP Server** and **A2A Server** run on the `agent.sandarb.ai` subd
 
 **How A2A URLs work in practice (Sandarb AI Governance Agent; A2A is the industry standard for agent-to-agent communication):**
 
-1. **Discovery** – Agent A uses the A2A URL of Agent B to read its capabilities (e.g. `GET /api/a2a` returns the Agent Card: name, description, url, version, capabilities, skills).
-2. **Interaction** – Agent A sends a JSON-RPC 2.0 message over HTTP(S) to that URL to initiate a task (e.g. `POST /api/a2a` with method and params).
+1. **Discovery** – Agent A uses the A2A URL of Agent B to read its capabilities (e.g. `GET /a2a` returns the Agent Card: name, description, url, version, capabilities, skills).
+2. **Interaction** – Agent A sends a JSON-RPC 2.0 message over HTTP(S) to that URL to initiate a task (e.g. `POST /a2a` with method and params).
 3. **Real-time updates** – For long-running tasks, the A2A server may use Server-Sent Events (SSE) to send updates back to the client. Sandarb currently responds synchronously; SSE may be added for streaming or long-running flows.
 
-- **Discovery:** `GET /api/a2a` returns the Agent Card (name, description, url, version, capabilities, 24 skills).
-- **Skills:** `POST /api/a2a` with body `{ "method": "skills/execute", "params": { "skill": "get_context", "input": { "name": "my-context" } } }`.
+- **Discovery:** `GET /a2a` returns the Agent Card (name, description, url, version, capabilities, 24 skills).
+- **Skills:** `POST /a2a` with body `{ "method": "skills/execute", "params": { "skill": "get_context", "input": { "name": "my-context" } } }`.
 
 ### Available A2A skills (24)
 

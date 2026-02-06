@@ -147,7 +147,7 @@ class AsyncSandarb:
         if self.agent_id and "sourceAgent" not in input_data and "agentId" not in input_data:
             payload["params"]["input"]["sourceAgent"] = self.agent_id
 
-        data = await self._request("POST", "/api/a2a", json_data=payload)
+        data = await self._request("POST", "/a2a", json_data=payload)
 
         if "error" in data:
             err = data["error"]
@@ -398,7 +398,7 @@ class AsyncSandarb:
 
     async def get_agent_card(self) -> dict[str, Any]:
         """Fetch Sandarb Agent Card (async)."""
-        return await self._request("GET", "/api/a2a", include_auth=False)
+        return await self._request("GET", "/a2a", include_auth=False)
 
     # -------------------------------------------------------------------------
     # Utilities
