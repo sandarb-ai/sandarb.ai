@@ -94,7 +94,7 @@ export default function LandingPage() {
               Run it yourself, extend the API, or contribute.
             </p>
             <div className="flex items-center gap-2 mb-1">
-              <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT License" className="h-5" />
+              <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="Apache License 2.0" className="h-5" />
             </div>
             <span className="text-sm text-violet-600 dark:text-violet-400 font-medium">
               github.com/sandarb-ai/sandarb.ai

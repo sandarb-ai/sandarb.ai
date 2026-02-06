@@ -44,7 +44,7 @@ When you go to production, the service must be hosted and fully protected by you
 
 Sandarb is built for enterprise and regulated use. Governance data and audit endpoints are protected by **API key authentication**; agent identity is bound to the key (no header trust). **JWT and service account secrets** are enforced in production (no default/weak secrets). Preview bypass is restricted; secrets are not logged; CORS and SQL are hardened. **DB connection pooling**, **API key expiration**, **offset-based pagination** (default 50, max 500), and **tiered rate limiting** across REST and A2A endpoints. Security headers (CSP, X-Frame-Options) and **error sanitization** prevent stack-trace leakage. **[Full security documentation →](docs/SECURITY.md)**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![GCP Native](https://img.shields.io/badge/Deploy-Google%20Cloud-4285F4?logo=google-cloud&logoColor=white)](https://cloud.google.com/)
 
 ---

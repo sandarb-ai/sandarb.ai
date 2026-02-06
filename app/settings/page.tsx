@@ -263,7 +263,7 @@ fetch(apiUrl('/api/settings'), {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">License</span>
-                      <span>MIT</span>
+                      <span>Apache-2.0</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Repository</span>

@@ -4,7 +4,7 @@
   "private": false,
   "description": "Open-source tool for capturing prompts and context for AI agents. Organizations, A2A agent registry, prompts & contexts, dark/light theme. All UI exposed as API.",
   "author": "Sandarb",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/sandarb-ai/sandarb.ai"
