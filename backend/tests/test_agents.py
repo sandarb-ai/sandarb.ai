@@ -42,13 +42,16 @@ class TestAgentsCRUD:
                 pass
 
     def test_list_agents(self):
-        """Test GET /api/agents returns a list."""
+        """Test GET /api/agents returns paginated response."""
         response = self.client.get("/api/agents")
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
         assert "data" in data
-        assert isinstance(data["data"], list)
+        assert isinstance(data["data"]["agents"], list)
+        assert "total" in data["data"]
+        assert "limit" in data["data"]
+        assert "offset" in data["data"]
 
     def test_list_agents_by_organization(self):
         """Test GET /api/agents?orgId={id} filters by org."""

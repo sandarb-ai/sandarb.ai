@@ -37,11 +37,17 @@ function RegisterAgentForm() {
   const [loadingManual, setLoadingManual] = useState(false);
 
   useEffect(() => {
-    fetch(apiUrl('/api/organizations'))
+    fetch(apiUrl('/api/organizations?limit=500&offset=0'))
       .then((r) => r.json())
       .then((d) => {
         if (d.success) {
-          const allOrgs = (d.data as Organization[]) ?? [];
+          // Handle paginated { organizations, total, ... } or bare array
+          const payload = d.data;
+          const allOrgs: Organization[] = Array.isArray(payload)
+            ? payload
+            : (payload?.organizations && Array.isArray(payload.organizations))
+              ? payload.organizations
+              : [];
           setOrgs(allOrgs);
           const firstId = allOrgs[0]?.id;
           if (!orgIdUrl && firstId) setOrgIdUrl(firstId);

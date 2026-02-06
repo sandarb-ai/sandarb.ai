@@ -66,12 +66,18 @@ export function ContextsListClient({ initialContexts, total, totalActive: totalA
   const [regulatoryHookFilter, setRegulatoryHookFilter] = useState<RegulatoryHook | ''>('');
 
   useEffect(() => {
-    fetch(apiUrl('/api/organizations'))
+    fetch(apiUrl('/api/organizations?limit=500&offset=0'))
       .then((r) => r.json())
       .then((d) => {
-        if (d.success && Array.isArray(d.data)) {
-          setOrganizations(d.data as Organization[]);
-        }
+        if (!d.success) return;
+        // Handle paginated { organizations, total, ... } or bare array
+        const payload = d.data;
+        const list = Array.isArray(payload)
+          ? payload
+          : (payload?.organizations && Array.isArray(payload.organizations))
+            ? payload.organizations
+            : [];
+        setOrganizations(list as Organization[]);
       });
   }, []);
 

@@ -38,7 +38,24 @@ def get_organization_by_slug(slug: str) -> Organization | None:
     return _row_to_org(dict(row)) if row else None
 
 
-def get_all_organizations() -> list[Organization]:
+def get_all_organizations(
+    limit: int = 0,
+    offset: int = 0,
+) -> list[Organization] | tuple[list[Organization], int]:
+    """List organizations with optional pagination.
+
+    When limit > 0, returns (orgs, total_count) tuple.
+    When limit == 0 (default), returns bare list for backward compatibility.
+    """
+    if limit > 0:
+        count_row = query_one("SELECT COUNT(*)::int AS count FROM organizations")
+        total = int(count_row["count"] or 0) if count_row else 0
+        rows = query(
+            "SELECT * FROM organizations ORDER BY is_root DESC, name ASC LIMIT %s OFFSET %s",
+            (limit, offset),
+        )
+        return [_row_to_org(dict(r)) for r in rows], total
+
     rows = query("SELECT * FROM organizations ORDER BY is_root DESC, name ASC")
     return [_row_to_org(dict(r)) for r in rows]
 

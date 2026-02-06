@@ -147,12 +147,23 @@ export function AgentsPageClient({ initialAgents, initialOrgs, initialStats }: A
   const fetchAgentsByStatus = async (approvalStatus: StatusFilter) => {
     setStatusFilterLoading(true);
     try {
-      const path = approvalStatus
-        ? `/api/agents?approval_status=${encodeURIComponent(approvalStatus)}`
-        : '/api/agents';
+      const q = new URLSearchParams();
+      if (approvalStatus) q.set('approval_status', approvalStatus);
+      q.set('limit', '500');
+      q.set('offset', '0');
+      const path = '/api/agents?' + q.toString();
       const res = await fetch(apiUrl(path));
       const data = await res.json();
-      if (data?.data) setAgents(normalizeAgentList(data.data));
+      if (data?.data) {
+        // Handle paginated response shape { agents, total, limit, offset }
+        const payload = data.data;
+        const list = Array.isArray(payload)
+          ? payload
+          : (payload?.agents && Array.isArray(payload.agents))
+            ? payload.agents
+            : [];
+        setAgents(normalizeAgentList(list));
+      }
       setStatusFilter(approvalStatus);
       router.refresh();
     } finally {

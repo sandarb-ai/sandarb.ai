@@ -1,6 +1,6 @@
 """Organizations router."""
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 
 from backend.write_auth import require_write_allowed
 from backend.schemas.organizations import Organization, OrganizationCreate, OrganizationUpdate
@@ -20,15 +20,20 @@ router = APIRouter(prefix="/organizations", tags=["organizations"])
 
 
 @router.get("", response_model=ApiResponse)
-def list_organizations(tree: bool = False, root: bool = False):
+def list_organizations(
+    tree: bool = False,
+    root: bool = False,
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+):
     if root:
         data = get_root_organization()
         return ApiResponse(success=True, data=data)
     if tree:
         data = get_organizations_tree()
         return ApiResponse(success=True, data=data)
-    data = get_all_organizations()
-    return ApiResponse(success=True, data=data)
+    orgs, total = get_all_organizations(limit=limit, offset=offset)
+    return ApiResponse(success=True, data={"organizations": orgs, "total": total, "limit": limit, "offset": offset})
 
 
 @router.post("", response_model=ApiResponse, status_code=201)

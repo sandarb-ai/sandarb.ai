@@ -1,6 +1,6 @@
 """Agents router (CRUD + approve/reject). Mirrors Next.js app/api/agents."""
 
-from fastapi import APIRouter, HTTPException, Body, Depends
+from fastapi import APIRouter, HTTPException, Body, Depends, Query
 
 from pydantic import BaseModel
 
@@ -31,11 +31,16 @@ from backend.services.agent_links import (
 router = APIRouter(prefix="/agents", tags=["agents"])
 
 
-@router.get("", response_model=ApiResponse[list[RegisteredAgent]])
-def list_agents(org_id: str | None = None, approval_status: str | None = None):
-    """GET /agents - List agents, optionally by org. Excludes root org when listing all."""
-    agents = get_all_agents(org_id=org_id, approval_status=approval_status)
-    return ApiResponse(success=True, data=agents)
+@router.get("", response_model=ApiResponse)
+def list_agents(
+    org_id: str | None = None,
+    approval_status: str | None = None,
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+):
+    """GET /agents - List agents with pagination. Excludes root org when listing all."""
+    agents, total = get_all_agents(org_id=org_id, approval_status=approval_status, limit=limit, offset=offset)
+    return ApiResponse(success=True, data={"agents": agents, "total": total, "limit": limit, "offset": offset})
 
 
 @router.post("", response_model=ApiResponse[RegisteredAgent], status_code=201)

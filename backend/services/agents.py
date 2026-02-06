@@ -38,25 +38,48 @@ def _row_to_agent(row: dict) -> RegisteredAgent:
     )
 
 
-def get_all_agents(org_id: str | None = None, approval_status: str | None = None) -> list[RegisteredAgent]:
-    conditions = []
+def get_all_agents(
+    org_id: str | None = None,
+    approval_status: str | None = None,
+    limit: int = 0,
+    offset: int = 0,
+) -> list[RegisteredAgent] | tuple[list[RegisteredAgent], int]:
+    """List agents with optional filters and pagination.
+
+    When limit > 0, returns (agents, total_count) tuple.
+    When limit == 0 (default), returns bare list for backward compatibility.
+    """
+    conditions: list[str] = []
     params: list[Any] = []
     if org_id:
         conditions.append("org_id = %s")
         params.append(org_id)
+    else:
+        # Exclude root org agents from listing (matches original behavior)
+        root = get_root_organization()
+        if root:
+            conditions.append("org_id != %s")
+            params.append(root.id)
     if approval_status:
         conditions.append("COALESCE(approval_status, 'draft') = %s")
         params.append(approval_status)
     where = " AND ".join(conditions) if conditions else "1=1"
+
+    if limit > 0:
+        # Paginated mode: return (list, total)
+        count_sql = f"SELECT COUNT(*)::int AS count FROM agents WHERE {where}"
+        count_row = query_one(count_sql, tuple(params) if params else None)
+        total = int(count_row["count"] or 0) if count_row else 0
+
+        sql = f"SELECT * FROM agents WHERE {where} ORDER BY updated_at DESC NULLS LAST, name ASC LIMIT %s OFFSET %s"
+        rows = query(sql, tuple(params + [limit, offset]) if params else (limit, offset))
+        agents = [_row_to_agent(dict(r)) for r in rows]
+        return agents, total
+
+    # Unpaginated mode: return bare list (backward compat for dashboard, reports, etc.)
     sql = f"SELECT * FROM agents WHERE {where} ORDER BY updated_at DESC NULLS LAST, name ASC"
     rows = query(sql, tuple(params) if params else None)
-    agents = [_row_to_agent(dict(r)) for r in rows]
-    if not org_id:
-        root = get_root_organization()
-        if root:
-            root_id = root.id
-            agents = [a for a in agents if a.org_id != root_id]
-    return agents
+    return [_row_to_agent(dict(r)) for r in rows]
 
 
 def get_agent_by_id(agent_id: str) -> RegisteredAgent | None:
@@ -70,11 +93,17 @@ def get_agent_by_identifier(identifier: str) -> RegisteredAgent | None:
     return _row_to_agent(dict(row)) if row else None
 
 
-def get_agent_count(org_id: str | None = None) -> int:
+def get_agent_count(org_id: str | None = None, approval_status: str | None = None) -> int:
+    conditions: list[str] = []
+    params: list[Any] = []
     if org_id:
-        row = query_one("SELECT COUNT(*)::int AS count FROM agents WHERE org_id = %s", (org_id,))
-    else:
-        row = query_one("SELECT COUNT(*)::int AS count FROM agents")
+        conditions.append("org_id = %s")
+        params.append(org_id)
+    if approval_status:
+        conditions.append("COALESCE(approval_status, 'draft') = %s")
+        params.append(approval_status)
+    where = " AND ".join(conditions) if conditions else "1=1"
+    row = query_one(f"SELECT COUNT(*)::int AS count FROM agents WHERE {where}", tuple(params) if params else None)
     return int(row["count"] or 0) if row else 0
 
 

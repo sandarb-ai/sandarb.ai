@@ -55,6 +55,11 @@ class Settings(BaseSettings):
     # Enterprise domain configuration (e.g., governance.company.com)
     # When set, auto-configures CORS for ui.DOMAIN, api.DOMAIN, agent.DOMAIN
     sandarb_domain: str = Field(default="", description="Base domain for enterprise deployment")
+    # Database connection pool
+    db_pool_min: int = Field(default=2, description="Minimum pool connections")
+    db_pool_max: int = Field(default=10, description="Maximum pool connections")
+    db_connect_timeout: int = Field(default=10, description="Connection timeout in seconds")
+
     agent_public_url: str = "http://localhost:8000"
     # Base URL for the Agent subdomain (MCP + A2A). Used in Agent Card. Defaults to agent_public_url.
     agent_base_url: str = Field(default="", description="e.g. https://agent.sandarb.ai; empty = use agent_public_url")

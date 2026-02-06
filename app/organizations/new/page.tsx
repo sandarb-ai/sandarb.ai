@@ -22,9 +22,19 @@ export default function NewOrganizationPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetch(apiUrl('/api/organizations'))
+    fetch(apiUrl('/api/organizations?limit=500&offset=0'))
       .then((r) => r.json())
-      .then((d) => d.success && setParents(d.data));
+      .then((d) => {
+        if (!d.success) return;
+        // Handle paginated { organizations, total, ... } or bare array
+        const payload = d.data;
+        const list = Array.isArray(payload)
+          ? payload
+          : (payload?.organizations && Array.isArray(payload.organizations))
+            ? payload.organizations
+            : [];
+        setParents(list);
+      });
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {

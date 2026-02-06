@@ -25,13 +25,16 @@ class TestOrganizationsCRUD:
                 pass
 
     def test_list_organizations(self):
-        """Test GET /api/organizations returns a list."""
+        """Test GET /api/organizations returns paginated response."""
         response = self.client.get("/api/organizations")
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
         assert "data" in data
-        assert isinstance(data["data"], list)
+        assert isinstance(data["data"]["organizations"], list)
+        assert "total" in data["data"]
+        assert "limit" in data["data"]
+        assert "offset" in data["data"]
 
     def test_list_root_organizations(self):
         """Test GET /api/organizations?root=true returns root org."""

@@ -84,7 +84,7 @@ def log_activity(agent_id: str, trace_id: str, inputs: dict, outputs: dict) -> N
     )
 
 
-def get_blocked_injections(limit: int = 50) -> list[dict]:
+def get_blocked_injections(limit: int = 50, offset: int = 0) -> list[dict]:
     rows = query(
         """SELECT log_id AS id, accessed_at AS created_at,
            metadata->>'context_id' AS resource_id,
@@ -94,8 +94,8 @@ def get_blocked_injections(limit: int = 50) -> list[dict]:
            FROM sandarb_access_logs
            WHERE metadata->>'action_type' = 'INJECT_DENIED'
            ORDER BY accessed_at DESC
-           LIMIT %s""",
-        (limit,),
+           LIMIT %s OFFSET %s""",
+        (limit, offset),
     )
     result = []
     for r in rows:
@@ -118,14 +118,14 @@ def get_blocked_injections(limit: int = 50) -> list[dict]:
     return result
 
 
-def get_lineage(limit: int = 50) -> list[dict]:
+def get_lineage(limit: int = 50, offset: int = 0) -> list[dict]:
     rows = query(
         """SELECT log_id AS id, agent_id, trace_id, metadata->>'context_id' AS context_id, version_id, accessed_at, metadata
            FROM sandarb_access_logs
            WHERE metadata->>'action_type' = 'INJECT_SUCCESS'
            ORDER BY accessed_at DESC
-           LIMIT %s""",
-        (limit,),
+           LIMIT %s OFFSET %s""",
+        (limit, offset),
     )
     result = []
     for r in rows:
@@ -150,7 +150,7 @@ def get_lineage(limit: int = 50) -> list[dict]:
     return result
 
 
-def get_a2a_log(limit: int = 200) -> list[dict]:
+def get_a2a_log(limit: int = 200, offset: int = 0) -> list[dict]:
     rows = query(
         """SELECT log_id AS id, agent_id, trace_id, accessed_at,
            context_id, version_id, prompt_id, prompt_version_id,
@@ -166,8 +166,8 @@ def get_a2a_log(limit: int = 200) -> list[dict]:
            FROM sandarb_access_logs
            WHERE metadata->>'action_type' IN ('INJECT_SUCCESS', 'INJECT_DENIED', 'PROMPT_USED', 'INFERENCE_EVENT', 'A2A_CALL')
            ORDER BY accessed_at DESC
-           LIMIT %s""",
-        (limit,),
+           LIMIT %s OFFSET %s""",
+        (limit, offset),
     )
     out = []
     for r in rows:

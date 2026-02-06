@@ -1,32 +1,58 @@
-"""Postgres connection pool. Reuses existing Sandarb schema."""
+"""Postgres connection pool using psycopg2 ThreadedConnectionPool."""
 
 import json
 from contextlib import contextmanager
 from typing import Any, Generator
 
 import psycopg2
+import psycopg2.pool
 from psycopg2.extras import RealDictCursor
 
 from backend.config import settings
 
-_conn: Any = None
+_pool: psycopg2.pool.ThreadedConnectionPool | None = None
+
+
+def _get_pool() -> psycopg2.pool.ThreadedConnectionPool:
+    """Lazily create and return the connection pool."""
+    global _pool
+    if _pool is None or _pool.closed:
+        _pool = psycopg2.pool.ThreadedConnectionPool(
+            minconn=settings.db_pool_min,
+            maxconn=settings.db_pool_max,
+            dsn=settings.database_url,
+            cursor_factory=RealDictCursor,
+            connect_timeout=settings.db_connect_timeout,
+        )
+    return _pool
 
 
 def get_connection():
-    """Return a connection (creates pool-like usage via single connection for simplicity)."""
-    global _conn
-    if _conn is None or _conn.closed:
-        _conn = psycopg2.connect(
-            settings.database_url,
-            cursor_factory=RealDictCursor,
-        )
-    return _conn
+    """Get a connection from the pool. Caller must call put_connection() when done."""
+    return _get_pool().getconn()
+
+
+def put_connection(conn: Any) -> None:
+    """Return a connection to the pool."""
+    try:
+        _get_pool().putconn(conn)
+    except Exception:
+        pass
+
+
+def close_pool() -> None:
+    """Close all pool connections. Call on app shutdown."""
+    global _pool
+    if _pool and not _pool.closed:
+        _pool.closeall()
+    _pool = None
 
 
 @contextmanager
 def cursor() -> Generator[Any, None, None]:
-    """Context manager for a dict cursor."""
-    conn = get_connection()
+    """Context manager for a dict cursor. Gets conn from pool, auto-commits/rollbacks."""
+    pool = _get_pool()
+    conn = pool.getconn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         yield cur
@@ -36,6 +62,7 @@ def cursor() -> Generator[Any, None, None]:
         raise
     finally:
         cur.close()
+        pool.putconn(conn)
 
 
 def query(sql: str, params: tuple | list | None = None) -> list[dict]:

@@ -13,7 +13,7 @@ os.environ.setdefault("SANDARB_DEV", "true")
 os.environ.setdefault("WRITE_ALLOWED_EMAILS", "test@example.com")
 
 from backend.main import app
-from backend.db import get_connection, execute, query, query_one
+from backend.db import get_connection, put_connection, execute, query, query_one
 from backend.config import settings
 
 
@@ -65,7 +65,7 @@ def db_connection():
     """Get a database connection for tests that need direct DB access."""
     conn = get_connection()
     yield conn
-    conn.close()
+    put_connection(conn)
 
 
 @pytest.fixture

@@ -30,9 +30,36 @@ export async function getAgents(orgId?: string, approvalStatus?: string) {
   const q = new URLSearchParams();
   if (orgId) q.set('org_id', orgId);
   if (approvalStatus) q.set('approval_status', approvalStatus);
-  const path = '/api/agents' + (q.toString() ? `?${q}` : '');
-  const r = await fetchApi<unknown[]>(path);
-  return r.success && Array.isArray(r.data) ? r.data : [];
+  // Request max limit to get all agents (backend max is 500)
+  q.set('limit', '500');
+  q.set('offset', '0');
+  const path = '/api/agents?' + q.toString();
+  const r = await fetchApi<{ agents: unknown[]; total: number; limit: number; offset: number } | unknown[]>(path);
+  if (!r.success || !r.data) return [];
+  // Support paginated response { agents, total, limit, offset }
+  if (!Array.isArray(r.data) && typeof r.data === 'object' && 'agents' in r.data) {
+    return Array.isArray(r.data.agents) ? r.data.agents : [];
+  }
+  // Fallback: bare array (backward compat)
+  return Array.isArray(r.data) ? r.data : [];
+}
+
+export async function getAgentsPaginated(orgId?: string, approvalStatus?: string, limit = 50, offset = 0) {
+  const q = new URLSearchParams();
+  if (orgId) q.set('org_id', orgId);
+  if (approvalStatus) q.set('approval_status', approvalStatus);
+  q.set('limit', String(limit));
+  q.set('offset', String(offset));
+  const path = '/api/agents?' + q.toString();
+  const r = await fetchApi<{ agents: unknown[]; total: number; limit: number; offset: number }>(path);
+  if (!r.success || !r.data) return { agents: [], total: 0, limit, offset };
+  const d = r.data as Record<string, unknown>;
+  return {
+    agents: (d.agents as unknown[]) ?? [],
+    total: Number(d.total) ?? 0,
+    limit: Number(d.limit) ?? limit,
+    offset: Number(d.offset) ?? offset,
+  };
 }
 
 export async function getAgentById(id: string) {
@@ -41,11 +68,27 @@ export async function getAgentById(id: string) {
 }
 
 export async function getAgentStats(orgId?: string): Promise<{ total: number; active: number; draft: number; pending_approval: number; approved: number; rejected: number }> {
-  const agents = await getAgents(orgId);
-  const total = agents.length;
+  // Use max limit to fetch all agents for accurate stats (backend max is 500)
+  const q = new URLSearchParams();
+  if (orgId) q.set('org_id', orgId);
+  q.set('limit', '500');
+  q.set('offset', '0');
+  const path = '/api/agents?' + q.toString();
+  const r = await fetchApi<{ agents: unknown[]; total: number; limit: number; offset: number } | unknown[]>(path);
+  let agents: unknown[] = [];
+  let total = 0;
+  if (r.success && r.data) {
+    if (!Array.isArray(r.data) && typeof r.data === 'object' && 'agents' in r.data) {
+      agents = Array.isArray(r.data.agents) ? r.data.agents : [];
+      total = r.data.total ?? agents.length;
+    } else if (Array.isArray(r.data)) {
+      agents = r.data;
+      total = agents.length;
+    }
+  }
   const byStatus = (agents as Record<string, unknown>[]).reduce<Record<string, number>>(
     (acc, a) => {
-      const s = (a.approvalStatus as string) || 'draft';
+      const s = (a.approvalStatus as string) || (a as Record<string, unknown>).approval_status as string || 'draft';
       acc[s] = (acc[s] ?? 0) + 1;
       return acc;
     },
@@ -67,9 +110,23 @@ export async function getOrganizations(tree?: boolean, root?: boolean) {
   const q = new URLSearchParams();
   if (tree) q.set('tree', 'true');
   if (root) q.set('root', 'true');
+  // For flat list mode, request max limit to get all orgs (backend max is 500)
+  if (!tree && !root) {
+    q.set('limit', '500');
+    q.set('offset', '0');
+  }
   const path = '/api/organizations' + (q.toString() ? `?${q}` : '');
   const r = await fetchApi<unknown>(path);
-  return r.success ? r.data : (tree || root ? null : []);
+  if (!r.success) return tree || root ? null : [];
+  // tree/root modes return non-paginated data
+  if (tree || root) return r.data;
+  // Flat list mode returns paginated { organizations, total, limit, offset }
+  const d = r.data as Record<string, unknown> | unknown[] | null;
+  if (d && !Array.isArray(d) && typeof d === 'object' && 'organizations' in d) {
+    return Array.isArray(d.organizations) ? d.organizations : [];
+  }
+  // Fallback: bare array (backward compat)
+  return Array.isArray(d) ? d : [];
 }
 
 export async function getRootOrganization() {
@@ -215,13 +272,28 @@ export async function getUnauthenticatedDetections(limit = 50) {
 
 // Agent count (for dashboard)
 export async function getAgentCount(orgId?: string): Promise<number> {
-  const agents = await getAgents(orgId);
-  return agents.length;
+  // Use paginated endpoint to get accurate total from backend
+  const q = new URLSearchParams();
+  if (orgId) q.set('org_id', orgId);
+  q.set('limit', '1');
+  q.set('offset', '0');
+  const path = '/api/agents?' + q.toString();
+  const r = await fetchApi<{ agents: unknown[]; total: number; limit: number; offset: number } | unknown[]>(path);
+  if (!r.success || !r.data) return 0;
+  if (!Array.isArray(r.data) && typeof r.data === 'object' && 'total' in r.data) {
+    return r.data.total ?? 0;
+  }
+  // Fallback: bare array
+  return Array.isArray(r.data) ? r.data.length : 0;
 }
 
 export async function getRecentAgents(limit = 6) {
-  const r = await fetchApi<unknown[]>(`/api/agents?limit=${limit}`);
-  return r.success && Array.isArray(r.data) ? r.data.slice(0, limit) : [];
+  const r = await fetchApi<{ agents: unknown[]; total: number } | unknown[]>(`/api/agents?limit=${limit}`);
+  if (!r.success || !r.data) return [];
+  if (!Array.isArray(r.data) && typeof r.data === 'object' && 'agents' in r.data) {
+    return Array.isArray(r.data.agents) ? r.data.agents.slice(0, limit) : [];
+  }
+  return Array.isArray(r.data) ? r.data.slice(0, limit) : [];
 }
 
 export async function getRecentOrganizationsWithCounts(limit = 6) {

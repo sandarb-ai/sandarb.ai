@@ -12,6 +12,12 @@ the agent protocol router is mounted at root: GET / (Agent Card), POST /a2a (A2A
 import logging
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+# Load .env from repo root so os.environ picks up all vars (e.g. SANDARB_AGENT_SERVICE)
+load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=False)
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -36,7 +42,9 @@ async def lifespan(app: FastAPI):
     async with sandarb_mcp.session_manager.run():
         logger.info("Sandarb MCP server started (Streamable HTTP at /mcp)")
         yield
-    logger.info("Sandarb MCP server stopped")
+    from backend.db import close_pool
+    close_pool()
+    logger.info("Sandarb services stopped")
 
 
 app = FastAPI(

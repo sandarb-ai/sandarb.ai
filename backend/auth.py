@@ -5,6 +5,7 @@ Agent identity is taken from the validated service account, not from headers alo
 """
 
 import os
+from datetime import datetime, timezone
 from typing import Any
 
 import bcrypt
@@ -12,6 +13,11 @@ from fastapi import Request, HTTPException
 
 from backend.db import query
 from backend.config import settings
+
+
+class ApiKeyExpiredError(Exception):
+    """Raised when a valid API key has expired."""
+    pass
 
 
 def get_api_key_from_request(request: Request) -> str | None:
@@ -26,11 +32,12 @@ def verify_api_key(api_key: str) -> dict[str, Any] | None:
     """
     Verify API key against service_accounts (bcrypt check).
     Returns service account row (id, client_id, agent_id) if valid, else None.
+    Raises ApiKeyExpiredError if the key matches but has expired.
     """
     if not api_key or not api_key.strip():
         return None
     rows = query(
-        "SELECT id, client_id, secret_hash, agent_id FROM service_accounts"
+        "SELECT id, client_id, secret_hash, agent_id, expires_at FROM service_accounts"
     )
     for row in rows:
         secret_hash = row.get("secret_hash")
@@ -38,11 +45,22 @@ def verify_api_key(api_key: str) -> dict[str, Any] | None:
             continue
         try:
             if bcrypt.checkpw(api_key.strip().encode("utf-8"), secret_hash.encode("utf-8")):
+                # Check expiration (NULL = never expires)
+                expires_at = row.get("expires_at")
+                if expires_at is not None:
+                    if isinstance(expires_at, str):
+                        expires_at = datetime.fromisoformat(expires_at)
+                    if expires_at.tzinfo is None:
+                        expires_at = expires_at.replace(tzinfo=timezone.utc)
+                    if datetime.now(timezone.utc) > expires_at:
+                        raise ApiKeyExpiredError("API key has expired.")
                 return {
                     "id": str(row["id"]),
                     "client_id": row["client_id"],
                     "agent_id": row["agent_id"],
                 }
+        except ApiKeyExpiredError:
+            raise
         except Exception:
             continue
     return None
@@ -68,7 +86,10 @@ def require_api_key_and_agent(
             status_code=401,
             detail="Missing API key. Use Authorization: Bearer <api_key> or X-API-Key header.",
         )
-    account = verify_api_key(api_key)
+    try:
+        account = verify_api_key(api_key)
+    except ApiKeyExpiredError:
+        raise HTTPException(status_code=401, detail="API key has expired. Please generate a new key.")
     if not account:
         raise HTTPException(
             status_code=401,

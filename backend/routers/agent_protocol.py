@@ -167,7 +167,7 @@ def _serialize(obj: Any) -> Any:
 
 async def _execute_a2a_skill(request: Request, skill: str, inp: dict[str, Any]) -> Any:
     """Execute an A2A skill; returns result dict or JSONResponse on error."""
-    from backend.auth import get_api_key_from_request, verify_api_key
+    from backend.auth import get_api_key_from_request, verify_api_key, ApiKeyExpiredError
 
     source_agent = (inp.get("sourceAgent") or inp.get("agentId") or request.headers.get("X-Sandarb-Agent-ID") or "").strip()
     trace_id = (inp.get("traceId") or request.headers.get("X-Sandarb-Trace-ID") or "").strip()
@@ -187,7 +187,13 @@ async def _execute_a2a_skill(request: Request, skill: str, inp: dict[str, Any]) 
             status_code=401,
             content={"jsonrpc": "2.0", "error": {"code": -32001, "message": "Missing API key. Use Authorization: Bearer <api_key>."}, "id": None},
         )
-    account = verify_api_key(api_key)
+    try:
+        account = verify_api_key(api_key)
+    except ApiKeyExpiredError:
+        return JSONResponse(
+            status_code=401,
+            content={"jsonrpc": "2.0", "error": {"code": -32001, "message": "API key has expired. Please generate a new key."}, "id": None},
+        )
     if not account:
         return JSONResponse(
             status_code=401,
@@ -202,14 +208,30 @@ async def _execute_a2a_skill(request: Request, skill: str, inp: dict[str, Any]) 
             content={"jsonrpc": "2.0", "error": {"code": -32602, "message": "sourceAgent and traceId (or X-Sandarb-Agent-ID, X-Sandarb-Trace-ID) are required."}, "id": None},
         )
 
+    # --- Per-skill rate limiting ---
+    from backend.middleware.a2a_rate_limit import a2a_limiter, get_skill_rate_limit
+    skill_limit = get_skill_rate_limit(skill)
+    if skill_limit:
+        rate_key = f"{api_key[:16]}:{skill}"
+        allowed, retry_info = a2a_limiter.is_allowed(rate_key, skill_limit)
+        if not allowed:
+            return JSONResponse(
+                status_code=429,
+                content={"jsonrpc": "2.0", "error": {"code": -32000, "message": f"Rate limit exceeded for skill '{skill}'. Limit: {retry_info}."}, "id": None},
+            )
+
     # ----- Agents -----
     if skill == "list_agents":
         from backend.services.agents import get_all_agents
-        agents = get_all_agents(
+        a2a_limit = min(int(inp.get("limit", 50)), 500)
+        a2a_offset = max(int(inp.get("offset", 0)), 0)
+        agents, total = get_all_agents(
             org_id=(inp.get("orgId") or inp.get("org_id") or "").strip() or None,
             approval_status=(inp.get("approvalStatus") or inp.get("approval_status") or "").strip() or None,
+            limit=a2a_limit,
+            offset=a2a_offset,
         )
-        return {"agents": _serialize(agents)}
+        return {"agents": _serialize(agents), "total": total, "limit": a2a_limit, "offset": a2a_offset}
 
     if skill == "get_agent":
         from backend.services.agents import get_agent_by_id, get_agent_by_identifier
@@ -292,8 +314,10 @@ async def _execute_a2a_skill(request: Request, skill: str, inp: dict[str, Any]) 
     # ----- Organizations -----
     if skill == "list_organizations":
         from backend.services.organizations import get_all_organizations
-        orgs = get_all_organizations()
-        return {"organizations": _serialize(orgs)}
+        a2a_limit = min(int(inp.get("limit", 50)), 500)
+        a2a_offset = max(int(inp.get("offset", 0)), 0)
+        orgs, total = get_all_organizations(limit=a2a_limit, offset=a2a_offset)
+        return {"organizations": _serialize(orgs), "total": total, "limit": a2a_limit, "offset": a2a_offset}
 
     if skill == "get_organization":
         from backend.services.organizations import get_organization_by_id, get_organization_by_slug
@@ -425,21 +449,24 @@ async def _execute_a2a_skill(request: Request, skill: str, inp: dict[str, Any]) 
     # ----- Audit & Lineage -----
     if skill == "get_lineage":
         from backend.services.audit import get_lineage
-        limit = min(int(inp.get("limit", 50)), 200)
-        rows = get_lineage(limit)
-        return {"lineage": _serialize(rows)}
+        a2a_limit = min(int(inp.get("limit", 50)), 200)
+        a2a_offset = max(int(inp.get("offset", 0)), 0)
+        rows = get_lineage(a2a_limit, a2a_offset)
+        return {"lineage": _serialize(rows), "limit": a2a_limit, "offset": a2a_offset}
 
     if skill == "get_blocked_injections":
         from backend.services.audit import get_blocked_injections as _get_blocked
-        limit = min(int(inp.get("limit", 50)), 200)
-        rows = _get_blocked(limit)
-        return {"blocked": _serialize(rows)}
+        a2a_limit = min(int(inp.get("limit", 50)), 200)
+        a2a_offset = max(int(inp.get("offset", 0)), 0)
+        rows = _get_blocked(a2a_limit, a2a_offset)
+        return {"blocked": _serialize(rows), "limit": a2a_limit, "offset": a2a_offset}
 
     if skill == "get_audit_log":
         from backend.services.audit import get_a2a_log
-        limit = min(int(inp.get("limit", 100)), 500)
-        rows = get_a2a_log(limit)
-        return {"auditLog": _serialize(rows)}
+        a2a_limit = min(int(inp.get("limit", 100)), 500)
+        a2a_offset = max(int(inp.get("offset", 0)), 0)
+        rows = get_a2a_log(a2a_limit, a2a_offset)
+        return {"auditLog": _serialize(rows), "limit": a2a_limit, "offset": a2a_offset}
 
     # ----- Dashboard & Reports -----
     if skill == "get_dashboard":
