@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { AlertCircle, CheckCircle2, Loader2, Sparkles, ChevronDown, ChevronRight, Zap } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle2, Loader2, Sparkles, ChevronDown, ChevronRight, Zap } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -43,6 +43,7 @@ export function ContextEditor({
   const [isValid, setIsValid] = useState(true);
   const [isValidating, setIsValidating] = useState(false);
   const [variables, setVariables] = useState<string[]>([]);
+  const [variableWarnings, setVariableWarnings] = useState<Array<{ name: string; suggestion: string }>>([]);
 
   // AI Generate panel
   const [isAiPanelOpen, setIsAiPanelOpen] = useState(false);
@@ -80,6 +81,7 @@ export function ContextEditor({
       setIsValid(true);
       setError(null);
       setVariables([]);
+      setVariableWarnings([]);
       setIsValidating(false);
       return;
     }
@@ -100,6 +102,7 @@ export function ContextEditor({
         setIsValid(data.data.valid);
         setError(data.data.valid ? null : `Line ${data.data.line}: ${data.data.error}`);
         setVariables(data.data.variables || []);
+        setVariableWarnings(data.data.variable_warnings || []);
       }
     } catch (e) {
       if ((e as Error).name !== 'AbortError') {
@@ -160,10 +163,18 @@ export function ContextEditor({
               Validating
             </Badge>
           ) : isValid ? (
-            <Badge variant="success" className="gap-1.5 py-1 px-3 text-sm">
-              <CheckCircle2 className="h-4 w-4" />
-              Valid
-            </Badge>
+            <>
+              {variableWarnings.length > 0 && (
+                <Badge variant="outline" className="gap-1.5 py-1 px-3 text-sm text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-700">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  {variableWarnings.length} naming {variableWarnings.length === 1 ? 'warning' : 'warnings'}
+                </Badge>
+              )}
+              <Badge variant="success" className="gap-1.5 py-1 px-3 text-sm">
+                <CheckCircle2 className="h-4 w-4" />
+                Valid
+              </Badge>
+            </>
           ) : (
             <Badge variant="destructive" className="gap-1.5 py-1 px-3 text-sm">
               <AlertCircle className="h-4 w-4" />
@@ -228,11 +239,45 @@ export function ContextEditor({
       {variables.length > 0 && (
         <div className="flex items-center gap-1.5 px-4 py-1.5 border-b bg-muted/20 text-xs text-muted-foreground shrink-0 flex-wrap">
           <span className="font-medium">Variables:</span>
-          {variables.map((v) => (
-            <Badge key={v} variant="outline" className="text-[10px] px-1.5 py-0 font-mono">
-              {v}
-            </Badge>
-          ))}
+          {variables.map((v) => {
+            const warning = variableWarnings.find((w) => w.name === v);
+            return warning ? (
+              <Badge
+                key={v}
+                variant="outline"
+                className="text-[10px] px-1.5 py-0 font-mono text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/20"
+                title={`Use snake_case: ${warning.suggestion}`}
+              >
+                <AlertTriangle className="h-2.5 w-2.5 mr-0.5" />
+                {v}
+              </Badge>
+            ) : (
+              <Badge key={v} variant="outline" className="text-[10px] px-1.5 py-0 font-mono">
+                {v}
+              </Badge>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Variable naming warnings */}
+      {variableWarnings.length > 0 && (
+        <div className="px-4 py-1.5 border-b bg-amber-50/50 dark:bg-amber-950/10 text-xs shrink-0">
+          <div className="flex items-start gap-1.5 text-amber-700 dark:text-amber-400">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-medium">Variables must use lowercase snake_case.</span>
+              {' '}
+              {variableWarnings.map((w, i) => (
+                <span key={w.name}>
+                  {i > 0 && ', '}
+                  <code className="bg-amber-100 dark:bg-amber-900/30 px-1 rounded font-mono">{w.name}</code>
+                  {' \u2192 '}
+                  <code className="bg-green-100 dark:bg-green-900/30 px-1 rounded font-mono">{w.suggestion}</code>
+                </span>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 

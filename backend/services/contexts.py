@@ -448,6 +448,16 @@ def render_template_content(template_content: str, variables: dict[str, Any]) ->
     return template.render(**variables)
 
 
+def _is_snake_case(name: str) -> bool:
+    """Check if a variable name is lowercase snake_case.
+
+    Valid: ``region``, ``risk_tier``, ``max_txn_per_hour``
+    Invalid: ``riskTier``, ``MaxAmount``, ``risk-tier``
+    """
+    import re
+    return bool(re.fullmatch(r"[a-z][a-z0-9]*(_[a-z0-9]+)*", name))
+
+
 def validate_jinja2_template(template_content: str) -> dict:
     """Validate Jinja2 template syntax and extract referenced variables.
 
@@ -455,12 +465,19 @@ def validate_jinja2_template(template_content: str) -> dict:
     template.  On success, walks the AST to find all undeclared variable
     names referenced in the template.
 
+    **Naming convention enforcement:** All top-level template variables must
+    use ``lowercase_snake_case`` (e.g. ``region``, ``risk_tier``).  Variables
+    that violate this convention are returned in ``variable_warnings`` so the
+    editor can surface inline warnings.
+
     Returns:
         dict with keys:
             - valid (bool): Whether the template compiles without errors.
             - error (str | None): Error message if invalid.
             - line (int | None): Line number of the error (1-based) if invalid.
             - variables (list[str]): Sorted list of detected template variable names.
+            - variable_warnings (list[dict]): Variables that violate snake_case.
+              Each entry: ``{"name": str, "suggestion": str}``.
     """
     from jinja2.sandbox import SandboxedEnvironment
     from jinja2 import TemplateSyntaxError, meta
@@ -470,11 +487,27 @@ def validate_jinja2_template(template_content: str) -> dict:
     try:
         ast = env.parse(template_content)
         variables = sorted(meta.find_undeclared_variables(ast))
+
+        # Enforce lowercase snake_case for all top-level variables
+        variable_warnings: list[dict[str, str]] = []
+        for var in variables:
+            if not _is_snake_case(var):
+                # Suggest a snake_case version
+                import re
+                # Convert camelCase / PascalCase → snake_case
+                suggestion = re.sub(r"([A-Z])", r"_\1", var).lower().lstrip("_")
+                # Replace hyphens with underscores
+                suggestion = suggestion.replace("-", "_")
+                # Collapse multiple underscores
+                suggestion = re.sub(r"_+", "_", suggestion)
+                variable_warnings.append({"name": var, "suggestion": suggestion})
+
         return {
             "valid": True,
             "error": None,
             "line": None,
             "variables": variables,
+            "variable_warnings": variable_warnings,
         }
     except TemplateSyntaxError as e:
         return {
@@ -482,6 +515,7 @@ def validate_jinja2_template(template_content: str) -> dict:
             "error": e.message if e.message else str(e),
             "line": e.lineno,
             "variables": [],
+            "variable_warnings": [],
         }
 
 

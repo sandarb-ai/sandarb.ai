@@ -50,6 +50,21 @@ Every asset in Sandarb follows a standardized naming convention called **Sandarb
 - The prefix (`agent.`, `prompt.`, `context.`) identifies the resource type.
 - SRNs are used in the Inject API, SDK calls, audit logs, and agent-to-agent communication.
 
+### Template Variable Naming Convention
+
+All Jinja2 template variables in context templates must use **lowercase snake_case**. This is enforced by the `POST /api/contexts/validate-template` endpoint, which returns `variable_warnings` for any variables that don't comply. The context editor surfaces these as inline warnings.
+
+| Valid (snake_case) | Invalid | Why |
+|---|---|---|
+| `region` | `Region` | No uppercase first letter |
+| `risk_tier` | `riskTier` | No camelCase |
+| `max_txn_per_hour` | `max-txn-per-hour` | No hyphens — use underscores |
+| `ctr_threshold` | `CTRThreshold` | No PascalCase / all-caps |
+
+**Pattern:** `^[a-z][a-z0-9]*(_[a-z0-9]+)*$`
+
+This convention ensures consistency across context templates, the Inject API `context_variables` parameter, and agent integrations. Property access on nested objects (e.g. `customer.risk_score`, `check.passed`) should also use snake_case.
+
 ### The Three Resources: How They Differ
 
 While all three resource types use SRNs, they serve fundamentally different purposes in the governance lifecycle:

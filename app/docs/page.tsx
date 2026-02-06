@@ -160,6 +160,7 @@ export default async function DocsPage() {
         { id: 'overview', label: 'Overview', icon: 'Eye' },
         { id: 'prompts-vs-context', label: 'Prompts vs Context', icon: 'FileText' },
         { id: 'srn', label: 'Resource Names (SRN)', icon: 'SRN' },
+        { id: 'srn-variable-naming', label: 'Variable naming', icon: 'Variable', indent: true },
         { id: 'governance-protocol', label: 'Governance Protocol', icon: 'Shield' },
         { id: 'quick-start', label: 'Quick start', icon: 'Zap' },
         { id: 'sandarb-json', label: 'sandarb.json manifest', icon: 'FileJson' },
@@ -433,6 +434,46 @@ export default async function DocsPage() {
             <li>The prefix (<InlineCode>agent.</InlineCode>, <InlineCode>context.</InlineCode>, <InlineCode>prompt.</InlineCode>) identifies the resource type.</li>
             <li>SRNs are used in the Inject API, SDK calls, audit logs, and agent-to-agent communication.</li>
           </Ul>
+
+          <H3WithAnchor id="srn-variable-naming">Template Variable Naming</H3WithAnchor>
+          <P>
+            All Jinja2 template variables must use <strong className="text-foreground">lowercase snake_case</strong>.
+            The editor validates variable names in real time and shows warnings for non-compliant names.
+          </P>
+          <div className="overflow-x-auto mb-6">
+            <table className="w-full text-sm border border-border rounded-lg">
+              <thead>
+                <tr className="border-b border-border bg-muted/50">
+                  <th className="text-left py-2 px-3 font-medium text-green-700 dark:text-green-400">Valid (snake_case)</th>
+                  <th className="text-left py-2 px-3 font-medium text-red-700 dark:text-red-400">Invalid</th>
+                </tr>
+              </thead>
+              <tbody className="font-mono text-sm text-muted-foreground">
+                <tr className="border-b border-border/50">
+                  <td className="py-2 px-3"><InlineCode>region</InlineCode></td>
+                  <td className="py-2 px-3"><InlineCode>Region</InlineCode> (uppercase)</td>
+                </tr>
+                <tr className="border-b border-border/50">
+                  <td className="py-2 px-3"><InlineCode>risk_tier</InlineCode></td>
+                  <td className="py-2 px-3"><InlineCode>riskTier</InlineCode> (camelCase)</td>
+                </tr>
+                <tr className="border-b border-border/50">
+                  <td className="py-2 px-3"><InlineCode>max_txn_per_hour</InlineCode></td>
+                  <td className="py-2 px-3"><InlineCode>max-txn-per-hour</InlineCode> (kebab-case)</td>
+                </tr>
+                <tr>
+                  <td className="py-2 px-3"><InlineCode>ctr_threshold</InlineCode></td>
+                  <td className="py-2 px-3"><InlineCode>CTRThreshold</InlineCode> (PascalCase)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <Admonition>
+            This convention ensures consistency across all context templates, agent integrations,
+            and the Inject API <InlineCode>context_variables</InlineCode> parameter.
+            The validate-template endpoint returns <InlineCode>variable_warnings</InlineCode> for
+            any variables that don&apos;t comply.
+          </Admonition>
 
           <H3WithAnchor id="srn-three-resources">How the Three Resources Differ</H3WithAnchor>
           <P>
