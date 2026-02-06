@@ -74,7 +74,7 @@ All handlers use **Next.js App Router** (`route.ts`). Pattern: parse request →
 | `/api/seed` | POST | `organizations`, `agents`, `contexts`, `revisions`, `templates`, `prompts`, `pg`, `otel` | Seed data (dev). |
 | `/api/auth/token` | POST | `auth/jwt`, `service-accounts-pg`, `otel` | JWT for service accounts. |
 | `/a2a` | GET, POST | `a2a-server`, `audit`, `auth/jwt`, `otel` | A2A Agent Card + JSON-RPC 2.0. |
-| `/api/mcp` | GET, POST | `mcp-server`, `otel` | MCP JSON-RPC 2.0. |
+| `/mcp` | GET, POST | `mcp-server`, `otel` | MCP JSON-RPC 2.0. |
 | `/api/governance/scan` | POST | `governance`, `otel` | Discovery scan. |
 | `/api/governance/blocked-injections` | GET | `audit`, `otel` | Blocked injections. |
 | `/api/governance/intersection` | GET | `audit`, `otel` | Governance intersection log. |
