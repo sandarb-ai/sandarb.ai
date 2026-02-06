@@ -37,13 +37,17 @@ class TestPromptsCRUD:
         return prompt_id
 
     def test_list_prompts(self):
-        """Test GET /api/prompts returns a list."""
+        """Test GET /api/prompts returns paginated prompts."""
         response = self.client.get("/api/prompts")
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
         assert "data" in data
-        assert isinstance(data["data"], list)
+        # Response is a dict with prompts list, total, and pagination info
+        assert isinstance(data["data"], dict)
+        assert "prompts" in data["data"]
+        assert isinstance(data["data"]["prompts"], list)
+        assert "total" in data["data"]
 
     def test_get_prompt_by_id(self):
         """Test GET /api/prompts/{id} returns prompt details."""

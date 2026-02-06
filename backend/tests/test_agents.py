@@ -354,9 +354,9 @@ class TestAgentContextLinks:
         # Create a context directly in DB
         ctx_id = str(uuid.uuid4())
         execute(
-            """INSERT INTO contexts (id, name, description, lob_tag, data_classification, owner_team, created_by)
-               VALUES (%s, %s, %s, %s, %s, %s, %s)""",
-            (ctx_id, f"link-test-ctx-{ctx_id[:8]}", "Test", "Wealth-Management", "Internal", "test", "test"),
+            """INSERT INTO contexts (id, name, description, data_classification, owner_team, created_by)
+               VALUES (%s, %s, %s, %s, %s, %s)""",
+            (ctx_id, f"link-test-ctx-{ctx_id[:8]}", "Test", "Internal", "test", "test"),
         )
         self.created_context_ids.append(ctx_id)
 

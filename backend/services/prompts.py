@@ -136,10 +136,11 @@ def create_prompt_version(
     status = "approved" if auto_approve else "proposed"
     import hashlib
     sha = hashlib.sha256(content.encode()).hexdigest()
+    approver = (created_by or "system").strip() or "system"
     execute(
-        """INSERT INTO prompt_versions (prompt_id, version, content, system_prompt, model, commit_message, created_by, submitted_by, status, sha256_hash)
-         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-        (prompt_id, next_version, content, system_prompt or None, model or None, commit_message or "New version", created_by or "system", created_by or "system", status.capitalize(), sha),
+        """INSERT INTO prompt_versions (prompt_id, version, content, system_prompt, model, commit_message, created_by, submitted_by, status, sha256_hash, approved_by, approved_at)
+         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CASE WHEN %s THEN NOW() ELSE NULL END)""",
+        (prompt_id, next_version, content, system_prompt or None, model or None, commit_message or "New version", created_by or "system", created_by or "system", status.capitalize(), sha, approver if auto_approve else None, auto_approve),
     )
     row = query_one(
         "SELECT * FROM prompt_versions WHERE prompt_id = %s AND version = %s",
@@ -148,11 +149,6 @@ def create_prompt_version(
     if not row:
         return None
     if auto_approve:
-        approver = (created_by or "system").strip() or "system"
-        execute(
-            "UPDATE prompt_versions SET approved_by = %s, approved_at = NOW() WHERE prompt_id = %s AND version = %s",
-            (approver, prompt_id, next_version),
-        )
         execute(
             "UPDATE prompts SET current_version_id = (SELECT id FROM prompt_versions WHERE prompt_id = %s AND version = %s), updated_at = NOW(), updated_by = %s WHERE id = %s",
             (prompt_id, next_version, approver, prompt_id),

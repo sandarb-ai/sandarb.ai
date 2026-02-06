@@ -101,19 +101,41 @@ def _organizations_for_prompt(prompt_id: str, owning_org_id: str | None) -> list
 
 
 @router.get("", response_model=ApiResponse)
-def list_prompts():
-    rows = query(
-        "SELECT p.*, pv.version AS pv_version, pv.approved_by AS pv_approved_by, pv.approved_at AS pv_approved_at "
-        "FROM prompts p "
-        "LEFT JOIN prompt_versions pv ON pv.id = p.current_version_id "
-        "ORDER BY p.updated_at DESC"
+def list_prompts(limit: int = Query(50, ge=1, le=500), offset: int = Query(0, ge=0)):
+    """List prompts with pagination. Default 50 items per page, max 500."""
+    # Get total counts in a single query
+    counts = query(
+        """SELECT
+             COUNT(*)::int AS total,
+             COUNT(CASE WHEN current_version_id IS NOT NULL THEN 1 END)::int AS total_active,
+             COUNT(CASE WHEN current_version_id IS NULL THEN 1 END)::int AS total_draft
+           FROM prompts"""
     )
-    data = [serialize_prompt_list_row(dict(r)) for r in rows]
-    for i, row in enumerate(rows):
-        prompt_id = str(row["id"])
-        owning_org_id = str(row["org_id"]) if row.get("org_id") else None
-        data[i]["organizations"] = _organizations_for_prompt(prompt_id, owning_org_id)
-    return ApiResponse(success=True, data=data)
+    total = int(counts[0]["total"]) if counts else 0
+    total_active = int(counts[0]["total_active"]) if counts else 0
+    total_draft = int(counts[0]["total_draft"]) if counts else 0
+
+    rows = query(
+        """SELECT p.*, pv.version AS pv_version, pv.approved_by AS pv_approved_by, pv.approved_at AS pv_approved_at
+           FROM prompts p
+           LEFT JOIN prompt_versions pv ON pv.id = p.current_version_id
+           ORDER BY p.updated_at DESC
+           LIMIT %s OFFSET %s""",
+        (limit, offset),
+    )
+    data = []
+    for row in rows:
+        item = serialize_prompt_list_row(dict(row))
+        item["organizations"] = _safe_list_organizations_for_prompt(str(row["id"]))
+        data.append(item)
+    return ApiResponse(success=True, data={
+        "prompts": data,
+        "total": total,
+        "totalActive": total_active,
+        "totalDraft": total_draft,
+        "limit": limit,
+        "offset": offset,
+    })
 
 
 @router.get("/{prompt_id}", response_model=ApiResponse)

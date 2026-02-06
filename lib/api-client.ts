@@ -109,10 +109,52 @@ export async function getContextsPaginated(limit: number, offset: number) {
 }
 
 // Prompts
-export async function getPrompts() {
-  const r = await fetchApi<unknown[]>('/api/prompts');
-  const raw = r.success && Array.isArray(r.data) ? r.data : [];
-  return normalizePromptList(raw);
+export async function getPrompts(limit = 50, offset = 0) {
+  const r = await fetchApi<{ prompts: unknown[]; total: number; limit: number; offset: number } | unknown[]>(`/api/prompts?limit=${limit}&offset=${offset}`);
+  // Support both old (array) and new (paginated object) response formats
+  if (r.success && r.data) {
+    if (Array.isArray(r.data)) {
+      // Old format: array of prompts
+      return normalizePromptList(r.data);
+    } else if (typeof r.data === 'object' && 'prompts' in r.data) {
+      // New format: { prompts, total, limit, offset }
+      return normalizePromptList(Array.isArray(r.data.prompts) ? r.data.prompts : []);
+    }
+  }
+  return [];
+}
+
+export async function getPromptsPaginated(limit = 50, offset = 0): Promise<{
+  prompts: import('@/types').Prompt[];
+  total: number;
+  totalActive: number;
+  totalDraft: number;
+}> {
+  const r = await fetchApi<{
+    prompts: unknown[];
+    total: number;
+    totalActive?: number;
+    totalDraft?: number;
+    limit: number;
+    offset: number;
+  } | unknown[]>(`/api/prompts?limit=${limit}&offset=${offset}`);
+  if (r.success && r.data) {
+    if (Array.isArray(r.data)) {
+      // Old format: array of prompts (assume total = length)
+      const prompts = normalizePromptList(r.data);
+      const active = prompts.filter(p => p.currentVersionId).length;
+      return { prompts, total: r.data.length, totalActive: active, totalDraft: r.data.length - active };
+    } else if (typeof r.data === 'object' && 'prompts' in r.data) {
+      // New format: { prompts, total, totalActive, totalDraft, limit, offset }
+      return {
+        prompts: normalizePromptList(Array.isArray(r.data.prompts) ? r.data.prompts : []),
+        total: r.data.total ?? 0,
+        totalActive: r.data.totalActive ?? 0,
+        totalDraft: r.data.totalDraft ?? 0,
+      };
+    }
+  }
+  return { prompts: [], total: 0, totalActive: 0, totalDraft: 0 };
 }
 
 /** Normalize API response to Prompt[] (accept snake_case or camelCase from backend). */

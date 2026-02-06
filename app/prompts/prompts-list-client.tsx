@@ -18,6 +18,9 @@ type ViewMode = 'table' | 'card';
 
 interface PromptsListClientProps {
   initialPrompts: Prompt[];
+  initialTotal?: number;
+  initialTotalActive?: number;
+  initialTotalDraft?: number;
 }
 
 function PromptStatusBadge({ hasActiveVersion }: { hasActiveVersion: boolean }) {
@@ -27,9 +30,12 @@ function PromptStatusBadge({ hasActiveVersion }: { hasActiveVersion: boolean }) 
   return <Badge variant="secondary" className="text-xs">Draft</Badge>;
 }
 
-export function PromptsListClient({ initialPrompts }: PromptsListClientProps) {
+export function PromptsListClient({ initialPrompts, initialTotal, initialTotalActive, initialTotalDraft }: PromptsListClientProps) {
   const router = useRouter();
   const [prompts, setPrompts] = useState<Prompt[]>(initialPrompts);
+  const [totalCount] = useState<number>(initialTotal ?? initialPrompts.length);
+  const [totalActiveCount] = useState<number>(initialTotalActive ?? initialPrompts.filter(p => p.currentVersionId).length);
+  const [totalDraftCount] = useState<number>(initialTotalDraft ?? initialPrompts.filter(p => !p.currentVersionId).length);
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('card');
 
@@ -52,10 +58,10 @@ export function PromptsListClient({ initialPrompts }: PromptsListClientProps) {
     return matchSearch;
   });
 
-  // Stats
-  const totalPrompts = prompts.length;
-  const activePrompts = prompts.filter((p) => !!p.currentVersionId).length;
-  const draftPrompts = prompts.filter((p) => !p.currentVersionId).length;
+  // Stats - use counts from API for accurate totals across all prompts (not just loaded page)
+  const totalPrompts = totalCount;
+  const activePrompts = totalActiveCount;
+  const draftPrompts = totalDraftCount;
 
   return (
     <div className="flex flex-col h-full">
