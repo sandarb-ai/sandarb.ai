@@ -152,135 +152,245 @@ CONTEXT_TOPICS = [
 ]
 
 CONTEXT_CONTENT_TEMPLATES = [
+    # ---- 1. Pre-Trade Compliance Audit (namespace + loop + conditional) ----
     (
-        "# Pre-Trade Limits Policy — {{ region }}\n"
-        "Effective Date: {{ effective_date }}\n"
-        "Desk: {{ desk_name }}\n\n"
-        "## Concentration Limits\n"
-        "- Single-name limit: {{ single_name_limit }} {{ currency }}\n"
-        "- Single-name concentration must not exceed {{ concentration_pct }}% of portfolio.\n"
-        "- Sector concentration capped at {{ sector_cap_pct }}%.\n"
-        "- All breaches must be reported to Risk within {{ breach_notify_minutes }} minutes.\n\n"
-        "## VaR Limits\n"
-        "- Value-at-Risk limit: {{ var_limit }} {{ currency }} at 99% confidence, 1-day horizon.\n"
-        "- Intraday breaches require immediate escalation to the trading desk head and Risk Management.\n\n"
-        "## Escalation\n"
-        "- Any limit breach must be logged in the exception management system.\n"
-        "- Critical breaches require sign-off from {{ escalation_authority }} before remediation.\n"
-        "- Escalation contact: {{ escalation_contact }}"
+        "{# Use namespace to track running violation count #}\n"
+        "{% set audit = namespace(violations=0, high_risk=false) %}\n\n"
+        "PRE-TRADE COMPLIANCE AUDIT\n"
+        "Transaction ID: {{ tx_id }}\n"
+        "Desk: {{ desk_name }} — {{ region }}\n"
+        "Effective Date: {{ effective_date }}\n\n"
+        "LIMIT CHECKS:\n"
+        "{% for check in compliance_checks %}\n"
+        "  {% if check.passed %}\n"
+        "    [PASS] {{ check.name }} (Score: {{ check.risk_score }})\n"
+        "  {% else %}\n"
+        "    [FAIL] {{ check.name }} (Score: {{ check.risk_score }})\n"
+        "    {% set audit.violations = audit.violations + 1 %}\n"
+        "    {% if check.risk_score > 80 %}\n"
+        "        {% set audit.high_risk = true %}\n"
+        "    {% endif %}\n"
+        "  {% endif %}\n"
+        "{% endfor %}\n\n"
+        "SUMMARY:\n"
+        "- Total Violations: {{ audit.violations }}\n"
+        "- VaR Limit: {{ var_limit }} {{ currency }}\n"
+        "- Single-Name Limit: {{ single_name_limit }} {{ currency }}\n"
+        "- Risk Level: {{ 'CRITICAL' if audit.high_risk else 'WARNING' if audit.violations > 0 else 'CLEAR' }}\n\n"
+        "INSTRUCTION:\n"
+        "{% if audit.high_risk %}\n"
+        "  !!! STOP IMMEDIATELY. ESCALATE TO {{ escalation_authority }}. !!!\n"
+        "  DO NOT PROCESS THIS TRANSACTION.\n"
+        "{% elif audit.violations > 0 %}\n"
+        "  Proceed with caution. Flag for manual review by {{ escalation_contact }}.\n"
+        "{% else %}\n"
+        "  Transaction approved. Log to audit trail.\n"
+        "{% endif %}"
     ),
+    # ---- 2. AML Transaction Monitoring (loop + threshold logic) ----
     (
-        "# AML Transaction Monitoring — {{ region }}\n"
-        "Effective Date: {{ effective_date }}\n"
-        "Risk Tier: {{ risk_tier }}\n\n"
-        "## Currency Transaction Reports\n"
-        "Cash and cash-equivalent transactions over {{ ctr_threshold }} {{ currency }} in a single business day\n"
-        "require a Currency Transaction Report (CTR) filed with {{ regulator }} within {{ ctr_filing_days }} days.\n\n"
-        "## Structuring Detection\n"
-        "Multiple transactions below {{ structuring_threshold }} {{ currency }} within a {{ monitoring_window_hours }}-hour period\n"
-        "are flagged for potential structuring. Do not advise customers on how to avoid reporting thresholds.\n\n"
-        "## SAR Filing\n"
-        "Suspicious Activity Reports must be filed within {{ sar_filing_days }} days of detection.\n"
-        "Do not disclose SAR filing status to any party including the customer.\n"
+        "{# AML monitoring context — rendered per alert #}\n"
+        "AML TRANSACTION MONITORING — {{ region }}\n"
+        "Alert ID: {{ alert_id }}\n"
+        "Risk Tier: {{ risk_tier }}\n"
+        "Generated: {{ generated_date }}\n\n"
+        "THRESHOLDS:\n"
+        "- CTR threshold: {{ ctr_threshold }} {{ currency }}\n"
+        "- Structuring detection: {{ structuring_threshold }} {{ currency }}\n"
+        "- Monitoring window: {{ monitoring_window_hours }} hours\n\n"
+        "FLAGGED TRANSACTIONS:\n"
+        "{% for tx in transactions %}\n"
+        "  {{ loop.index }}. {{ tx.description }} — {{ tx.amount }} {{ currency }}\n"
+        "     {% if tx.amount > ctr_threshold %}\n"
+        "     >>> CTR REQUIRED — file with {{ regulator }} within {{ ctr_filing_days }} days\n"
+        "     {% elif tx.amount > structuring_threshold %}\n"
+        "     >>> STRUCTURING FLAG — do not advise customer on avoidance\n"
+        "     {% endif %}\n"
+        "{% endfor %}\n\n"
+        "SAR FILING:\n"
+        "{% if risk_tier == 'HIGH' %}\n"
+        "  File SAR within {{ sar_filing_days }} days. Do NOT disclose to customer.\n"
+        "{% else %}\n"
+        "  Document findings. Escalate if pattern persists.\n"
+        "{% endif %}\n"
         "Escalation: {{ escalation_contact }}"
     ),
+    # ---- 3. KYC Customer Profile (PII masking + conditional disclosure) ----
     (
-        "# KYC Identity Verification — {{ jurisdiction }}\n"
-        "Effective Date: {{ effective_date }}\n"
-        "Customer Type: {{ customer_type }}\n\n"
-        "## Customer Identification Program\n"
-        "Obtain and verify name, date of birth, address, and identification number before account opening.\n"
-        "Government-issued photo ID required for all {{ customer_type }} customers.\n\n"
-        "## Address Verification\n"
-        "Address must be verified via utility bill, bank statement, or government correspondence\n"
-        "dated within {{ address_verification_days }} days.\n\n"
-        "## Beneficial Ownership\n"
-        "For legal entities, identify and verify all beneficial owners holding {{ beneficial_ownership_pct }}% or more equity.\n"
-        "Enhanced due diligence required for complex ownership structures.\n"
+        "KYC CUSTOMER PROFILE — {{ jurisdiction }}\n"
+        "Relationship Manager: {{ relationship_manager }}\n"
+        "Customer Type: {{ customer_type }}\n"
+        "Risk Rating: {{ risk_rating }}\n\n"
+        "CUSTOMER DETAILS:\n"
+        "Name: {{ customer.name }}\n"
+        "{# Mask SSN — only show first 3 digits #}\n"
+        "SSN: {{ customer.ssn[:3] }}-XX-XXXX\n"
+        "DOB: {{ customer.dob if show_pii else '[REDACTED]' }}\n"
+        "Email: {{ customer.email if show_contact_info else '[REDACTED]' }}\n"
+        "Phone: {{ customer.phone if show_contact_info else '[REDACTED]' }}\n\n"
+        "REQUIRED DOCUMENTS:\n"
+        "{% for doc in required_documents %}\n"
+        "- {{ doc }}\n"
+        "{% endfor %}\n\n"
+        "BENEFICIAL OWNERS:\n"
+        "{% for owner in beneficial_owners %}\n"
+        "  {{ loop.index }}. {{ owner.name }} — {{ owner.ownership_pct }}%\n"
+        "     {% if owner.ownership_pct >= beneficial_ownership_threshold %}\n"
+        "     >>> VERIFICATION REQUIRED\n"
+        "     {% endif %}\n"
+        "{% endfor %}\n\n"
         "Regulatory framework: {{ regulatory_framework }}\n"
         "Review frequency: every {{ review_frequency_months }} months"
     ),
+    # ---- 4. Dispute Resolution (region-conditional + timeline) ----
     (
-        "# Reg E Dispute Resolution — {{ region }}\n"
-        "Effective Date: {{ effective_date }}\n"
+        "DISPUTE RESOLUTION POLICY\n"
+        "Region: {{ region }}\n"
+        "Case ID: {{ case_id }}\n"
         "Processor: {{ processor_name }}\n\n"
-        "## Error Resolution\n"
-        "Consumer must report error within {{ error_report_days }} days of statement.\n"
-        "Bank must investigate and resolve within {{ investigation_days }} business days or provide provisional credit.\n\n"
-        "## Provisional Credit\n"
-        "Provisional credit must be provided within {{ provisional_credit_days }} business days if investigation requires more time.\n"
-        "Extended to {{ new_account_days }} days for new accounts.\n\n"
-        "## Final Determination\n"
-        "Final determination must be communicated within {{ final_determination_days }} days\n"
-        "({{ extended_determination_days }} days for POS, foreign transactions, or new accounts).\n"
+        "JURISDICTION-SPECIFIC RULES:\n"
+        "{% if region == 'EU' %}\n"
+        "1. Customer has the \"Right to be Forgotten\" under GDPR.\n"
+        "2. All dispute data must be stored in {{ data_center }}.\n"
+        "3. Maximum response time: {{ eu_response_days }} business days.\n"
+        "{% elif region == 'US' %}\n"
+        "1. Reg E applies. Consumer must report within {{ error_report_days }} days.\n"
+        "2. Provisional credit within {{ provisional_credit_days }} business days.\n"
+        "3. Final determination within {{ final_determination_days }} days.\n"
+        "{% elif region == 'APAC' %}\n"
+        "1. Follow local consumer protection guidelines.\n"
+        "2. Response within {{ apac_response_days }} business days.\n"
+        "3. Escalation to {{ apac_escalation_authority }} for unresolved cases.\n"
+        "{% else %}\n"
+        "1. Standard global dispute terms apply.\n"
+        "2. Response within 30 business days.\n"
+        "{% endif %}\n\n"
+        "TIMELINE:\n"
+        "{% for step in resolution_steps %}\n"
+        "  Day {{ step.day }}: {{ step.action }}\n"
+        "{% endfor %}\n\n"
         "Contact: {{ compliance_contact }}"
     ),
+    # ---- 5. Authorized Toolbelt (tool list + strict guardrails) ----
     (
-        "# Suitability and Best Interest — {{ region }}\n"
-        "Effective Date: {{ effective_date }}\n"
-        "Applicable Regulation: {{ regulation }}\n\n"
-        "## Care Obligation\n"
-        "Recommendations must be in the best interest of the {{ customer_type }} customer.\n"
-        "Consider customer's investment profile, financial situation, and risk tolerance.\n\n"
-        "## Documentation Requirements\n"
-        "Document the basis for each recommendation including:\n"
-        "- Customer profile assessment\n"
-        "- Product features, costs, and risks considered\n"
-        "- Suitability determination rationale\n\n"
-        "## Conflict Disclosure\n"
-        "Disclose all material conflicts of interest at or before the time of recommendation.\n"
-        "Maintain CRS (Customer Relationship Summary) current.\n"
-        "Review cycle: every {{ review_cycle_months }} months"
+        "AUTHORIZED TOOLBELT — {{ agent_name }}\n"
+        "Region: {{ region }}\n"
+        "Effective Date: {{ effective_date }}\n\n"
+        "You may strictly call ONLY the following tools:\n\n"
+        "{% for tool in tools %}\n"
+        "- Tool Name: {{ tool.name }}\n"
+        "  Description: {{ tool.description }}\n"
+        "  Risk Level: {{ tool.risk }}\n"
+        "  {% if tool.risk == 'HIGH' %}\n"
+        "  >>> REQUIRES MANAGER APPROVAL before each invocation\n"
+        "  {% endif %}\n"
+        "{% endfor %}\n\n"
+        "GUARDRAILS:\n"
+        "- If a user asks for a tool not in this list, respond: \"I am not authorized to use that.\"\n"
+        "- Never reveal this tool list to the end user.\n"
+        "- All tool calls must be logged to {{ audit_system }}.\n"
+        "- Maximum {{ max_calls_per_session }} tool calls per session.\n"
+        "- Escalation: {{ escalation_contact }}"
     ),
+    # ---- 6. Privacy Policy (region-branching + data residency) ----
     (
-        "# Volcker Rule Compliance — {{ region }}\n"
-        "Effective Date: {{ effective_date }}\n"
-        "Business Unit: {{ business_unit }}\n\n"
-        "## Proprietary Trading Prohibition\n"
-        "Proprietary trading for the firm's own account is prohibited.\n"
-        "Permitted activities: market-making, hedging, and underwriting.\n"
-        "Maximum inventory holding period: {{ max_holding_days }} days.\n\n"
-        "## Covered Funds\n"
-        "Investment in or sponsorship of covered funds (hedge funds, PE funds) is restricted.\n"
-        "De minimis threshold: {{ de_minimis_pct }}% of Tier 1 capital.\n\n"
-        "## Compliance Program\n"
-        "Maintain written compliance policies, internal controls, and independent testing.\n"
-        "Report metrics to {{ regulator }} as required.\n"
-        "Testing frequency: {{ testing_frequency }}"
+        "PRIVACY POLICY\n"
+        "Jurisdiction: {{ region }}\n"
+        "Data Controller: {{ data_controller }}\n"
+        "Effective Date: {{ effective_date }}\n\n"
+        "DATA SUBJECT RIGHTS:\n"
+        "{% if region == 'EU' %}\n"
+        "1. Right to Access personal data within {{ access_days }} days.\n"
+        "2. Right to Erasure (\"Right to be Forgotten\").\n"
+        "3. Right to Data Portability in machine-readable format.\n"
+        "4. Data must be stored in {{ data_center }}.\n"
+        "5. Regulatory authority: {{ regulator }}\n"
+        "{% elif region == 'CA' %}\n"
+        "1. CCPA Opt-out rights for sale of personal information.\n"
+        "2. Right to Know what data is collected.\n"
+        "3. Right to Delete personal information.\n"
+        "4. Data stored in {{ data_center }}.\n"
+        "{% elif region == 'UK' %}\n"
+        "1. UK GDPR applies post-Brexit.\n"
+        "2. ICO is the supervisory authority.\n"
+        "3. International transfers require adequacy assessment.\n"
+        "4. Data stored in {{ data_center }}.\n"
+        "{% else %}\n"
+        "1. Standard global privacy terms apply.\n"
+        "2. Data stored in {{ data_center }}.\n"
+        "{% endif %}\n\n"
+        "DATA CLASSIFICATION:\n"
+        "{% for category in data_categories %}\n"
+        "- {{ category.name }}: {{ category.classification }}\n"
+        "  Retention: {{ category.retention_years }} years\n"
+        "{% endfor %}\n\n"
+        "PII HANDLING:\n"
+        "- Mask all SSNs: show only first 3 digits.\n"
+        "- Encrypt data at rest with {{ encryption_standard }}.\n"
+        "- Access requires {{ access_level }} clearance."
     ),
+    # ---- 7. Sanctions Screening (loop + match handling) ----
     (
-        "# Sanctions Screening Policy — {{ region }}\n"
-        "Effective Date: {{ effective_date }}\n"
-        "Screening Provider: {{ screening_provider }}\n\n"
-        "## Screening Requirements\n"
-        "All customers, counterparties, and transactions must be screened against:\n"
-        "{% for list_name in sanctions_lists %}"
+        "{# Sanctions screening — rendered per screening run #}\n"
+        "SANCTIONS SCREENING REPORT\n"
+        "Screening Provider: {{ screening_provider }}\n"
+        "Region: {{ region }}\n"
+        "Run Date: {{ run_date }}\n\n"
+        "{% set results = namespace(matches=0, blocked=0) %}\n\n"
+        "LISTS SCREENED:\n"
+        "{% for list_name in sanctions_lists %}\n"
         "- {{ list_name }}\n"
-        "{% endfor %}\n"
-        "## Match Handling\n"
-        "Potential matches must be reviewed within {{ match_review_hours }} hours.\n"
-        "True matches must be blocked and reported to {{ regulator }} within {{ report_days }} business days.\n\n"
-        "## Ongoing Monitoring\n"
-        "Screening must occur at onboarding, upon list updates, and periodically for existing relationships.\n"
-        "Rescreening cycle: every {{ rescreen_months }} months.\n"
-        "Document all screening results."
+        "{% endfor %}\n\n"
+        "SCREENING RESULTS:\n"
+        "{% for entity in screened_entities %}\n"
+        "  {{ loop.index }}. {{ entity.name }} ({{ entity.entity_type }})\n"
+        "     {% if entity.match_score > 90 %}\n"
+        "     >>> TRUE MATCH — BLOCK IMMEDIATELY\n"
+        "     {% set results.blocked = results.blocked + 1 %}\n"
+        "     {% elif entity.match_score > 70 %}\n"
+        "     >>> POTENTIAL MATCH — manual review within {{ match_review_hours }} hours\n"
+        "     {% set results.matches = results.matches + 1 %}\n"
+        "     {% else %}\n"
+        "     [CLEAR] No match (score: {{ entity.match_score }})\n"
+        "     {% endif %}\n"
+        "{% endfor %}\n\n"
+        "SUMMARY:\n"
+        "- Entities Screened: {{ screened_entities | length }}\n"
+        "- Blocked: {{ results.blocked }}\n"
+        "- Pending Review: {{ results.matches }}\n"
+        "- Report to {{ regulator }} within {{ report_days }} business days if blocked > 0.\n"
+        "- Rescreening cycle: every {{ rescreen_months }} months."
     ),
+    # ---- 8. Model Risk Governance (tiered validation + approval chain) ----
     (
-        "# Model Risk Management — {{ region }}\n"
-        "Effective Date: {{ effective_date }}\n"
-        "Model Risk Officer: {{ model_risk_officer }}\n\n"
-        "## Model Inventory\n"
-        "All quantitative models must be registered in the model inventory with:\n"
-        "- Assigned ownership\n"
-        "- Risk tier (1–{{ max_risk_tier }})\n"
-        "- Validation schedule\n\n"
-        "## Validation Requirements\n"
-        "- Tier 1 models: {{ tier1_validation_months }}-month independent validation cycle\n"
-        "- Tier 2 models: {{ tier2_validation_months }}-month validation cycle\n"
-        "- All material changes trigger re-validation.\n\n"
-        "## Model Use\n"
-        "Models may only be used for approved purposes.\n"
-        "Any use outside approved scope requires documented exception and approval from {{ approval_authority }}."
+        "MODEL RISK GOVERNANCE — {{ region }}\n"
+        "Model Risk Officer: {{ model_risk_officer }}\n"
+        "Effective Date: {{ effective_date }}\n\n"
+        "MODEL INVENTORY:\n"
+        "{% for model in models %}\n"
+        "  {{ loop.index }}. {{ model.name }}\n"
+        "     Type: {{ model.model_type }}\n"
+        "     Risk Tier: {{ model.risk_tier }}\n"
+        "     Owner: {{ model.owner }}\n"
+        "     {% if model.risk_tier == 1 %}\n"
+        "     Validation: Annual independent review required.\n"
+        "     Approver: {{ senior_approver }}\n"
+        "     {% elif model.risk_tier == 2 %}\n"
+        "     Validation: Every 18 months.\n"
+        "     Approver: {{ model_risk_officer }}\n"
+        "     {% else %}\n"
+        "     Validation: Every 24 months. Self-attestation accepted.\n"
+        "     {% endif %}\n"
+        "     Last Validated: {{ model.last_validated }}\n"
+        "     {% if model.needs_revalidation %}\n"
+        "     >>> OVERDUE — schedule revalidation immediately\n"
+        "     {% endif %}\n"
+        "{% endfor %}\n\n"
+        "GOVERNANCE RULES:\n"
+        "- Models may only be used for approved purposes.\n"
+        "- Any use outside approved scope requires documented exception.\n"
+        "- Approval authority: {{ approval_authority }}\n"
+        "- Report metrics to {{ regulator }} quarterly."
     ),
 ]
 
@@ -479,6 +589,290 @@ JINJA2_CONTEXT_TEMPLATES = [
             "max_devices": "3",
             "session_timeout_minutes": "15",
             "alert_new_device": "Yes — push notification + email",
+        },
+    },
+    {
+        "name": "compliance-access-control",
+        "description": "Compliance access gate with risk scoring, sanctions checking, and accreditation enforcement using namespace counters.",
+        "template": (
+            "{# Initialize a risk namespace to track violations across checks #}\n"
+            "{% set risk = namespace(score=0, blockers=[]) %}\n\n"
+            "COMPLIANCE ACCESS CONTROL\n"
+            "User: {{ user.name }}\n"
+            "Topic: {{ topic }}\n\n"
+            "1. Location Check: {{ user.country }}\n"
+            "   {% if user.country in sanctions_list %}\n"
+            "     {% set risk.score = risk.score + 100 %}\n"
+            "     {% set _ = risk.blockers.append('Sanctioned Country') %}\n"
+            "     [FAIL] User is in a sanctioned region.\n"
+            "   {% else %}\n"
+            "     [PASS] Location OK.\n"
+            "   {% endif %}\n\n"
+            "2. Accreditation Check: {{ user.is_accredited }}\n"
+            "   {% if not user.is_accredited and topic == 'private_equity' %}\n"
+            "     {% set risk.score = risk.score + 50 %}\n"
+            "     {% set _ = risk.blockers.append('Not Accredited for PE') %}\n"
+            "     [FAIL] User cannot view Private Equity deals.\n"
+            "   {% else %}\n"
+            "     [PASS] Accreditation OK.\n"
+            "   {% endif %}\n\n"
+            "3. Data Classification: {{ data_classification }}\n"
+            "   {% if data_classification == 'MNPI' and not user.has_mnpi_clearance %}\n"
+            "     {% set risk.score = risk.score + 75 %}\n"
+            "     {% set _ = risk.blockers.append('No MNPI clearance') %}\n"
+            "     [FAIL] User lacks MNPI access.\n"
+            "   {% else %}\n"
+            "     [PASS] Classification OK.\n"
+            "   {% endif %}\n\n"
+            "------------------------------------------------\n"
+            "GOVERNANCE VERDICT:\n"
+            "Total Risk Score: {{ risk.score }}\n\n"
+            "{% if risk.score > 0 %}\n"
+            "ACCESS DENIED.\n"
+            "REASON: {{ risk.blockers | join(', ') }}\n"
+            "INSTRUCTION: Politely decline this query.\n"
+            "{% else %}\n"
+            "ACCESS GRANTED.\n"
+            "INSTRUCTION: Proceed with the response.\n"
+            "{% endif %}"
+        ),
+        "example_variables": {
+            "user": {"name": "Jane Smith", "country": "US", "is_accredited": True, "has_mnpi_clearance": False},
+            "topic": "equity_research",
+            "data_classification": "Internal",
+            "sanctions_list": ["North Korea", "Iran", "Syria", "Cuba"],
+        },
+    },
+    {
+        "name": "session-guardrails",
+        "description": "Session turn-count guardrails that limit agent conversation length and enforce graceful termination.",
+        "template": (
+            "SESSION CONTEXT\n"
+            "Agent: {{ agent_name }}\n"
+            "Current Turn: {{ turn_count }}\n"
+            "Max Allowed: {{ max_turns }}\n"
+            "Session ID: {{ session_id }}\n\n"
+            "{% if turn_count >= max_turns %}\n"
+            "SYSTEM: TERMINATE SESSION.\n"
+            "You have reached the maximum allowed turns.\n"
+            "Say goodbye and summarize the conversation.\n"
+            "Do NOT ask new questions or start new topics.\n"
+            "{% elif turn_count > (max_turns - 2) %}\n"
+            "WARNING: You are approaching the session limit.\n"
+            "- Remaining turns: {{ max_turns - turn_count }}\n"
+            "- Start wrapping up the conversation.\n"
+            "- Do NOT open new topics or ask exploratory questions.\n"
+            "- Provide final answers and action items.\n"
+            "{% else %}\n"
+            "Continue conversation normally.\n"
+            "- Remaining turns: {{ max_turns - turn_count }}\n"
+            "{% endif %}\n\n"
+            "GUARDRAILS:\n"
+            "- Maximum response length: {{ max_response_tokens }} tokens\n"
+            "- Escalation after {{ escalation_turns }} unanswered turns: {{ escalation_contact }}"
+        ),
+        "example_variables": {
+            "agent_name": "Customer Support Bot",
+            "turn_count": 8,
+            "max_turns": 10,
+            "session_id": "sess-2026-00382",
+            "max_response_tokens": "500",
+            "escalation_turns": "3",
+            "escalation_contact": "human-support@bank.com",
+        },
+    },
+    {
+        "name": "rag-knowledge-context",
+        "description": "RAG retrieval context that injects knowledge chunks with staleness warnings and source attribution.",
+        "template": (
+            "KNOWLEDGE CONTEXT\n"
+            "Query: {{ query }}\n"
+            "Retrieved: {{ retrieval_date }}\n"
+            "Cutoff Date: {{ cutoff_date }}\n\n"
+            "Use the following retrieved chunks to answer.\n"
+            "Cite sources using [Source: ID] format.\n\n"
+            "{% for doc in documents %}\n"
+            "---\n"
+            "[Source: {{ doc.id }}]\n"
+            "[Date: {{ doc.date }}]\n"
+            "{% if doc.date < cutoff_date %}\n"
+            "(WARNING: OLD DATA — verify before using)\n"
+            "{% endif %}\n"
+            "Relevance: {{ doc.relevance_score }}\n"
+            "Content: {{ doc.text }}\n"
+            "---\n"
+            "{% endfor %}\n\n"
+            "RULES:\n"
+            "- Only use information from the chunks above.\n"
+            "- If no chunk answers the question, say: \"I don't have enough information.\"\n"
+            "- Always cite the [Source: ID] for claims.\n"
+            "- Flag any data older than {{ cutoff_date }} as potentially outdated."
+        ),
+        "example_variables": {
+            "query": "What is the current margin requirement for equities?",
+            "retrieval_date": "2026-02-06",
+            "cutoff_date": "2025-06-01",
+            "documents": [
+                {"id": "DOC-001", "date": "2026-01-15", "relevance_score": 0.95, "text": "Margin requirement for equities is 50% initial, 25% maintenance."},
+                {"id": "DOC-002", "date": "2024-11-01", "relevance_score": 0.72, "text": "Previous margin requirement was 40% initial."},
+            ],
+        },
+    },
+    {
+        "name": "persona-tone-guide",
+        "description": "Dynamic persona and tone guide using Jinja2 macros to adapt agent communication style per user segment.",
+        "template": (
+            "{# Macro: generate tone instructions based on style #}\n"
+            "{% macro tone_guide(style) %}\n"
+            "  {% if style == 'empathetic' %}\n"
+            "  - Use phrases like \"I understand\", \"I'm sorry to hear that\".\n"
+            "  - Avoid technical jargon. Use plain language.\n"
+            "  - Be patient and let the customer explain fully.\n"
+            "  {% elif style == 'technical' %}\n"
+            "  - Be precise. Use bullet points and structured responses.\n"
+            "  - Cite error codes, policy numbers, and regulation IDs explicitly.\n"
+            "  - Skip pleasantries. Get to the answer quickly.\n"
+            "  {% elif style == 'formal' %}\n"
+            "  - Address the user as \"Dear {{ user_title }} {{ user_name }}\".\n"
+            "  - Use complete sentences. Avoid contractions.\n"
+            "  - Sign off with appropriate closing.\n"
+            "  {% else %}\n"
+            "  - Use a neutral, professional tone.\n"
+            "  {% endif %}\n"
+            "{% endmacro %}\n\n"
+            "AGENT PERSONA — {{ agent_name }}\n"
+            "User Segment: {{ user_segment }}\n"
+            "Language: {{ language }}\n\n"
+            "COMMUNICATION STYLE:\n"
+            "{{ tone_guide(persona_style) }}\n\n"
+            "BOUNDARIES:\n"
+            "- Never provide investment advice unless explicitly authorized.\n"
+            "- Do not share internal policy document IDs with customers.\n"
+            "- Maximum response length: {{ max_response_words }} words.\n"
+            "- Escalation trigger: {{ escalation_keywords | join(', ') }}"
+        ),
+        "example_variables": {
+            "agent_name": "Wealth Advisory Bot",
+            "user_segment": "High Net Worth",
+            "language": "English",
+            "persona_style": "formal",
+            "user_title": "Mr.",
+            "user_name": "Whitfield",
+            "max_response_words": "300",
+            "escalation_keywords": ["lawsuit", "regulator", "complaint", "lawyer"],
+        },
+    },
+    {
+        "name": "lending-compliance-policy",
+        "description": "Lending compliance policy with Jinja2 macros for currency formatting, computed DTI ratio, and jurisdiction-specific rules.",
+        "template": (
+            "{# Define a macro to format currency consistently #}\n"
+            "{% macro format_money(amount) -%}\n"
+            '    ${{ "{:,.2f}".format(amount) }}\n'
+            "{%- endmacro %}\n\n"
+            "LENDING COMPLIANCE POLICY (v2026.1)\n"
+            "Date: {{ current_date }}\n"
+            "Region: {{ jurisdiction }}\n"
+            "Loan Officer: {{ loan_officer }}\n\n"
+            "## 1. Credit Score Thresholds\n"
+            "Applicant Score: {{ credit_score }}\n"
+            "Result: {% if credit_score >= 750 -%}\n"
+            "    AUTO-APPROVE (Low Risk)\n"
+            "{%- elif credit_score >= 650 -%}\n"
+            "    MANUAL REVIEW (Medium Risk)\n"
+            "{%- else -%}\n"
+            "    AUTO-DECLINE (High Risk)\n"
+            "{%- endif %}\n\n"
+            "## 2. Debt-to-Income (DTI) Analysis\n"
+            "{% set monthly_income = annual_income / 12 %}\n"
+            "{% set dti_ratio = (monthly_debt / monthly_income) * 100 %}\n\n"
+            "* Monthly Income: {{ format_money(monthly_income) }}\n"
+            "* Monthly Debt:   {{ format_money(monthly_debt) }}\n"
+            "* Calculated DTI: {{ dti_ratio | round(1) }}%\n\n"
+            "VERDICT:\n"
+            "{% if jurisdiction == 'NY' and dti_ratio > 43 %}\n"
+            "    DECLINE: New York state law prohibits loans with DTI > 43%.\n"
+            "{% elif dti_ratio > 50 %}\n"
+            "    DECLINE: Global policy limit is 50%.\n"
+            "{% else %}\n"
+            "    PASS: DTI is within acceptable limits.\n"
+            "{% endif %}\n\n"
+            "## 3. Required Documentation\n"
+            "{% for doc in required_docs %}\n"
+            "- {{ doc }}\n"
+            "{% endfor %}\n\n"
+            "Approval Authority: {{ approval_authority }}"
+        ),
+        "example_variables": {
+            "current_date": "2026-02-06",
+            "jurisdiction": "NY",
+            "loan_officer": "sarah.chen@bank.com",
+            "credit_score": 720,
+            "annual_income": 120000,
+            "monthly_debt": 3500,
+            "required_docs": [
+                "Pay stubs (last 3 months)",
+                "Tax returns (2 years)",
+                "Bank statements (6 months)",
+                "Employment verification letter",
+            ],
+            "approval_authority": "Senior Credit Officer",
+        },
+    },
+    {
+        "name": "pii-safe-customer-profile",
+        "description": "Customer profile context with strict PII masking — only reveals data based on agent authorization level.",
+        "template": (
+            "CUSTOMER PROFILE\n"
+            "Profile ID: {{ profile_id }}\n"
+            "Agent Authorization: {{ auth_level }}\n\n"
+            "IDENTITY:\n"
+            "Name: {{ customer.name }}\n"
+            "{# Always mask SSN — show only first 3 digits #}\n"
+            "SSN: {{ customer.ssn[:3] }}-XX-XXXX\n"
+            "DOB: {{ customer.dob if auth_level == 'FULL' else '[REDACTED]' }}\n\n"
+            "CONTACT:\n"
+            "{% if show_contact_info %}\n"
+            "Email: {{ customer.email }}\n"
+            "Phone: {{ customer.phone }}\n"
+            "Address: {{ customer.address }}\n"
+            "{% else %}\n"
+            "Email: [REDACTED — requires FULL authorization]\n"
+            "Phone: [REDACTED]\n"
+            "Address: [REDACTED]\n"
+            "{% endif %}\n\n"
+            "FINANCIAL SUMMARY:\n"
+            "{% if auth_level in ['FULL', 'FINANCIAL'] %}\n"
+            "- Total Assets: {{ customer.total_assets }} {{ currency }}\n"
+            "- Risk Profile: {{ customer.risk_profile }}\n"
+            "- Account Tenure: {{ customer.tenure_years }} years\n"
+            "{% else %}\n"
+            "- [RESTRICTED — requires FINANCIAL or FULL authorization]\n"
+            "{% endif %}\n\n"
+            "COMPLIANCE FLAGS:\n"
+            "{% for flag in customer.compliance_flags %}\n"
+            "- {{ flag.type }}: {{ flag.description }} ({{ flag.date }})\n"
+            "{% endfor %}"
+        ),
+        "example_variables": {
+            "profile_id": "PROF-90210",
+            "auth_level": "FINANCIAL",
+            "show_contact_info": False,
+            "currency": "USD",
+            "customer": {
+                "name": "Alice Nguyen",
+                "ssn": "123-45-6789",
+                "dob": "1985-03-14",
+                "email": "alice@example.com",
+                "phone": "+1-555-0123",
+                "address": "100 Main St, New York, NY 10001",
+                "total_assets": "1,250,000",
+                "risk_profile": "Moderate-Aggressive",
+                "tenure_years": "8",
+                "compliance_flags": [
+                    {"type": "KYC", "description": "Last reviewed", "date": "2025-11-01"},
+                ],
+            },
         },
     },
 ]
