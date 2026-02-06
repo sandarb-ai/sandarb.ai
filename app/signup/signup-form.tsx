@@ -79,13 +79,7 @@ export function SignupForm({ from, onContinueClick }: { from?: string; onContinu
             />
           </div>
         </div>
-      ) : (
-        <p className="text-sm text-muted-foreground text-center py-2">
-          {isLocalhost
-            ? 'Localhost: Turnstile skipped — you can continue to the demo.'
-            : 'Turnstile not configured — you can continue to the demo.'}
-        </p>
-      )}
+      ) : null}
       <SubmitButton disabled={!canContinue} />
     </form>
   );

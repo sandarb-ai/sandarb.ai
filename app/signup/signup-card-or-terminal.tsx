@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Image from 'next/image';
 import { SignupForm } from './signup-form';
 import { setDemoCookies } from './actions';
 
@@ -170,35 +171,56 @@ export function SignupCardOrTerminal({ from }: { from?: string }) {
   }
 
   return (
-    <div className="w-full rounded-2xl border border-border bg-card shadow-lg p-8">
-      <h1 className="text-2xl font-semibold text-foreground text-center tracking-tight">
-        Try the demo
-      </h1>
-      <p className="text-sm text-muted-foreground text-center mt-2 mb-8">
-        We use Cloudflare Turnstile to make sure only humans try the demo. No signup, no account, nothing stored.
-      </p>
+    <div className="w-full rounded-2xl border border-border bg-card shadow-lg overflow-hidden">
+      {/* Sandarb branding header */}
+      <div className="flex flex-col items-center gap-3 pt-8 pb-6 px-8 bg-gradient-to-b from-violet-50/80 to-transparent dark:from-violet-950/30 dark:to-transparent">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-500 shadow-md shadow-violet-500/20">
+          <Image src="/logo.svg" alt="" width={28} height={28} />
+        </div>
+        <div className="text-center">
+          <h1 className="text-xl font-semibold text-foreground tracking-tight">
+            Sandarb
+          </h1>
+          <p className="text-xs text-muted-foreground mt-0.5 tracking-wide uppercase">
+            AI Governance
+          </p>
+        </div>
+      </div>
 
-      <SignupForm from={from} onContinueClick={handleContinueClick} />
+      {/* Divider */}
+      <div className="mx-8 border-t border-border" />
 
-      <p className="text-[11px] text-muted-foreground text-center mt-6 flex items-center justify-center gap-2 flex-wrap">
-        <span>Human verification by</span>
-        <a
-          href="https://www.cloudflare.com/products/turnstile/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-violet-600 dark:text-violet-400 hover:underline font-medium"
-          aria-label="Cloudflare Turnstile"
-        >
-          <img
-            src="https://upload.wikimedia.org/wikipedia/commons/b/b2/Cloudflare_Turnstile_logo.svg"
-            alt=""
-            width={20}
-            height={20}
-            className="inline-block shrink-0"
-          />
-          Cloudflare Turnstile
-        </a>
-      </p>
+      {/* Form content */}
+      <div className="px-8 pt-6 pb-8">
+        <h2 className="text-lg font-medium text-foreground text-center">
+          Try the demo
+        </h2>
+        <p className="text-sm text-muted-foreground text-center mt-1.5 mb-6">
+          Quick human check — no signup, no account, nothing stored.
+        </p>
+
+        <SignupForm from={from} onContinueClick={handleContinueClick} />
+
+        <p className="text-[11px] text-muted-foreground text-center mt-6 flex items-center justify-center gap-2 flex-wrap">
+          <span>Protected by</span>
+          <a
+            href="https://www.cloudflare.com/products/turnstile/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-violet-600 dark:text-violet-400 hover:underline font-medium"
+            aria-label="Cloudflare Turnstile"
+          >
+            <img
+              src="https://upload.wikimedia.org/wikipedia/commons/b/b2/Cloudflare_Turnstile_logo.svg"
+              alt=""
+              width={18}
+              height={18}
+              className="inline-block shrink-0"
+            />
+            Cloudflare Turnstile
+          </a>
+        </p>
+      </div>
     </div>
   );
 }
