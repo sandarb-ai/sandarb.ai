@@ -5,16 +5,17 @@ import { Copy, Check, AlertCircle, FileJson } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatContent } from '@/lib/utils';
-import type { InjectionFormat } from '@/types';
+import type { ContextContent, InjectionFormat } from '@/types';
 
 interface ContextPreviewProps {
-  content: Record<string, unknown>;
+  content: ContextContent;
   contextName: string;
   /** Compact mode: hide duplicate header, empty state, smaller API section */
   compact?: boolean;
 }
 
-function isEmptyContent(content: Record<string, unknown>): boolean {
+function isEmptyContent(content: ContextContent): boolean {
+  if (typeof content === 'string') return content.trim().length === 0;
   if (!content || typeof content !== 'object' || Array.isArray(content)) return true;
   return Object.keys(content).length === 0;
 }
@@ -23,10 +24,15 @@ export function ContextPreview({ content, contextName, compact }: ContextPreview
   const [format, setFormat] = useState<InjectionFormat>('json');
   const [copied, setCopied] = useState(false);
 
-  const safeContent = content && typeof content === 'object' && !Array.isArray(content) ? content : {};
-  const empty = isEmptyContent(safeContent);
+  const isStringMode = typeof content === 'string';
+  const safeContent = isStringMode ? {} : (content && typeof content === 'object' && !Array.isArray(content) ? content : {});
+  const empty = isEmptyContent(content);
   const { output: formattedContent, error: formatError } = useMemo(() => {
     if (empty) return { output: '', error: null };
+    // For string content (Jinja2 templates), show the raw string
+    if (isStringMode) {
+      return { output: content as string, error: null };
+    }
     try {
       const fmt = format === 'xml' ? 'text' : format;
       const out = formatContent(safeContent, fmt);
@@ -34,7 +40,7 @@ export function ContextPreview({ content, contextName, compact }: ContextPreview
     } catch (e) {
       return { output: '', error: e instanceof Error ? e.message : 'Failed to format preview' };
     }
-  }, [safeContent, format, empty]);
+  }, [content, safeContent, format, empty, isStringMode]);
 
   const apiUrl = `/api/inject?name=${encodeURIComponent(contextName || 'context-name')}&format=${format}`;
 

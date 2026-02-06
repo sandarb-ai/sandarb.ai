@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS context_versions (
   updated_by TEXT,
   is_active BOOLEAN DEFAULT FALSE,
   commit_message TEXT,
+  ai_instructions TEXT,
   UNIQUE(context_id, version)
 );
 
@@ -146,7 +147,7 @@ CREATE INDEX IF NOT EXISTS idx_activity_log_created_at ON activity_log(created_a
 CREATE TABLE IF NOT EXISTS agents (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  agent_id TEXT,
+  agent_id TEXT UNIQUE NOT NULL,
   name TEXT NOT NULL,
   description TEXT,
   a2a_url TEXT NOT NULL,
@@ -164,8 +165,7 @@ CREATE TABLE IF NOT EXISTS agents (
   tools_used JSONB DEFAULT '[]',
   allowed_data_scopes JSONB DEFAULT '[]',
   pii_handling BOOLEAN DEFAULT false,
-  regulatory_scope JSONB DEFAULT '[]',
-  UNIQUE(org_id, agent_id)
+  regulatory_scope JSONB DEFAULT '[]'
 );
 
 CREATE INDEX IF NOT EXISTS idx_agents_org_id ON agents(org_id);

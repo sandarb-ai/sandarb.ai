@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Body, Depends
 
 from backend.write_auth import require_write_allowed
 from backend.db import query, query_one
-from backend.schemas.common import ApiResponse
+from backend.schemas.common import ApiResponse, ValidateTemplateRequest
 from backend.services.contexts import (
     get_context_by_id,
     get_context_revisions,
@@ -15,6 +15,7 @@ from backend.services.contexts import (
     approve_context_revision,
     reject_context_revision,
     delete_context as delete_context_svc,
+    validate_jinja2_template,
 )
 from backend.services.agent_links import list_agents_for_context
 
@@ -65,6 +66,17 @@ def list_contexts(limit: int = 50, offset: int = 0):
     )
 
 
+@router.post("/validate-template", response_model=ApiResponse)
+def post_validate_template(body: ValidateTemplateRequest):
+    """Validate a Jinja2 template: check syntax and extract variable names.
+
+    No authentication required — this is a stateless syntax check.
+    Returns ``{valid, error, line, variables}``.
+    """
+    result = validate_jinja2_template(body.template)
+    return ApiResponse(success=True, data=result)
+
+
 @router.post("", response_model=ApiResponse, status_code=201)
 def post_context(body: dict = Body(...), _email: str = Depends(require_write_allowed)):
     """Create a new context with name, description, content, tags, orgId, compliance fields."""
@@ -112,16 +124,18 @@ def post_context_revision(context_id: str, body: dict = Body(...), _email: str =
     commit_message = body.get("commitMessage") or body.get("commit_message") or "Update"
     auto_approve = body.get("autoApprove", body.get("auto_approve", False))
     created_by = body.get("createdBy") or body.get("created_by")
-    
+    ai_instructions = body.get("aiInstructions") or body.get("ai_instructions")
+
     if content is None:
         raise HTTPException(status_code=400, detail="Content is required")
-    
+
     rev = create_context_revision(
         context_id,
         content=content,
         commit_message=commit_message,
         auto_approve=auto_approve,
         created_by=created_by,
+        ai_instructions=ai_instructions,
     )
     if not rev:
         raise HTTPException(status_code=404, detail="Context not found")

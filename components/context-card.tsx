@@ -22,7 +22,9 @@ interface ContextCardProps {
 
 export function ContextCard({ context, onDelete }: ContextCardProps) {
   const router = useRouter();
-  const contentPreview = context.content != null ? JSON.stringify(context.content, null, 2) : '';
+  const contentPreview = context.content != null
+    ? (typeof context.content === 'string' ? context.content : JSON.stringify(context.content, null, 2))
+    : '';
   const tags = toTagList(context.tags);
   const regulatoryHooks = toTagList(context.regulatoryHooks);
 

@@ -11,7 +11,7 @@ import {
   Database, Key, ListOrdered, Gauge,
   Variable, CloudUpload,
 } from 'lucide-react';
-import { A2AIcon, MCPIcon } from './brand-icons';
+import { A2AIcon, MCPIcon, SRNIcon } from './brand-icons';
 
 type IconComponent = ComponentType<{ className?: string }>;
 
@@ -33,6 +33,7 @@ const ICON_MAP: Record<string, IconComponent> = {
   Variable, CloudUpload,
   A2A: A2AIcon,
   MCP: MCPIcon,
+  SRN: SRNIcon,
   Python: imgIcon('/icons/python.svg', 'Python'),
   NodeJS: imgIcon('/icons/nodejs.svg', 'Node.js'),
   Go: imgIcon('/icons/go.svg', 'Go'),

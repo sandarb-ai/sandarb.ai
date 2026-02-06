@@ -159,6 +159,7 @@ export default async function DocsPage() {
       items: [
         { id: 'overview', label: 'Overview', icon: 'Eye' },
         { id: 'prompts-vs-context', label: 'Prompts vs Context', icon: 'FileText' },
+        { id: 'srn', label: 'Resource Names (SRN)', icon: 'SRN' },
         { id: 'governance-protocol', label: 'Governance Protocol', icon: 'Shield' },
         { id: 'quick-start', label: 'Quick start', icon: 'Zap' },
         { id: 'sandarb-json', label: 'sandarb.json manifest', icon: 'FileJson' },
@@ -384,6 +385,139 @@ export default async function DocsPage() {
           <P>
             Without governing both, you cannot diagnose whether the error was a failure of <strong className="text-foreground">instruction</strong> (bad prompt) or a failure of <strong className="text-foreground">information</strong> (bad context). Sandarb is built to govern both asset classes with versioning, approval workflows, and lineage tracking.
           </P>
+        </section>
+
+        {/* ── Sandarb Resource Names (SRN) ── */}
+        <section id="srn" className="scroll-mt-24 pt-6 border-t border-border/40">
+          <H2WithAnchor id="srn">Sandarb Resource Names (SRN)</H2WithAnchor>
+          <P>
+            Every asset in Sandarb follows a standardized naming convention called <strong className="text-foreground">Sandarb Resource Names (SRN)</strong>, inspired by{' '}
+            <a href="https://en.wikipedia.org/wiki/Uniform_Resource_Name" target="_blank" rel="noopener noreferrer" className="text-violet-600 dark:text-violet-400 underline">URNs (Uniform Resource Names)</a>.
+            SRNs use a <InlineCode>type.kebab-case-name</InlineCode> format for consistent identification across APIs, SDKs, and audit logs.
+          </P>
+
+          <H3WithAnchor id="srn-format">Format &amp; Examples</H3WithAnchor>
+          <div className="overflow-x-auto mb-6">
+            <table className="w-full text-sm border border-border rounded-lg">
+              <thead>
+                <tr className="border-b border-border bg-muted/50">
+                  <th className="text-left py-2 px-3 font-medium">Resource</th>
+                  <th className="text-left py-2 px-3 font-medium">SRN Format</th>
+                  <th className="text-left py-2 px-3 font-medium">Example</th>
+                </tr>
+              </thead>
+              <tbody className="text-sm text-muted-foreground">
+                <tr className="border-b border-border/50">
+                  <td className="py-2 px-3 font-medium text-foreground">Agent</td>
+                  <td className="py-2 px-3"><InlineCode>agent.&#123;kebab-case-name&#125;</InlineCode></td>
+                  <td className="py-2 px-3"><InlineCode>agent.retail-banking-kyc-verification-bot</InlineCode></td>
+                </tr>
+                <tr className="border-b border-border/50">
+                  <td className="py-2 px-3 font-medium text-foreground">Context</td>
+                  <td className="py-2 px-3"><InlineCode>context.&#123;kebab-case-name&#125;</InlineCode></td>
+                  <td className="py-2 px-3"><InlineCode>context.eu-refund-policy</InlineCode></td>
+                </tr>
+                <tr>
+                  <td className="py-2 px-3 font-medium text-foreground">Prompt</td>
+                  <td className="py-2 px-3"><InlineCode>prompt.&#123;kebab-case-name&#125;</InlineCode></td>
+                  <td className="py-2 px-3"><InlineCode>prompt.asia-pacific-fraud-detection-playbook</InlineCode></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <H3WithAnchor id="srn-rules">Naming Rules</H3WithAnchor>
+          <Ul>
+            <li>All SRNs are <strong className="text-foreground">globally unique</strong> — no two resources of any type can share the same SRN.</li>
+            <li>Names use <strong className="text-foreground">lowercase kebab-case</strong> (letters, numbers, and hyphens only — no underscores, no double hyphens).</li>
+            <li>The prefix (<InlineCode>agent.</InlineCode>, <InlineCode>context.</InlineCode>, <InlineCode>prompt.</InlineCode>) identifies the resource type.</li>
+            <li>SRNs are used in the Inject API, SDK calls, audit logs, and agent-to-agent communication.</li>
+          </Ul>
+
+          <H3WithAnchor id="srn-three-resources">How the Three Resources Differ</H3WithAnchor>
+          <P>
+            While all three resource types use SRNs, they serve fundamentally different purposes in the governance lifecycle:
+          </P>
+          <div className="overflow-x-auto mb-6">
+            <table className="w-full text-sm border border-border rounded-lg">
+              <thead>
+                <tr className="border-b border-border bg-muted/50">
+                  <th className="text-left py-2 px-3 font-medium"></th>
+                  <th className="text-left py-2 px-3 font-medium">Agents</th>
+                  <th className="text-left py-2 px-3 font-medium">Contexts</th>
+                  <th className="text-left py-2 px-3 font-medium">Prompts</th>
+                </tr>
+              </thead>
+              <tbody className="text-sm text-muted-foreground">
+                <tr className="border-b border-border/50">
+                  <td className="py-2 px-3 font-medium text-foreground">Who creates it?</td>
+                  <td className="py-2 px-3">The agent itself (self-registration via manifest)</td>
+                  <td className="py-2 px-3">Compliance / governance team</td>
+                  <td className="py-2 px-3">Prompt engineers</td>
+                </tr>
+                <tr className="border-b border-border/50">
+                  <td className="py-2 px-3 font-medium text-foreground">SRN stored in</td>
+                  <td className="py-2 px-3"><InlineCode>agent_id</InlineCode> column (globally unique)</td>
+                  <td className="py-2 px-3"><InlineCode>name</InlineCode> column (globally unique)</td>
+                  <td className="py-2 px-3"><InlineCode>name</InlineCode> column (globally unique)</td>
+                </tr>
+                <tr className="border-b border-border/50">
+                  <td className="py-2 px-3 font-medium text-foreground">Display name</td>
+                  <td className="py-2 px-3">Separate <InlineCode>name</InlineCode> column (human-friendly)</td>
+                  <td className="py-2 px-3">Same as SRN</td>
+                  <td className="py-2 px-3">Same as SRN</td>
+                </tr>
+                <tr className="border-b border-border/50">
+                  <td className="py-2 px-3 font-medium text-foreground">Example SRN</td>
+                  <td className="py-2 px-3"><InlineCode>agent.retail-banking-kyc-verification-bot</InlineCode></td>
+                  <td className="py-2 px-3"><InlineCode>context.eu-refund-policy</InlineCode></td>
+                  <td className="py-2 px-3"><InlineCode>prompt.americas-aml-triage-runbook</InlineCode></td>
+                </tr>
+                <tr>
+                  <td className="py-2 px-3 font-medium text-foreground">Used in audit logs</td>
+                  <td className="py-2 px-3">Yes — TEXT in <InlineCode>sandarb_access_logs</InlineCode></td>
+                  <td className="py-2 px-3">Yes — via context UUID</td>
+                  <td className="py-2 px-3">Yes — via prompt UUID</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <Admonition title="Why agents have two name fields">
+            Agents are self-registering runtime entities — they announce themselves via a manifest with a machine-readable <InlineCode>agent_id</InlineCode> SRN (e.g. <InlineCode>agent.retail-banking-kyc-verification-bot</InlineCode>) and a human-readable <InlineCode>name</InlineCode> (e.g. &quot;KYC Verification Bot&quot;). Contexts and prompts are authored governance assets where the SRN <strong className="text-foreground">is</strong> the name. This is the same pattern used by AWS (ARN vs display name), Kubernetes (<InlineCode>metadata.name</InlineCode> vs labels), and GitHub (username vs display name).
+          </Admonition>
+
+          <H3WithAnchor id="srn-usage">Using SRNs in API Calls</H3WithAnchor>
+          <P>
+            SRNs are used throughout the Sandarb APIs. Here&apos;s how they appear in the Inject API:
+          </P>
+          <DocsCodeBlock label="Inject API with SRNs">{`POST /api/inject
+{
+  "agent_id": "agent.service-account-refund-bot",
+  "prompt_key": "prompt.refund-main-prompt",
+  "context_variables": {
+    "context.eu-refund-policy": {
+      "region": "EU",
+      "currency": "EUR"
+    }
+  },
+  "trace_id": "trace-abc123"
+}`}</DocsCodeBlock>
+          <P>
+            And in the SDK:
+          </P>
+          <DocsCodeBlock label="Python SDK">{`from sandarb import Sandarb
+
+client = Sandarb(
+    "http://localhost:8000",
+    agent_id="agent.my-agent-v1",    # SRN format
+)
+
+# Fetch a prompt by SRN
+prompt = client.get_prompt("prompt.customer-support-v1")
+
+# Fetch a context by SRN
+context = client.get_context("context.eu-refund-policy")`}</DocsCodeBlock>
         </section>
 
         <section id="governance-protocol" className="scroll-mt-24 pt-6 border-t border-border/40">

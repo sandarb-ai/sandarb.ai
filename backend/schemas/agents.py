@@ -25,7 +25,7 @@ class AgentCard(BaseModel):
 class RegisteredAgentCreate(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     org_id: str = Field(alias="orgId")
-    agent_id: str | None = Field(default=None, alias="agentId")
+    agent_id: str = Field(alias="agentId")
     name: str
     description: str | None = None
     a2a_url: str = Field(alias="a2aUrl")
@@ -59,7 +59,7 @@ class RegisteredAgent(BaseModel):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True, serialize_by_alias=True)
     id: str
     org_id: str = Field(serialization_alias="orgId")
-    agent_id: str | None = Field(serialization_alias="agentId")
+    agent_id: str = Field(serialization_alias="agentId")
     name: str
     description: str | None = None
     a2a_url: str = Field(serialization_alias="a2aUrl")

@@ -2,12 +2,21 @@
 
 import { diffLines } from 'diff';
 import { cn } from '@/lib/utils';
+import type { ContextContent } from '@/types';
+
+/** Convert ContextContent (string or object) to a displayable string for diff. */
+function contentToString(content: ContextContent): string {
+  if (typeof content === 'string') {
+    return content;
+  }
+  return JSON.stringify(content, null, 2);
+}
 
 export interface ContentDiffViewProps {
   /** Previous version (e.g. revision or older). */
-  oldContent: Record<string, unknown>;
+  oldContent: ContextContent;
   /** Newer version (e.g. current context or later revision). */
-  newContent: Record<string, unknown>;
+  newContent: ContextContent;
   /** Label for old version (e.g. "v1" or "Revision 2024-01-15"). */
   oldLabel?: string;
   /** Label for new version (e.g. "Current" or "v2"). */
@@ -16,7 +25,7 @@ export interface ContentDiffViewProps {
 }
 
 /**
- * Renders a line-by-line diff of two JSON context contents.
+ * Renders a line-by-line diff of two context contents (JSON objects or Jinja2 template strings).
  * Green = added, red = removed. Used in Version History to compare revisions.
  */
 export function ContentDiffView({
@@ -26,8 +35,8 @@ export function ContentDiffView({
   newLabel = 'Current',
   className,
 }: ContentDiffViewProps) {
-  const oldStr = JSON.stringify(oldContent, null, 2);
-  const newStr = JSON.stringify(newContent, null, 2);
+  const oldStr = contentToString(oldContent);
+  const newStr = contentToString(newContent);
   const changes = diffLines(oldStr, newStr);
 
   return (

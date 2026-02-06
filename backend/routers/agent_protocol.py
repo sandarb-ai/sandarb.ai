@@ -369,7 +369,15 @@ async def _execute_a2a_skill(request: Request, skill: str, inp: dict[str, Any]) 
                 content = json.loads(content)
             except Exception:
                 pass
-        return {"name": context.get("name"), "content": content, "contextId": context.get("id")}
+        return {
+            "name": context.get("name"),
+            "content": content,
+            "contextId": context.get("id"),
+            "dataClassification": context.get("dataClassification"),
+            "regulatoryHooks": context.get("regulatoryHooks", []),
+            "orgId": context.get("orgId"),
+            "organization": context.get("organization"),
+        }
 
     if skill == "get_context_by_id":
         from backend.services.contexts import get_context_by_id as _get_context_by_id

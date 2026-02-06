@@ -6,7 +6,10 @@ Outputs SQL to project_root/data/sandarb.sql
 Counts (configurable via CLI or env):
   ORGS=55, AGENTS=950, PROMPTS=2100, CONTEXTS=3200
 
-Naming rules:
+Naming rules — Sandarb Resource Names (SRN), inspired by URNs (Uniform Resource Names):
+  - Agents:   agent.{kebab-case-name}    e.g. agent.retail-banking-kyc-verification-bot-0001
+  - Prompts:  prompt.{kebab-case-name}   e.g. prompt.americas-customer-support-playbook-0001
+  - Contexts: context.{kebab-case-name}  e.g. context.americas-refund-policy
   - All names/slugs are strictly lowercase kebab-case
   - No double hyphens (--) or underscores
   - Realistic FinTech/Banking terminology
@@ -149,83 +152,334 @@ CONTEXT_TOPICS = [
 ]
 
 CONTEXT_CONTENT_TEMPLATES = [
+    (
+        "# Pre-Trade Limits Policy — {{ region }}\n"
+        "Effective Date: {{ effective_date }}\n"
+        "Desk: {{ desk_name }}\n\n"
+        "## Concentration Limits\n"
+        "- Single-name limit: {{ single_name_limit }} {{ currency }}\n"
+        "- Single-name concentration must not exceed {{ concentration_pct }}% of portfolio.\n"
+        "- Sector concentration capped at {{ sector_cap_pct }}%.\n"
+        "- All breaches must be reported to Risk within {{ breach_notify_minutes }} minutes.\n\n"
+        "## VaR Limits\n"
+        "- Value-at-Risk limit: {{ var_limit }} {{ currency }} at 99% confidence, 1-day horizon.\n"
+        "- Intraday breaches require immediate escalation to the trading desk head and Risk Management.\n\n"
+        "## Escalation\n"
+        "- Any limit breach must be logged in the exception management system.\n"
+        "- Critical breaches require sign-off from {{ escalation_authority }} before remediation.\n"
+        "- Escalation contact: {{ escalation_contact }}"
+    ),
+    (
+        "# AML Transaction Monitoring — {{ region }}\n"
+        "Effective Date: {{ effective_date }}\n"
+        "Risk Tier: {{ risk_tier }}\n\n"
+        "## Currency Transaction Reports\n"
+        "Cash and cash-equivalent transactions over {{ ctr_threshold }} {{ currency }} in a single business day\n"
+        "require a Currency Transaction Report (CTR) filed with {{ regulator }} within {{ ctr_filing_days }} days.\n\n"
+        "## Structuring Detection\n"
+        "Multiple transactions below {{ structuring_threshold }} {{ currency }} within a {{ monitoring_window_hours }}-hour period\n"
+        "are flagged for potential structuring. Do not advise customers on how to avoid reporting thresholds.\n\n"
+        "## SAR Filing\n"
+        "Suspicious Activity Reports must be filed within {{ sar_filing_days }} days of detection.\n"
+        "Do not disclose SAR filing status to any party including the customer.\n"
+        "Escalation: {{ escalation_contact }}"
+    ),
+    (
+        "# KYC Identity Verification — {{ jurisdiction }}\n"
+        "Effective Date: {{ effective_date }}\n"
+        "Customer Type: {{ customer_type }}\n\n"
+        "## Customer Identification Program\n"
+        "Obtain and verify name, date of birth, address, and identification number before account opening.\n"
+        "Government-issued photo ID required for all {{ customer_type }} customers.\n\n"
+        "## Address Verification\n"
+        "Address must be verified via utility bill, bank statement, or government correspondence\n"
+        "dated within {{ address_verification_days }} days.\n\n"
+        "## Beneficial Ownership\n"
+        "For legal entities, identify and verify all beneficial owners holding {{ beneficial_ownership_pct }}% or more equity.\n"
+        "Enhanced due diligence required for complex ownership structures.\n"
+        "Regulatory framework: {{ regulatory_framework }}\n"
+        "Review frequency: every {{ review_frequency_months }} months"
+    ),
+    (
+        "# Reg E Dispute Resolution — {{ region }}\n"
+        "Effective Date: {{ effective_date }}\n"
+        "Processor: {{ processor_name }}\n\n"
+        "## Error Resolution\n"
+        "Consumer must report error within {{ error_report_days }} days of statement.\n"
+        "Bank must investigate and resolve within {{ investigation_days }} business days or provide provisional credit.\n\n"
+        "## Provisional Credit\n"
+        "Provisional credit must be provided within {{ provisional_credit_days }} business days if investigation requires more time.\n"
+        "Extended to {{ new_account_days }} days for new accounts.\n\n"
+        "## Final Determination\n"
+        "Final determination must be communicated within {{ final_determination_days }} days\n"
+        "({{ extended_determination_days }} days for POS, foreign transactions, or new accounts).\n"
+        "Contact: {{ compliance_contact }}"
+    ),
+    (
+        "# Suitability and Best Interest — {{ region }}\n"
+        "Effective Date: {{ effective_date }}\n"
+        "Applicable Regulation: {{ regulation }}\n\n"
+        "## Care Obligation\n"
+        "Recommendations must be in the best interest of the {{ customer_type }} customer.\n"
+        "Consider customer's investment profile, financial situation, and risk tolerance.\n\n"
+        "## Documentation Requirements\n"
+        "Document the basis for each recommendation including:\n"
+        "- Customer profile assessment\n"
+        "- Product features, costs, and risks considered\n"
+        "- Suitability determination rationale\n\n"
+        "## Conflict Disclosure\n"
+        "Disclose all material conflicts of interest at or before the time of recommendation.\n"
+        "Maintain CRS (Customer Relationship Summary) current.\n"
+        "Review cycle: every {{ review_cycle_months }} months"
+    ),
+    (
+        "# Volcker Rule Compliance — {{ region }}\n"
+        "Effective Date: {{ effective_date }}\n"
+        "Business Unit: {{ business_unit }}\n\n"
+        "## Proprietary Trading Prohibition\n"
+        "Proprietary trading for the firm's own account is prohibited.\n"
+        "Permitted activities: market-making, hedging, and underwriting.\n"
+        "Maximum inventory holding period: {{ max_holding_days }} days.\n\n"
+        "## Covered Funds\n"
+        "Investment in or sponsorship of covered funds (hedge funds, PE funds) is restricted.\n"
+        "De minimis threshold: {{ de_minimis_pct }}% of Tier 1 capital.\n\n"
+        "## Compliance Program\n"
+        "Maintain written compliance policies, internal controls, and independent testing.\n"
+        "Report metrics to {{ regulator }} as required.\n"
+        "Testing frequency: {{ testing_frequency }}"
+    ),
+    (
+        "# Sanctions Screening Policy — {{ region }}\n"
+        "Effective Date: {{ effective_date }}\n"
+        "Screening Provider: {{ screening_provider }}\n\n"
+        "## Screening Requirements\n"
+        "All customers, counterparties, and transactions must be screened against:\n"
+        "{% for list_name in sanctions_lists %}"
+        "- {{ list_name }}\n"
+        "{% endfor %}\n"
+        "## Match Handling\n"
+        "Potential matches must be reviewed within {{ match_review_hours }} hours.\n"
+        "True matches must be blocked and reported to {{ regulator }} within {{ report_days }} business days.\n\n"
+        "## Ongoing Monitoring\n"
+        "Screening must occur at onboarding, upon list updates, and periodically for existing relationships.\n"
+        "Rescreening cycle: every {{ rescreen_months }} months.\n"
+        "Document all screening results."
+    ),
+    (
+        "# Model Risk Management — {{ region }}\n"
+        "Effective Date: {{ effective_date }}\n"
+        "Model Risk Officer: {{ model_risk_officer }}\n\n"
+        "## Model Inventory\n"
+        "All quantitative models must be registered in the model inventory with:\n"
+        "- Assigned ownership\n"
+        "- Risk tier (1–{{ max_risk_tier }})\n"
+        "- Validation schedule\n\n"
+        "## Validation Requirements\n"
+        "- Tier 1 models: {{ tier1_validation_months }}-month independent validation cycle\n"
+        "- Tier 2 models: {{ tier2_validation_months }}-month validation cycle\n"
+        "- All material changes trigger re-validation.\n\n"
+        "## Model Use\n"
+        "Models may only be used for approved purposes.\n"
+        "Any use outside approved scope requires documented exception and approval from {{ approval_authority }}."
+    ),
+]
+
+# ============================================================================
+# JINJA2 TEMPLATED CONTEXT EXAMPLES
+# These demonstrate Sandarb's Templated Context feature: context content
+# stored as Jinja2 templates with {{ variable }} placeholders that are
+# rendered at injection time with agent-provided variables.
+# ============================================================================
+
+JINJA2_CONTEXT_TEMPLATES = [
     {
-        "policyName": "Pre-Trade Limits Policy",
-        "effectiveDate": "2024-01-01",
-        "varLimit": 5000000,
-        "singleNameLimit": 500000,
-        "sections": [
-            {"title": "Concentration Limits", "body": "Single-name concentration must not exceed 5% of portfolio. Sector concentration capped at 25%. All breaches must be reported to Risk within 15 minutes."},
-            {"title": "VaR Limits", "body": "Value-at-Risk limit is $5M at 99% confidence, 1-day horizon. Intraday breaches require immediate escalation to the trading desk head and Risk Management."},
-            {"title": "Escalation", "body": "Any limit breach must be logged in the exception management system. Critical breaches require sign-off from the CRO before remediation."}
-        ]
+        "name": "refund-policy",
+        "description": "Regional refund policy template. Rendered at injection time with region, currency, and compliance code.",
+        "template": (
+            "# Refund Policy for {{ region }}\n"
+            "Current Date: {{ current_date }}\n"
+            "Customer ID: {{ customer_id }}\n\n"
+            "RULES:\n"
+            "1. Refunds are processed in {{ currency }}.\n"
+            "2. Strictly follow the {{ compliance_code }} protocol.\n"
+            "3. Maximum refund amount: {{ max_refund_amount }} {{ currency }}.\n"
+            "4. Refund window: {{ refund_window_days }} days from purchase date.\n"
+            "5. Escalate any refund above {{ escalation_threshold }} {{ currency }} to manager."
+        ),
+        "example_variables": {
+            "region": "EU", "current_date": "2026-02-06", "customer_id": "CUST-90210",
+            "currency": "EUR", "compliance_code": "GDPR-22",
+            "max_refund_amount": "5000", "refund_window_days": "30",
+            "escalation_threshold": "2500",
+        },
     },
     {
-        "policyName": "AML Transaction Monitoring",
-        "effectiveDate": "2024-01-01",
-        "ctrThreshold": 10000,
-        "structuringThreshold": 3000,
-        "sections": [
-            {"title": "Currency Transaction Reports", "body": "Cash and cash-equivalent transactions over $10,000 in a single business day require a Currency Transaction Report (CTR) filed with FinCEN within 15 days."},
-            {"title": "Structuring Detection", "body": "Multiple transactions below $3,000 within a 24-hour period are flagged for potential structuring. Do not advise customers on how to avoid reporting thresholds."},
-            {"title": "SAR Filing", "body": "Suspicious Activity Reports must be filed within 30 days of detection. Do not disclose SAR filing status to any party including the customer."}
-        ]
+        "name": "trading-limits-dynamic",
+        "description": "Dynamic trading limits policy rendered per desk and region at injection time.",
+        "template": (
+            "# Trading Limits for {{ desk_name }} — {{ region }}\n"
+            "Effective Date: {{ effective_date }}\n"
+            "Approved By: {{ approved_by }}\n\n"
+            "## Position Limits\n"
+            "- Single-name limit: {{ single_name_limit }} {{ currency }}\n"
+            "- Sector concentration cap: {{ sector_cap_pct }}%\n"
+            "- VaR limit (99%, 1-day): {{ var_limit }} {{ currency }}\n\n"
+            "## Escalation\n"
+            "- Breach notification: within {{ breach_notify_minutes }} minutes\n"
+            "- Escalation contact: {{ escalation_contact }}\n"
+            "- Override authority: {{ override_authority }}"
+        ),
+        "example_variables": {
+            "desk_name": "Equities APAC", "region": "APAC",
+            "effective_date": "2026-01-15", "approved_by": "Chief Risk Officer",
+            "single_name_limit": "500000", "currency": "USD",
+            "sector_cap_pct": "25", "var_limit": "5000000",
+            "breach_notify_minutes": "15",
+            "escalation_contact": "risk-apac@bank.com",
+            "override_authority": "CRO or Regional Head of Risk",
+        },
     },
     {
-        "policyName": "KYC Identity Verification",
-        "effectiveDate": "2024-01-01",
-        "sections": [
-            {"title": "Customer Identification Program", "body": "Obtain and verify name, date of birth, address, and identification number before account opening. Government-issued photo ID required for all retail customers."},
-            {"title": "Address Verification", "body": "Address must be verified via utility bill, bank statement, or government correspondence dated within 90 days."},
-            {"title": "Beneficial Ownership", "body": "For legal entities, identify and verify all beneficial owners holding 25% or more equity. Enhanced due diligence required for complex ownership structures."}
-        ]
+        "name": "kyc-verification-checklist",
+        "description": "KYC verification checklist rendered per customer type and jurisdiction.",
+        "template": (
+            "# KYC Verification Checklist\n"
+            "Jurisdiction: {{ jurisdiction }}\n"
+            "Customer Type: {{ customer_type }}\n"
+            "Risk Rating: {{ risk_rating }}\n"
+            "Relationship Manager: {{ relationship_manager }}\n\n"
+            "## Required Documents\n"
+            "{% for doc in required_documents %}"
+            "- {{ doc }}\n"
+            "{% endfor %}\n"
+            "## Compliance Notes\n"
+            "- Regulatory framework: {{ regulatory_framework }}\n"
+            "- Review frequency: Every {{ review_frequency_months }} months\n"
+            "- Data retention: {{ retention_years }} years"
+        ),
+        "example_variables": {
+            "jurisdiction": "United Kingdom",
+            "customer_type": "Corporate Entity",
+            "risk_rating": "Medium",
+            "relationship_manager": "alice.johnson@bank.com",
+            "required_documents": [
+                "Certificate of Incorporation",
+                "Board Resolution",
+                "Proof of Registered Address",
+                "Beneficial Ownership Declaration",
+                "Source of Funds Documentation",
+            ],
+            "regulatory_framework": "FCA / MLR 2017",
+            "review_frequency_months": "12",
+            "retention_years": "7",
+        },
     },
     {
-        "policyName": "Reg E Dispute Resolution",
-        "effectiveDate": "2024-01-01",
-        "provisionalCreditDays": 10,
-        "finalDeterminationDays": 45,
-        "sections": [
-            {"title": "Error Resolution", "body": "Consumer must report error within 60 days of statement. Bank must investigate and resolve within 10 business days or provide provisional credit."},
-            {"title": "Provisional Credit", "body": "Provisional credit must be provided within 10 business days if investigation requires more time. Extended to 20 days for new accounts."},
-            {"title": "Final Determination", "body": "Final determination must be communicated within 45 days (90 days for POS, foreign transactions, or new accounts)."}
-        ]
+        "name": "aml-alert-triage",
+        "description": "AML alert triage instructions rendered per alert type and risk tier.",
+        "template": (
+            "# AML Alert Triage — {{ alert_type }}\n"
+            "Alert ID: {{ alert_id }}\n"
+            "Risk Tier: {{ risk_tier }}\n"
+            "Generated: {{ generated_date }}\n\n"
+            "## Thresholds\n"
+            "- CTR threshold: {{ ctr_threshold }} {{ currency }}\n"
+            "- Structuring detection: {{ structuring_threshold }} {{ currency }}\n"
+            "- Rapid movement window: {{ rapid_movement_hours }} hours\n\n"
+            "## Investigation Steps\n"
+            "1. Review transaction history for the past {{ lookback_days }} days.\n"
+            "2. Check customer profile against {{ sanctions_list }}.\n"
+            "3. Verify source of funds if amount exceeds {{ enhanced_dd_threshold }} {{ currency }}.\n"
+            "4. Document findings in case management system.\n"
+            "5. Escalate to {{ escalation_team }} if SAR criteria met.\n\n"
+            "## Regulatory Deadline\n"
+            "SAR must be filed within {{ sar_filing_days }} days of detection."
+        ),
+        "example_variables": {
+            "alert_type": "Unusual Transaction Pattern",
+            "alert_id": "AML-2026-00847",
+            "risk_tier": "HIGH",
+            "generated_date": "2026-02-06",
+            "ctr_threshold": "10000", "currency": "USD",
+            "structuring_threshold": "3000",
+            "rapid_movement_hours": "24",
+            "lookback_days": "90",
+            "sanctions_list": "OFAC SDN + EU Consolidated",
+            "enhanced_dd_threshold": "50000",
+            "escalation_team": "BSA/AML Compliance Unit",
+            "sar_filing_days": "30",
+        },
     },
     {
-        "policyName": "Suitability and Best Interest",
-        "effectiveDate": "2024-01-01",
-        "sections": [
-            {"title": "Reg BI Care Obligation", "body": "Recommendations must be in the best interest of the retail customer. Consider customer's investment profile, financial situation, and risk tolerance."},
-            {"title": "Documentation Requirements", "body": "Document the basis for each recommendation including customer profile assessment, product features, costs, and risks considered."},
-            {"title": "Conflict Disclosure", "body": "Disclose all material conflicts of interest at or before the time of recommendation. Maintain CRS (Customer Relationship Summary) current."}
-        ]
+        "name": "credit-assessment-policy",
+        "description": "Credit assessment policy rendered per product type, region, and risk appetite.",
+        "template": (
+            "# Credit Assessment Policy — {{ product_type }}\n"
+            "Region: {{ region }}\n"
+            "Effective: {{ effective_date }}\n"
+            "Segment: {{ customer_segment }}\n\n"
+            "## Eligibility Criteria\n"
+            "- Minimum credit score: {{ min_credit_score }}\n"
+            "- Maximum DTI ratio: {{ max_dti_pct }}%\n"
+            "- Minimum income: {{ min_income }} {{ currency }}/year\n"
+            "- Employment verification: {{ employment_verification }}\n\n"
+            "## Pricing\n"
+            "- Base rate: {{ base_rate_pct }}%\n"
+            "- Risk premium range: {{ risk_premium_min }}% — {{ risk_premium_max }}%\n"
+            "- Maximum exposure: {{ max_exposure }} {{ currency }}\n\n"
+            "## Approval Authority\n"
+            "- Up to {{ auto_approve_limit }} {{ currency }}: Automated\n"
+            "- {{ auto_approve_limit }} — {{ senior_approve_limit }} {{ currency }}: Senior Credit Officer\n"
+            "- Above {{ senior_approve_limit }} {{ currency }}: Credit Committee"
+        ),
+        "example_variables": {
+            "product_type": "Personal Loan",
+            "region": "North America",
+            "effective_date": "2026-01-01",
+            "customer_segment": "Retail Banking",
+            "min_credit_score": "680",
+            "max_dti_pct": "43",
+            "min_income": "35000", "currency": "USD",
+            "employment_verification": "Required for amounts > $25,000",
+            "base_rate_pct": "5.25",
+            "risk_premium_min": "0.5", "risk_premium_max": "4.0",
+            "max_exposure": "100000",
+            "auto_approve_limit": "10000",
+            "senior_approve_limit": "50000",
+        },
     },
     {
-        "policyName": "Volcker Rule Compliance",
-        "effectiveDate": "2024-01-01",
-        "sections": [
-            {"title": "Proprietary Trading Prohibition", "body": "Proprietary trading for the firm's own account is prohibited. Permitted activities include market-making, hedging, and underwriting."},
-            {"title": "Covered Funds", "body": "Investment in or sponsorship of covered funds (hedge funds, PE funds) is restricted. De minimis exceptions apply per regulatory thresholds."},
-            {"title": "Compliance Program", "body": "Maintain written compliance policies, internal controls, and independent testing. Report metrics to regulators as required."}
-        ]
-    },
-    {
-        "policyName": "Sanctions Screening Policy",
-        "effectiveDate": "2024-01-01",
-        "sections": [
-            {"title": "Screening Requirements", "body": "All customers, counterparties, and transactions must be screened against OFAC SDN list, UN sanctions, EU consolidated list, and local sanctions lists."},
-            {"title": "Match Handling", "body": "Potential matches must be reviewed within 24 hours. True matches must be blocked and reported to OFAC within 10 business days."},
-            {"title": "Ongoing Monitoring", "body": "Screening must occur at onboarding, upon list updates, and periodically for existing relationships. Document all screening results."}
-        ]
-    },
-    {
-        "policyName": "Model Risk Management",
-        "effectiveDate": "2024-01-01",
-        "sections": [
-            {"title": "Model Inventory", "body": "All quantitative models must be registered in the model inventory with assigned ownership, risk tier, and validation schedule."},
-            {"title": "Validation Requirements", "body": "Tier 1 models require annual independent validation. Tier 2 models require validation every 18 months. All material changes trigger re-validation."},
-            {"title": "Model Use", "body": "Models may only be used for approved purposes. Any use outside approved scope requires documented exception and approval from Model Risk Management."}
-        ]
+        "name": "fraud-detection-rules",
+        "description": "Fraud detection rules rendered per channel and risk profile.",
+        "template": (
+            "# Fraud Detection Rules — {{ channel }}\n"
+            "Region: {{ region }}\n"
+            "Last Updated: {{ last_updated }}\n\n"
+            "## Transaction Velocity Rules\n"
+            "- Max transactions per hour: {{ max_txn_per_hour }}\n"
+            "- Max daily amount: {{ max_daily_amount }} {{ currency }}\n"
+            "- Decline threshold: {{ decline_threshold }} {{ currency }} single transaction\n\n"
+            "## Geographic Rules\n"
+            "- Blocked countries: {{ blocked_countries }}\n"
+            "- Cross-border alert threshold: {{ cross_border_threshold }} {{ currency }}\n\n"
+            "## Device & Session\n"
+            "- Max devices per account: {{ max_devices }}\n"
+            "- Session timeout: {{ session_timeout_minutes }} minutes\n"
+            "- Alert on new device: {{ alert_new_device }}"
+        ),
+        "example_variables": {
+            "channel": "Mobile Banking",
+            "region": "EMEA",
+            "last_updated": "2026-02-01",
+            "max_txn_per_hour": "10",
+            "max_daily_amount": "25000", "currency": "GBP",
+            "decline_threshold": "5000",
+            "blocked_countries": "North Korea, Iran, Syria",
+            "cross_border_threshold": "10000",
+            "max_devices": "3",
+            "session_timeout_minutes": "15",
+            "alert_new_device": "Yes — push notification + email",
+        },
     },
 ]
 
@@ -385,31 +639,37 @@ def generate_agents(count: int, orgs: list[dict]) -> list[dict]:
     """Generate agent records distributed across organizations."""
     agents = []
     non_root_orgs = [o for o in orgs if not o["is_root"]]
-    
+    seen_ids: set[str] = set()
+
     for i in range(count):
         org = pick(non_root_orgs, i)
         role = pick(AGENT_ROLES, i)
         role_name = role.replace("-", " ").title()
-        
-        # Create unique agent_id (technical identifier for API)
-        org_short = org["slug"].split("-")[0][:8]
-        agent_id = slugify(f"{role}-{i:04d}")
-        
+
+        # Create unique agent_id: org-slug + role (no numeric suffix)
+        org_slug = slugify(org["slug"])
+        agent_id = f"agent.{org_slug}-{role}"
+
+        # Dedup: if collision, skip (org×role already covered)
+        if agent_id in seen_ids:
+            continue
+        seen_ids.add(agent_id)
+
         # Human-friendly display name
         agent_name = f"{role_name} ({org['name'][:20]})"
-        
+
         desc = AGENT_DESCRIPTIONS.get(role, f"{role_name} agent for {org['name']}.")
         user = pick(USERS, i)
         status = pick(APPROVAL_STATUSES, i)
         created = random_date(180, 30)
-        
+
         agent = {
             "id": str(uuid.uuid4()),
             "org_id": org["id"],
             "agent_id": agent_id,
             "name": agent_name,
             "description": desc,
-            "a2a_url": f"https://agents.sandarb.ai/{agent_id}",
+            "a2a_url": f"https://agent.sandarb.ai/{agent_id}",
             "status": "active",
             "approval_status": status,
             "approved_by": f"@{pick(USERS, i + 1)}" if status == "approved" else None,
@@ -424,22 +684,61 @@ def generate_agents(count: int, orgs: list[dict]) -> list[dict]:
             "regulatory_scope": pick(REGULATORY_SCOPES, i),
         }
         agents.append(agent)
-    
+
     return agents
 
 
 def generate_contexts(count: int, orgs: list[dict]) -> list[dict]:
-    """Generate context (policy) records; assign random non-root org per context."""
+    """Generate context (policy) records; assign random non-root org per context.
+
+    All contexts use Jinja2 template strings.  The first batch
+    (one per JINJA2_CONTEXT_TEMPLATES entry) use dedicated showcase templates.
+    Remaining contexts use CONTEXT_CONTENT_TEMPLATES (also Jinja2 strings).
+    """
     contexts = []
     non_root_orgs = [o for o in orgs if not o.get("is_root", True)]
     if not non_root_orgs:
         non_root_orgs = orgs
-    for i in range(count):
+
+    # --- First: create one context per Jinja2 template (to showcase the feature) ---
+    for j, jinja_tpl in enumerate(JINJA2_CONTEXT_TEMPLATES):
+        org = pick(non_root_orgs, j)
+        region = pick(ORG_REGIONS, j)
+        tpl_name = jinja_tpl["name"]
+        ctx_name = f"context.{slugify(f'{region}-{tpl_name}')}"
+        user = pick(USERS, j)
+        classification = pick(DATA_CLASSIFICATIONS, j)
+        created = random_date(365, 60)
+        ctx = {
+            "id": str(uuid.uuid4()),
+            "name": ctx_name,
+            "description": jinja_tpl["description"],
+            "org_id": org["id"],
+            "data_classification": classification,
+            "owner_team": org.get("slug", "governance") + "-governance",
+            "created_by": f"@{user}",
+            "created_at": created,
+            "is_active": True,
+            "updated_at": random_date(60, 0),
+            "tags": json.dumps([jinja_tpl["name"].split("-")[0], region, "templated"]),
+            "regulatory_hooks": json.dumps(["pre-response-check", "audit-log"]),
+            "_is_jinja2": True,
+            "_jinja2_index": j,
+        }
+        contexts.append(ctx)
+
+    # --- Then: fill the rest with static content ---
+    seen_names: set[str] = {c["name"] for c in contexts}
+    for i in range(len(JINJA2_CONTEXT_TEMPLATES), count):
         topic = pick(CONTEXT_TOPICS, i)
         region = pick(ORG_REGIONS, i // 10)
         org = pick(non_root_orgs, i)
-        # Unique name
-        ctx_name = slugify(f"{region}-{topic}-{i:04d}")
+        # Unique name: region + topic (no numeric suffix)
+        ctx_name = f"context.{slugify(f'{region}-{topic}')}"
+        # Dedup: skip if already seen (region×topic already covered)
+        if ctx_name in seen_names:
+            continue
+        seen_names.add(ctx_name)
         template = pick(CONTEXT_CONTENT_TEMPLATES, i)
         content = json.dumps(template)
         user = pick(USERS, i)
@@ -464,20 +763,36 @@ def generate_contexts(count: int, orgs: list[dict]) -> list[dict]:
 
 
 def generate_context_versions(contexts: list[dict]) -> list[dict]:
-    """Generate context versions for each context."""
+    """Generate context versions for each context.
+
+    All context content is stored as a Jinja2 template string (with
+    ``{{ variable }}`` placeholders) inside a JSONB column.  The governance
+    hash is computed from ``context_name:template_content`` for a stable,
+    version-specific fingerprint.
+    """
     versions = []
-    
+
     for ctx in contexts:
-        template = pick(CONTEXT_CONTENT_TEMPLATES, hash(ctx["id"]) % len(CONTEXT_CONTENT_TEMPLATES))
-        content = json.dumps(template)
         user = ctx["created_by"]
-        
+
+        if ctx.get("_is_jinja2"):
+            # Showcase Jinja2 templates
+            jinja_tpl = JINJA2_CONTEXT_TEMPLATES[ctx["_jinja2_index"]]
+            template_str = jinja_tpl["template"]
+        else:
+            # Standard Jinja2 template from CONTEXT_CONTENT_TEMPLATES (now strings)
+            template_str = pick(CONTEXT_CONTENT_TEMPLATES, hash(ctx["id"]) % len(CONTEXT_CONTENT_TEMPLATES))
+
+        content = json.dumps(template_str)  # JSON string → valid JSONB
+        gov_hash = sha256(f"{ctx['name']}:{template_str}")
+        commit_msg = "Initial Jinja2 templated version"
+
         version = {
             "id": str(uuid.uuid4()),
             "context_id": ctx["id"],
             "version": 1,  # Integer version starting from 1
             "content": content,
-            "sha256_hash": sha256(content),
+            "sha256_hash": gov_hash,
             "status": "Approved",
             "created_by": user,
             "created_at": ctx["created_at"],
@@ -485,23 +800,28 @@ def generate_context_versions(contexts: list[dict]) -> list[dict]:
             "approved_by": f"@{pick(USERS, hash(ctx['id']) % len(USERS))}",
             "approved_at": ctx["updated_at"],
             "is_active": True,
-            "commit_message": "Initial policy version",
+            "commit_message": commit_msg,
         }
         versions.append(version)
-    
+
     return versions
 
 
 def generate_prompts(count: int) -> list[dict]:
     """Generate prompt records."""
     prompts = []
-    
+    seen_names: set[str] = set()
+
     for i in range(count):
         topic = pick(PROMPT_TOPICS, i)
         region = pick(ORG_REGIONS, i // 15)
-        
-        # Unique name
-        prompt_name = slugify(f"{region}-{topic}-{i:04d}")
+
+        # Unique name: region + topic (no numeric suffix)
+        prompt_name = f"prompt.{slugify(f'{region}-{topic}')}"
+        # Dedup: skip if already seen (region×topic already covered)
+        if prompt_name in seen_names:
+            continue
+        seen_names.add(prompt_name)
         
         topic_key = topic.replace("-playbook", "").replace("-standard", "").replace("-guide", "").replace("-runbook", "").replace("-procedures", "")
         specific = PROMPT_SPECIFIC_INSTRUCTIONS.get(topic_key, "Follow all governance policies and compliance requirements.")
@@ -528,10 +848,12 @@ def generate_prompt_versions(prompts: list[dict]) -> list[dict]:
     versions = []
     
     for prompt in prompts:
-        topic_parts = prompt["name"].split("-")
+        # Strip SRN prefix (prompt.) before extracting topic
+        raw_name = prompt["name"].removeprefix("prompt.")
+        topic_parts = raw_name.split("-")
         # Extract topic from name (skip region prefix and numeric suffix)
         topic_key = "-".join(topic_parts[1:-1]) if len(topic_parts) > 2 else "compliance"
-        topic_key = topic_key.replace("-playbook", "").replace("-standard", "").replace("-guide", "")
+        topic_key = topic_key.replace("-playbook", "").replace("-standard", "").replace("-guide", "").replace("-runbook", "").replace("-procedures", "").replace("-policy", "").replace("-cip", "")
         
         specific = PROMPT_SPECIFIC_INSTRUCTIONS.get(topic_key, "Follow all governance policies.")
         role = topic_key.replace("-", " ")
@@ -548,7 +870,7 @@ def generate_prompt_versions(prompts: list[dict]) -> list[dict]:
             "content": content,
             "system_prompt": f"You are a governed {role} assistant.",
             "model": pick(["gpt-4", "gpt-4-turbo", "claude-3-opus", "claude-3-sonnet"], hash(prompt["id"]) % 4),
-            "status": "approved",  # lowercase for prompt_versions schema
+            "status": "Approved",  # Title-case per prompt_versions_status_check constraint
             "created_by": user,
             "created_at": prompt["created_at"],
             "submitted_by": user,
@@ -656,7 +978,7 @@ def generate_sql(orgs, agents, contexts, context_versions, prompts, prompt_versi
             f"('{a['id']}', '{a['org_id']}', '{a['agent_id']}', '{escape_sql(a['name'])}', '{escape_sql(a['description'])}', '{a['a2a_url']}', '{a['status']}', '{a['approval_status']}', {approved_by}, {approved_at}, '{a['submitted_by']}', '{a['created_by']}', '{a['created_at']}', '{a['updated_at']}', '{a['tools_used']}', '{a['allowed_data_scopes']}', {str(a['pii_handling']).lower()}, '{a['regulatory_scope']}');"
         )
     
-    lines.append("\n-- Contexts (org_id from non-root orgs)")
+    lines.append("\n-- Contexts (org_id from non-root orgs; Jinja2-templated contexts marked with 'templated' tag)")
     for c in contexts:
         lines.append(
             f"INSERT INTO contexts (id, name, description, org_id, data_classification, owner_team, created_by, created_at, is_active, updated_at, tags, regulatory_hooks) VALUES "
@@ -672,13 +994,12 @@ def generate_sql(orgs, agents, contexts, context_versions, prompts, prompt_versi
             f"('{v['id']}', '{v['context_id']}', {v['version']}, '{escape_sql(v['content'])}', '{v['sha256_hash']}', '{v['status']}', '{v['created_by']}', '{v['created_at']}', '{v['submitted_by']}', {approved_by}, {approved_at}, {str(v['is_active']).lower()}, '{escape_sql(v['commit_message'])}');"
         )
     
-    # Insert prompts first WITHOUT current_version_id to avoid FK violation (org_id so organization is never empty)
-    default_org_id = next((o["id"] for o in orgs if not o.get("is_root")), (orgs[0]["id"] if orgs else None))
+    # Insert prompts first WITHOUT current_version_id to avoid FK violation
     lines.append("\n-- Prompts (without current_version_id)")
     for p in prompts:
         lines.append(
-            f"INSERT INTO prompts (id, org_id, name, description, current_version_id, tags, created_by, created_at, updated_at) VALUES "
-            f"('{p['id']}', '{default_org_id}', '{escape_sql(p['name'])}', '{escape_sql(p['description'])}', NULL, '{p['tags']}', '{p['created_by']}', '{p['created_at']}', '{p['updated_at']}');"
+            f"INSERT INTO prompts (id, name, description, current_version_id, tags, created_by, created_at, updated_at) VALUES "
+            f"('{p['id']}', '{escape_sql(p['name'])}', '{escape_sql(p['description'])}', NULL, '{p['tags']}', '{p['created_by']}', '{p['created_at']}', '{p['updated_at']}');"
         )
     
     # Insert prompt_versions (can reference prompts now)

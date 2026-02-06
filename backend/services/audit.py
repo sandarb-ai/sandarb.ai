@@ -11,11 +11,23 @@ def log_inject_success(
     context_name: str,
     version_id: str | None = None,
     intent: str | None = None,
+    governance_hash: str | None = None,
+    rendered: bool = False,
 ) -> None:
-    """Record successful context delivery for lineage."""
+    """Record successful context delivery for lineage.
+
+    Args:
+        governance_hash: The SHA-256 governance hash of the context template (for rendered contexts).
+        rendered: Whether the context was rendered with Jinja2 template variables.
+    """
     meta = {"action_type": "INJECT_SUCCESS", "contextName": context_name, "context_id": context_id}
     if intent:
         meta["intent"] = intent
+    if governance_hash:
+        meta["governance_hash"] = governance_hash
+        meta["hash_type"] = "sha256"
+    if rendered:
+        meta["rendered"] = True
     execute(
         """INSERT INTO sandarb_access_logs (agent_id, trace_id, context_id, version_id, metadata)
            VALUES (%s, %s, %s, %s, %s::jsonb)""",

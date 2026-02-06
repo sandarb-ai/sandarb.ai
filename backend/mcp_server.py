@@ -328,7 +328,15 @@ def get_context(name: str, api_key: str, source_agent: str, trace_id: str) -> st
             content = json.loads(content)
         except Exception:
             pass
-    return json.dumps({"name": context.get("name"), "content": content, "contextId": context.get("id")})
+    return json.dumps({
+        "name": context.get("name"),
+        "content": content,
+        "contextId": context.get("id"),
+        "dataClassification": context.get("dataClassification"),
+        "regulatoryHooks": context.get("regulatoryHooks", []),
+        "orgId": context.get("orgId"),
+        "organization": context.get("organization"),
+    })
 
 
 @mcp.tool()

@@ -1,4 +1,4 @@
-/** Brand icons for A2A and MCP protocols — used in docs nav alongside lucide-react icons. */
+/** Brand icons for A2A, MCP, and SRN — used in docs nav alongside lucide-react icons. */
 
 export function A2AIcon({ className }: { className?: string }) {
   return (
@@ -26,6 +26,28 @@ export function A2AIcon({ className }: { className?: string }) {
         d="M444 628.002C458.359 628.002 470 639.643 470 654.002C470 668.361 458.359 680.002 444 680.002H100C85.6406 680.002 74 668.361 74 654.002C74 639.643 85.6406 628.002 100 628.002H444ZM548 628.002C562.359 628.002 574 639.643 574 654.002C574 668.361 562.359 680.002 548 680.002C533.641 680.002 522 668.361 522 654.002C522 639.643 533.641 628.002 548 628.002ZM760 628.002C774.359 628.002 786 639.643 786 654.002C786 668.361 774.359 680.002 760 680.002H652C637.641 680.002 626 668.361 626 654.002C626 639.643 637.641 628.002 652 628.002H760Z"
         fill="currentColor"
       />
+    </svg>
+  );
+}
+
+/** SRN (Sandarb Resource Name) icon — stylised identifier badge with dot separator,
+ *  visually representing the `type.kebab-case-name` format inspired by URNs. */
+export function SRNIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+    >
+      {/* Rounded tag shape */}
+      <rect x="2" y="5" width="20" height="14" rx="3" stroke="currentColor" strokeWidth="1.8" />
+      {/* Dot separator — the hallmark of SRN format (type.name) */}
+      <circle cx="9" cy="12" r="1.5" fill="currentColor" />
+      {/* Left segment: "type" prefix */}
+      <rect x="5" y="10.5" width="2.5" height="3" rx="0.75" fill="currentColor" />
+      {/* Right segment: "name" identifier */}
+      <rect x="12" y="10.5" width="7" height="3" rx="0.75" fill="currentColor" />
     </svg>
   );
 }

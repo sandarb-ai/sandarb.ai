@@ -10,6 +10,8 @@ export interface AgentPulseContentProps {
   initialShadowAI: number;
   initialA2ALog: number;
   agents: Array<{ id: string; name: string; team: string }>;
+  /** When set, terminal shows only A2A traffic for this specific agent. */
+  filterAgentId?: string | null;
 }
 
 export function AgentPulseContent({
@@ -17,6 +19,7 @@ export function AgentPulseContent({
   initialShadowAI,
   initialA2ALog,
   agents,
+  filterAgentId,
 }: AgentPulseContentProps) {
   const [liveA2a, setLiveA2a] = useState(0);
   const [liveBlocked, setLiveBlocked] = useState(initialBlocked);
@@ -28,7 +31,7 @@ export function AgentPulseContent({
     setLiveBlocked(initialBlocked + denied);
   }, [initialBlocked]);
 
-  // Shadow AI: increase slowly (every ~12–18s) to feel “mostly static but can increase”
+  // Shadow AI: increase slowly (every ~12–18s) to feel "mostly static but can increase"
   useEffect(() => {
     const interval = 12000 + Math.random() * 6000;
     const t = setInterval(() => {
@@ -41,7 +44,7 @@ export function AgentPulseContent({
     <>
       <div className="shrink-0 px-6 py-4 border-b border-border bg-background">
         <AgentPulseStatsCards
-          agentsCount={agents.length}
+          agentsCount={filterAgentId ? 1 : agents.length}
           blockedCount={liveBlocked}
           shadowAICount={liveShadowAI}
           a2aCount={liveA2a}
@@ -52,6 +55,7 @@ export function AgentPulseContent({
           agents={agents}
           autoPlay={true}
           onEntriesChange={onEntriesChange}
+          filterAgentId={filterAgentId}
         />
       </div>
     </>

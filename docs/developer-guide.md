@@ -24,6 +24,68 @@ Integration details:
 - **Prompts Pull API** – `GET /api/prompts/pull?name=my-prompt` returns the current approved prompt only if it is **linked to the calling agent** (agent_prompts). Use `sandarb-prompt-preview` for UI testing.
 - **Templates** – Reusable schemas and default values for context content; link a context to a template for consistent structure
 
+## The Library Model: Information Architecture
+
+Sandarb implements **The Library Model** — an organizational pattern where each Organization is the top-level container that owns all governance assets. Under each organization, there are **Three Pillars**:
+
+| Pillar | Description |
+|--------|-------------|
+| **Agent Registry** | All AI agents that belong to the organization. |
+| **Prompt Library** | Functional instructions that define agent behavior. |
+| **Context Registry** | Templates and knowledge sources the agents consume at runtime. |
+
+### Sandarb Resource Names (SRN)
+
+Every asset in Sandarb follows a standardized naming convention called **Sandarb Resource Names (SRN)**, inspired by [URNs (Uniform Resource Names)](https://en.wikipedia.org/wiki/Uniform_Resource_Name). SRNs use a `type.kebab-case-name` format for consistent identification across APIs, SDKs, and audit logs.
+
+| Resource | SRN Format | Example |
+|----------|-----------|---------|
+| **Agent** | `agent.{kebab-case-name}` | `agent.retail-banking-finance-bot` |
+| **Prompt** | `prompt.{kebab-case-name}` | `prompt.asia-pacific-fraud-detection-playbook` |
+| **Context** | `context.{kebab-case-name}` | `context.eu-refund-policy` |
+
+**Rules:**
+- All SRNs are **globally unique** — no two resources of any type can share the same SRN.
+- All names are **lowercase kebab-case** (no underscores, no double hyphens).
+- The prefix (`agent.`, `prompt.`, `context.`) identifies the resource type.
+- SRNs are used in the Inject API, SDK calls, audit logs, and agent-to-agent communication.
+
+### The Three Resources: How They Differ
+
+While all three resource types use SRNs, they serve fundamentally different purposes in the governance lifecycle:
+
+| | Agents | Contexts | Prompts |
+|---|---|---|---|
+| **Who creates it?** | The agent itself (self-registration via manifest) | Compliance/governance team (manual authoring) | Prompt engineers (manual authoring) |
+| **SRN stored in** | `agent_id` column (globally unique, NOT NULL) | `name` column (globally unique, NOT NULL) | `name` column (globally unique, NOT NULL) |
+| **Display name** | `name` column (separate, human-friendly) | Same as SRN | Same as SRN |
+| **Example SRN** | `agent.retail-banking-kyc-verification-bot` | `context.eu-refund-policy` | `prompt.americas-aml-triage-runbook` |
+| **Example display** | "KYC Verification Bot (Retail Banking)" | — | — |
+| **Used in audit logs** | Yes — TEXT in `sandarb_access_logs` | Yes — via context UUID | Yes — via prompt UUID |
+| **Used in API auth** | Yes — bound to API keys and service accounts | No | No |
+
+**Why agents have two name fields:** Agents are self-registering runtime entities — they announce themselves via a manifest with a machine-readable `agent_id` SRN (e.g. `agent.retail-banking-kyc-verification-bot`) and a human-readable `name` (e.g. "KYC Verification Bot (Retail Banking)"). Contexts and prompts are authored governance assets where the SRN IS the name — compliance teams don't need a separate display name for a policy document.
+
+This is the same pattern used by AWS (ARN vs display name), Kubernetes (`metadata.name` vs labels), and GitHub (username vs display name).
+
+**Example usage in API calls:**
+
+```python
+# Using SRNs in the Inject API (POST /api/inject)
+response = requests.post("/api/inject", json={
+    "agent_id": "agent.service-account-refund-bot",
+    "prompt_key": "prompt.refund-main-prompt",
+    "context_variables": {
+        "context.eu-refund-policy": {
+            "region": "EU",
+            "currency": "EUR",
+        }
+    }
+})
+```
+
+---
+
 ## Prompts vs Context: Governance Perspective
 
 In AI Governance, **Prompts** and **Context** are two distinct asset classes with different risks, lifecycles, and compliance requirements. Think of an AI Agent as a **digital employee**:
@@ -81,6 +143,312 @@ In Sandarb, these two meet in the **Audit Log**. When an incident occurs (e.g., 
 
 Without governing both, you cannot diagnose whether the error was a failure of **instruction** (bad prompt) or a failure of **information** (bad context). Sandarb is built to govern both asset classes with versioning, approval workflows, and lineage tracking.
 
+## Templated Context (Jinja2 Rendering)
+
+Sandarb implements **context templates using Jinja2**, the industry-standard Python template engine used by Ansible, Flask, Django, Airflow, dbt, and thousands of production systems. Jinja2 is the de facto choice for templated configuration and policy rendering because of its proven security model, rich feature set, and wide ecosystem support.
+
+Templated contexts transform Sandarb from a static file host into a **dynamic Governance Engine**: context content is stored as Jinja2 templates with `{{ variable }}` placeholders that are rendered at injection time with agent-provided variables. This ensures agents only see exactly what they are supposed to see for each specific execution — the right policy, for the right region, for the right customer, at the right time.
+
+> **The Keys and Treasure Model:** Think of the variables from the AI Agent as **"Keys"** and the context template as the **"Treasure."** The agent holds the keys (runtime variables like region, customer ID, risk level), but the treasure (the governed policy template) is locked inside Sandarb's vault. Only when the agent presents the right keys does Sandarb unlock and render the treasure — producing a fully resolved, audited, governance-stamped policy. The compliance team controls the treasure (template authoring, versioning, approval); the agent only controls which keys it brings.
+
+### What is Jinja2?
+
+[Jinja2](https://jinja.palletsprojects.com/) is a fast, expressive, extensible templating engine for Python. Key features used by Sandarb:
+
+| Feature | Syntax | Purpose in Sandarb |
+|---------|--------|-------------------|
+| **Variable substitution** | `{{ variable }}` | Insert runtime values (region, currency, customer ID) |
+| **Conditionals** | `{% if condition %}...{% endif %}` | Include/exclude policy sections based on context |
+| **Loops** | `{% for item in list %}...{% endfor %}` | Iterate over lists (required documents, checklist items) |
+| **Filters** | `{{ value \| upper }}` | Transform values (uppercase, default, join) |
+| **Default values** | `{{ var \| default('N/A') }}` | Provide fallbacks for optional variables |
+| **Comments** | `{# comment #}` | Document template intent (stripped from output) |
+
+Sandarb uses Jinja2's **SandboxedEnvironment** with `autoescape=True` — this prevents template injection attacks by restricting what template code can do (no file access, no arbitrary Python execution, no system calls). Variable values are HTML-escaped by default to prevent XSS.
+
+### How It Works
+
+1. **Author** a context template with Jinja2 syntax (e.g. `{{ region }}`, `{{ currency }}`).
+2. **Store** it in Sandarb with versioning and approval workflows (just like any context).
+3. **At runtime**, the agent calls `POST /api/inject` with `context_variables` — a dict mapping context SRNs to their template variables.
+4. **Sandarb renders** the template in a sandboxed environment, returns the fully resolved content, and logs an immutable audit record with governance metadata.
+
+### Governance Hash and Audit Trail
+
+The SHA-256 governance hash is derived from the **context name + raw Jinja2 template** of the active version — NOT the rendered output. This design is deliberate:
+
+- The hash is **stable** across invocations with different runtime variables — calling the same template with `region=EU` or `region=APAC` produces the same hash.
+- It changes **only** when the template itself is modified (new version approved).
+- It serves as a **version-level fingerprint** for audit and compliance checks.
+
+**What gets logged for every injection:**
+
+| Audit Field | Description | Example |
+|-------------|-------------|---------|
+| `agent_id` | SRN of the calling agent | `agent.refund-bot-0001` |
+| `trace_id` | Correlation ID for the request | `trace-abc123` |
+| `context_id` | UUID of the context | `550e8400-...` |
+| `context_name` | SRN of the context | `context.eu-refund-policy` |
+| `version_id` | UUID of the specific version served | `6ba7b810-...` |
+| `governance_hash` | SHA-256 of `context_name:raw_template` | `a94a8fe5ccb1...` |
+| `rendered` | Whether Jinja2 variables were applied | `true` |
+| `accessed_at` | Timestamp of the injection | `2026-02-06T14:30:00Z` |
+| `request_ip` | Source IP of the calling agent | `10.0.1.42` |
+
+This means for any incident investigation, you can reconstruct:
+
+> "On Feb 6th at 2:30 PM, `agent.refund-bot-0001` (trace `trace-abc123`) received `context.eu-refund-policy` version `6ba7b810` (template hash `a94a8fe5...`) rendered with runtime variables. The template was approved by `@alice.johnson` on Jan 15th."
+
+### Simple Template Example: EU Refund Policy
+
+This example uses only **variable substitution** (`{{ var }}`) — the simplest Jinja2 feature. No conditionals, no loops.
+
+**Step 1: Create the context template**
+
+The compliance team creates `context.eu-refund-policy` with this Jinja2 template:
+
+```
+# Refund Policy for {{ region }}
+Current Date: {{ current_date }}
+Customer ID: {{ customer_id }}
+
+RULES:
+1. Refunds are processed in {{ currency }}.
+2. Strictly follow the {{ compliance_code }} protocol.
+3. Maximum refund amount: {{ max_refund_amount }} {{ currency }}.
+4. Refund window: {{ refund_window_days }} days from purchase date.
+5. Escalate any refund above {{ escalation_threshold }} {{ currency }} to manager.
+```
+
+**Step 2: Agent developer calls the Inject API**
+
+```python
+# Agent code using the Sandarb SDK
+response = sandarb.inject(
+    agent_id="agent.service-account-refund-bot",
+    prompt_key="prompt.refund-main-prompt",
+    context_variables={
+        "context.eu-refund-policy": {
+            "region": "EU",
+            "current_date": "2026-02-06",
+            "customer_id": "CUST-90210",
+            "currency": "EUR",
+            "compliance_code": "GDPR-22",
+            "max_refund_amount": "5000",
+            "refund_window_days": "30",
+            "escalation_threshold": "2500",
+        }
+    }
+)
+```
+
+**Step 3: Sandarb returns the rendered content + governance proof**
+
+```json
+{
+  "success": true,
+  "data": {
+    "agent_id": "agent.service-account-refund-bot",
+    "trace_id": "trace-abc123",
+    "prompt": {
+      "name": "prompt.refund-main-prompt",
+      "content": "You are a refund processing agent...",
+      "version": 3,
+      "model": "gpt-4"
+    },
+    "contexts": {
+      "context.eu-refund-policy": {
+        "context_id": "550e8400-e29b-41d4-a716-446655440000",
+        "version_id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+        "version": 4,
+        "content": "# Refund Policy for EU\nCurrent Date: 2026-02-06\nCustomer ID: CUST-90210\n\nRULES:\n1. Refunds are processed in EUR.\n2. Strictly follow the GDPR-22 protocol.\n3. Maximum refund amount: 5000 EUR.\n4. Refund window: 30 days from purchase date.\n5. Escalate any refund above 2500 EUR to manager.",
+        "metadata": {
+          "classification": "Confidential",
+          "owner": "compliance-team@bank.com",
+          "hash": "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3...",
+          "hash_type": "sha256"
+        }
+      }
+    }
+  }
+}
+```
+
+### Complex Template Example: KYC Verification Checklist
+
+This example uses **conditionals**, **loops**, **filters**, and **default values** — demonstrating the full power of Jinja2 for governance.
+
+**The template** (`context.kyc-verification-checklist`):
+
+```jinja2
+# KYC Verification Checklist
+Jurisdiction: {{ jurisdiction }}
+Customer Type: {{ customer_type }}
+Risk Rating: {{ risk_rating }}
+Relationship Manager: {{ relationship_manager | default('Unassigned') }}
+
+## Required Documents
+{% for doc in required_documents %}
+- {{ doc }}
+{% endfor %}
+
+{% if risk_rating == 'HIGH' %}
+## Enhanced Due Diligence (EDD) — Required for HIGH Risk
+- Source of Wealth documentation
+- Senior Management approval required
+- Enhanced monitoring for 12 months post-onboarding
+- Politically Exposed Person (PEP) screening: {{ pep_screening | default('Standard') }}
+{% endif %}
+
+{% if customer_type == 'Corporate Entity' %}
+## Entity-Specific Requirements
+- Certificate of Incorporation
+- Board Resolution authorizing account opening
+- Beneficial Ownership Declaration (25%+ equity holders)
+- Ultimate Beneficial Owner (UBO) verification
+{% endif %}
+
+## Compliance Notes
+- Regulatory framework: {{ regulatory_framework }}
+- Review frequency: Every {{ review_frequency_months | default('12') }} months
+- Data retention: {{ retention_years | default('7') }} years
+{# This template is governed under the firm's KYC/AML policy framework #}
+```
+
+**Agent call with variables:**
+
+```python
+response = sandarb.inject(
+    agent_id="agent.retail-banking-kyc-verification-bot",
+    context_variables={
+        "context.kyc-verification-checklist": {
+            "jurisdiction": "United Kingdom",
+            "customer_type": "Corporate Entity",
+            "risk_rating": "HIGH",
+            "relationship_manager": "alice.johnson@bank.com",
+            "required_documents": [
+                "Government-issued ID for all directors",
+                "Proof of Registered Address",
+                "Audited Financial Statements (last 2 years)",
+                "Source of Funds Documentation",
+            ],
+            "pep_screening": "Enhanced — covers family and close associates",
+            "regulatory_framework": "FCA / MLR 2017",
+            "review_frequency_months": "6",
+            "retention_years": "10",
+        }
+    }
+)
+```
+
+**Rendered output** (the agent receives this):
+
+```
+# KYC Verification Checklist
+Jurisdiction: United Kingdom
+Customer Type: Corporate Entity
+Risk Rating: HIGH
+Relationship Manager: alice.johnson@bank.com
+
+## Required Documents
+- Government-issued ID for all directors
+- Proof of Registered Address
+- Audited Financial Statements (last 2 years)
+- Source of Funds Documentation
+
+## Enhanced Due Diligence (EDD) — Required for HIGH Risk
+- Source of Wealth documentation
+- Senior Management approval required
+- Enhanced monitoring for 12 months post-onboarding
+- Politically Exposed Person (PEP) screening: Enhanced — covers family and close associates
+
+## Entity-Specific Requirements
+- Certificate of Incorporation
+- Board Resolution authorizing account opening
+- Beneficial Ownership Declaration (25%+ equity holders)
+- Ultimate Beneficial Owner (UBO) verification
+
+## Compliance Notes
+- Regulatory framework: FCA / MLR 2017
+- Review frequency: Every 6 months
+- Data retention: 10 years
+```
+
+Notice how the `{% if risk_rating == 'HIGH' %}` block was included (because the risk rating is HIGH), the `{% if customer_type == 'Corporate Entity' %}` block was included (because this is a corporate entity), and the `{% for doc in required_documents %}` loop expanded the list. If the risk rating were MEDIUM, the EDD section would be completely absent from the rendered output — the agent would never see it.
+
+**Governance impact:** The same template (same governance hash) produces different rendered output depending on the customer's risk rating and type. The audit trail records that `agent.retail-banking-kyc-verification-bot` received `context.kyc-verification-checklist` with template hash `abc123...` — the compliance team can verify the template was the correct approved version regardless of what runtime variables were used.
+
+### Example: Dynamic Trading Limits
+
+```python
+response = sandarb.inject(
+    agent_id="agent.pre-trade-compliance-bot",
+    context_variables={
+        "context.trading-limits-dynamic": {
+            "desk_name": "Equities APAC",
+            "region": "APAC",
+            "effective_date": "2026-01-15",
+            "approved_by": "Chief Risk Officer",
+            "single_name_limit": "500000",
+            "currency": "USD",
+            "sector_cap_pct": "25",
+            "var_limit": "5000000",
+            "breach_notify_minutes": "15",
+            "escalation_contact": "risk-apac@bank.com",
+            "override_authority": "CRO or Regional Head of Risk",
+        }
+    }
+)
+```
+
+### Why Templated Context Matters for Enterprise Governance
+
+| Without Templated Context | With Templated Context |
+|---------------------------|------------------------|
+| Sandarb is a static file host (like S3) | Sandarb is a dynamic Governance Engine |
+| Same policy served to all agents | Each agent sees policy rendered for its specific execution |
+| No runtime variable audit trail | Full audit trail: who requested what variables, when |
+| Hash changes on every content edit | Stable governance hash per template version |
+| Cannot enforce per-region/per-customer policies | Region, customer, and jurisdiction-specific rendering |
+| Compliance team must create N copies for N regions | One approved template serves all regions dynamically |
+
+### Jinja2 Quick Reference for Context Authors
+
+```jinja2
+{# ---- Variables ---- #}
+{{ customer_name }}                    {# Simple substitution #}
+{{ amount | default('0') }}            {# Default if variable missing #}
+{{ name | upper }}                     {# Filter: uppercase #}
+{{ items | join(', ') }}               {# Filter: join list into string #}
+
+{# ---- Conditionals ---- #}
+{% if risk_level == 'HIGH' %}
+  Enhanced monitoring required.
+{% elif risk_level == 'MEDIUM' %}
+  Standard monitoring.
+{% else %}
+  Basic monitoring.
+{% endif %}
+
+{# ---- Loops ---- #}
+{% for doc in required_documents %}
+- {{ doc }}
+{% endfor %}
+
+{# ---- Comments (stripped from output) ---- #}
+{# This section is governed under SOX compliance #}
+```
+
+### Security
+
+- Templates are rendered using Jinja2's **SandboxedEnvironment** with `autoescape=True` to prevent template injection attacks.
+- The sandbox restricts template code: no file I/O, no system calls, no arbitrary Python execution.
+- Variable values are HTML-escaped by default to prevent XSS and injection.
+- Only **approved** template versions are rendered — draft or rejected versions are never served.
+- The governance hash ensures template integrity: any unauthorized modification changes the hash, which is flagged during audit.
+
+---
+
 ## Reference documentation
 
 | Doc | Description |
@@ -130,13 +498,13 @@ from sandarb import Sandarb
 # Initialize client (can also use SANDARB_URL, SANDARB_TOKEN env vars)
 client = Sandarb(
     os.environ.get("SANDARB_URL", "https://api.sandarb.ai"),
-    agent_id="my-agent-v1",
+    agent_id="agent.my-agent-v1",      # Use SRN format
     token=os.environ.get("SANDARB_TOKEN"),
 )
 
 # 1. Register agent on startup
 client.register(
-    agent_id="my-agent-v1",
+    agent_id="agent.my-agent-v1",       # SRN: agent.{kebab-case-name}
     name="My AI Agent",
     version="1.0.0",
     url="https://my-agent.example.com/a2a",
@@ -145,22 +513,38 @@ client.register(
 )
 
 # 2. Get governed prompt
-prompt = client.get_prompt("customer-support", variables={"tier": "gold"})
+prompt = client.get_prompt("prompt.customer-support", variables={"tier": "gold"})
 system_message = prompt.content
 
-# 3. Get governed context
-context = client.get_context("trading-limits")
+# 3. Get governed context (static)
+context = client.get_context("context.trading-limits")
 config_data = context.content
 
-# 4. Run your agent (Sandarb is NOT in the inference path)
-response = your_llm_call(system_message, config_data, user_input)
+# 4. Get governed context with Jinja2 template rendering (dynamic)
+result = client.inject(
+    agent_id="agent.my-agent-v1",
+    prompt_key="prompt.customer-support",
+    context_variables={
+        "context.eu-refund-policy": {
+            "region": "EU",
+            "current_date": "2026-02-06",
+            "currency": "EUR",
+            "compliance_code": "GDPR-22",
+        }
+    }
+)
+rendered_policy = result["contexts"]["context.eu-refund-policy"]["content"]
+governance_hash = result["contexts"]["context.eu-refund-policy"]["metadata"]["hash"]
 
-# 5. Log audit event for compliance
+# 5. Run your agent (Sandarb is NOT in the inference path)
+response = your_llm_call(system_message, rendered_policy, user_input)
+
+# 6. Log audit event for compliance
 client.audit(
     "inference",
     resource_type="llm",
     resource_name="gpt-4",
-    details={"tokens": 150, "latency_ms": 230},
+    details={"tokens": 150, "latency_ms": 230, "governance_hash": governance_hash},
 )
 ```
 
@@ -420,7 +804,8 @@ Open the UI at http://localhost:3000. Backend (FastAPI) runs at http://localhost
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | /api/health | Health check |
-| GET | /api/inject?name=... | Inject context by name (gated by agent_contexts link) |
+| GET | /api/inject?name=... | Inject context by name — static content (gated by agent_contexts link) |
+| POST | /api/inject | Inject context with Jinja2 template rendering and governance metadata |
 | GET | /api/prompts/pull?name=... | Pull prompt by name (gated by agent_prompts link) |
 | GET | /api/contexts | List contexts |
 | GET | /api/contexts/:id | Get context |
@@ -436,15 +821,60 @@ Open the UI at http://localhost:3000. Backend (FastAPI) runs at http://localhost
 
 ## Inject API
 
-Your agent fetches approved context by name. Sandarb logs the request for lineage.
+Your agent fetches approved context by name. Sandarb logs the request for lineage. The Inject API supports two modes:
+
+### GET /api/inject (Legacy — Static Context)
+
+Fetches raw context content by name or ID. No template rendering.
 
 ```bash
 GET /api/inject?name=ib-trading-limits
-GET /api/inject?name=my-context&format=json
-GET /api/inject?name=my-context&vars={"user_id":"123"}
+GET /api/inject?name=context.my-context&format=json
+GET /api/inject?id=550e8400-e29b-41d4-a716-446655440000&format=yaml
 ```
 
-Optional headers: `X-Sandarb-Agent-ID`, `X-Sandarb-Trace-ID`, `X-Sandarb-Variables` (JSON).
+Optional headers: `X-Sandarb-Agent-ID`, `X-Sandarb-Trace-ID`.
+
+### POST /api/inject (Templated Context — Jinja2 Rendering)
+
+Renders one or more Jinja2-templated contexts with agent-provided variables. Returns rendered content with governance metadata (hash, version, classification).
+
+```bash
+POST /api/inject
+Content-Type: application/json
+Authorization: Bearer <api_key>
+
+{
+    "agent_id": "agent.service-account-refund-bot",
+    "prompt_key": "prompt.refund-main-prompt",
+    "trace_id": "trace-abc123",
+    "context_variables": {
+        "context.eu-refund-policy": {
+            "region": "EU",
+            "current_date": "2026-02-06",
+            "currency": "EUR",
+            "compliance_code": "GDPR-22"
+        },
+        "context.trading-limits-dynamic": {
+            "desk_name": "Equities EMEA",
+            "region": "EMEA",
+            "currency": "EUR",
+            "var_limit": "3000000"
+        }
+    }
+}
+```
+
+**Request fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `agent_id` | string | Yes | SRN of the calling agent (e.g. `agent.my-bot`) |
+| `prompt_key` | string | No | SRN of the prompt to pull (e.g. `prompt.my-prompt`) |
+| `context_variables` | object | Yes | Map of context SRN → template variables dict |
+| `trace_id` | string | No | Correlation ID for audit lineage |
+
+**Response:** Returns rendered content for each context, plus governance metadata (hash, version, classification, owner) as proof of delivery. See [Templated Context](#templated-context-jinja2-rendering) for full response example.
 
 ## Agent endpoint (MCP & A2A)
 

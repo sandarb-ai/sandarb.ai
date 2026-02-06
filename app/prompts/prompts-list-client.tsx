@@ -69,7 +69,7 @@ export function PromptsListClient({ initialPrompts, initialTotal, initialTotalAc
         <div className="flex flex-col gap-5">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <Breadcrumb items={[{ label: 'Prompts' }]} className="mb-2" />
+              <Breadcrumb items={[{ label: 'Agent Prompt' }]} className="mb-2" />
               <h1 className="text-2xl font-semibold tracking-tight">Agent Prompt</h1>
               <p className="text-sm text-muted-foreground mt-1">
                 Versioned AI prompts with approval workflow. Defines agent behavior, tone, and safety boundaries.

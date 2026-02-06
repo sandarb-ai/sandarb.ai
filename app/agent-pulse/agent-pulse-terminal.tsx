@@ -97,21 +97,138 @@ const DEMO_INTENTS = [
 
 type DemoActionType = 'INJECT_SUCCESS' | 'INJECT_DENIED' | 'PROMPT_USED' | 'A2A_CALL' | 'INFERENCE_EVENT';
 
-function createDemoEntryGenerator(agents: AgentInfo[]) {
+// ============================================================================
+// REALISTIC A2A WORKFLOW SCENARIOS
+// Each scenario is a multi-step sequence showing an agent's governance workflow
+// ============================================================================
+
+interface ScenarioStep {
+  actionType: DemoActionType;
+  contextName?: string;
+  promptName?: string;
+  intent: string;
+  method?: string;
+  inputSummary?: string;
+  resultSummary?: string;
+  reason?: string;
+  error?: string;
+}
+
+const AGENT_SCENARIOS: ScenarioStep[][] = [
+  // Scenario 1: Customer onboarding — full KYC workflow
+  [
+    { actionType: 'A2A_CALL', intent: 'Agent boot — registering with Sandarb governance', method: 'tasks/send', inputSummary: '{ "skill": "register", "agent_id": "..." }', resultSummary: 'completed' },
+    { actionType: 'PROMPT_USED', promptName: 'kyc-extraction-prompt', intent: 'Loading KYC document extraction prompt' },
+    { actionType: 'INJECT_SUCCESS', contextName: 'kyc-requirements', intent: 'Fetching KYC requirements for customer onboarding' },
+    { actionType: 'INJECT_SUCCESS', contextName: 'aml-rules-v2', intent: 'Loading AML screening rules for new customer' },
+    { actionType: 'INFERENCE_EVENT', contextName: 'kyc-requirements', intent: 'Running KYC verification against extracted documents' },
+    { actionType: 'A2A_CALL', intent: 'Logging KYC verification result to audit trail', method: 'tasks/send', inputSummary: '{ "skill": "get_audit_log", "event": "kyc_complete" }', resultSummary: 'completed' },
+  ],
+  // Scenario 2: Pre-trade compliance check
+  [
+    { actionType: 'PROMPT_USED', promptName: 'compliance-check-prompt', intent: 'Loading pre-trade compliance verification prompt' },
+    { actionType: 'INJECT_SUCCESS', contextName: 'ib-trading-limits', intent: 'Fetching trading limits for Equities APAC desk' },
+    { actionType: 'INJECT_SUCCESS', contextName: 'market-hours-config', intent: 'Checking market hours and settlement windows' },
+    { actionType: 'INFERENCE_EVENT', contextName: 'ib-trading-limits', intent: 'Evaluating order against position limits and risk thresholds' },
+    { actionType: 'A2A_CALL', intent: 'Recording pre-trade compliance decision', method: 'tasks/send', inputSummary: '{ "skill": "get_lineage", "context": "ib-trading-limits" }', resultSummary: 'completed' },
+    { actionType: 'INJECT_SUCCESS', contextName: 'trade-settlement-rules', intent: 'Fetching T+1 settlement rules for execution' },
+  ],
+  // Scenario 3: Customer support with denied access
+  [
+    { actionType: 'PROMPT_USED', promptName: 'customer-response-prompt', intent: 'Loading customer inquiry response template' },
+    { actionType: 'INJECT_SUCCESS', contextName: 'retail-compliance-policy', intent: 'Fetching retail compliance policy for response generation' },
+    { actionType: 'INJECT_DENIED', contextName: 'customer-data-policy', intent: 'Attempted to access customer PII data policy', reason: 'Data classification restricted: confidential' },
+    { actionType: 'INJECT_SUCCESS', contextName: 'retail-compliance-policy', intent: 'Re-fetching public-facing policy for safe response' },
+    { actionType: 'INFERENCE_EVENT', contextName: 'retail-compliance-policy', intent: 'Generating compliant customer response' },
+    { actionType: 'A2A_CALL', intent: 'Logging customer interaction for compliance audit', method: 'tasks/send', inputSummary: '{ "skill": "get_audit_log", "event": "customer_response" }', resultSummary: 'completed' },
+  ],
+  // Scenario 4: Wealth management suitability assessment
+  [
+    { actionType: 'A2A_CALL', intent: 'Checking agent approval status with governance', method: 'tasks/send', inputSummary: '{ "skill": "get_agent", "agent_id": "..." }', resultSummary: 'completed' },
+    { actionType: 'PROMPT_USED', promptName: 'risk-assessment-prompt', intent: 'Loading portfolio risk evaluation prompt' },
+    { actionType: 'INJECT_SUCCESS', contextName: 'wm-suitability-policy', intent: 'Fetching suitability assessment criteria for client profile' },
+    { actionType: 'INJECT_SUCCESS', contextName: 'portfolio-constraints', intent: 'Loading portfolio allocation constraints and limits' },
+    { actionType: 'INJECT_SUCCESS', contextName: 'risk-thresholds-prod', intent: 'Fetching production risk thresholds for rebalancing' },
+    { actionType: 'INFERENCE_EVENT', contextName: 'wm-suitability-policy', intent: 'Evaluating portfolio suitability against client risk tolerance' },
+    { actionType: 'A2A_CALL', intent: 'Recording suitability assessment with governance hash', method: 'tasks/send', inputSummary: '{ "skill": "get_lineage", "context": "wm-suitability-policy" }', resultSummary: 'completed' },
+  ],
+  // Scenario 5: Fraud detection pipeline
+  [
+    { actionType: 'PROMPT_USED', promptName: 'fraud-detection-prompt', intent: 'Loading transaction anomaly detection prompt' },
+    { actionType: 'INJECT_SUCCESS', contextName: 'aml-rules-v2', intent: 'Fetching latest AML rules for transaction screening' },
+    { actionType: 'INJECT_SUCCESS', contextName: 'risk-thresholds-prod', intent: 'Loading risk scoring thresholds' },
+    { actionType: 'INFERENCE_EVENT', contextName: 'aml-rules-v2', intent: 'Scoring transaction against AML risk model' },
+    { actionType: 'INJECT_DENIED', contextName: 'ib-trading-limits', intent: 'Attempted cross-desk data access', reason: 'Context not linked to agent' },
+    { actionType: 'A2A_CALL', intent: 'Submitting suspicious activity report to audit', method: 'tasks/send', inputSummary: '{ "skill": "get_audit_log", "event": "sar_filed" }', resultSummary: 'completed' },
+  ],
+  // Scenario 6: Regulatory reporting
+  [
+    { actionType: 'A2A_CALL', intent: 'Fetching governance dashboard for report generation', method: 'tasks/send', inputSummary: '{ "skill": "get_dashboard" }', resultSummary: 'completed' },
+    { actionType: 'A2A_CALL', intent: 'Pulling governance reports for regulatory submission', method: 'tasks/send', inputSummary: '{ "skill": "get_reports" }', resultSummary: 'completed' },
+    { actionType: 'INJECT_SUCCESS', contextName: 'retail-compliance-policy', intent: 'Fetching compliance policy versions for regulatory evidence' },
+    { actionType: 'A2A_CALL', intent: 'Fetching context delivery lineage for audit proof', method: 'tasks/send', inputSummary: '{ "skill": "get_lineage" }', resultSummary: 'completed' },
+    { actionType: 'A2A_CALL', intent: 'Checking for blocked injection attempts in reporting period', method: 'tasks/send', inputSummary: '{ "skill": "get_blocked_injections", "limit": 100 }', resultSummary: 'completed' },
+    { actionType: 'INFERENCE_EVENT', contextName: 'retail-compliance-policy', intent: 'Generating regulatory compliance summary report' },
+  ],
+];
+
+function createDemoEntryGenerator(agents: AgentInfo[], filterAgentId?: string | null) {
   const agentList = agents.length > 0 ? agents : FALLBACK_AGENTS;
-  
+
+  // If filtering by a specific agent, use scenario-based generation
+  if (filterAgentId) {
+    let scenarioIndex = 0;
+    let stepIndex = 0;
+
+    return function generateDemoEntry(): A2ALogEntry {
+      const scenario = AGENT_SCENARIOS[scenarioIndex % AGENT_SCENARIOS.length];
+      const step = scenario[stepIndex];
+      const now = new Date().toISOString();
+      const traceBase = `trace-${scenarioIndex.toString(36)}-${Date.now().toString(36).slice(-4)}`;
+
+      const entry: A2ALogEntry = {
+        id: `demo-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        agentId: filterAgentId,
+        traceId: traceBase,
+        accessedAt: now,
+        actionType: step.actionType,
+        contextName: step.contextName || '',
+        contextId: step.contextName ? `ctx-${Math.random().toString(36).slice(2, 10)}` : null,
+        contextVersionId: step.actionType === 'INJECT_SUCCESS' ? `v${Math.floor(Math.random() * 3) + 1}.${Math.floor(Math.random() * 8)}.${Math.floor(Math.random() * 15)}` : null,
+        reason: step.reason,
+        intent: step.intent,
+        promptName: step.promptName,
+        promptId: step.promptName ? `prompt-${Math.random().toString(36).slice(2, 10)}` : undefined,
+        method: step.method,
+        inputSummary: step.inputSummary,
+        resultSummary: step.resultSummary,
+        error: step.error,
+      };
+
+      // Advance to next step, or next scenario
+      stepIndex++;
+      if (stepIndex >= scenario.length) {
+        stepIndex = 0;
+        scenarioIndex++;
+      }
+
+      return entry;
+    };
+  }
+
+  // Default: random entries from all agents (original behavior)
   return function generateDemoEntry(): A2ALogEntry {
     const now = new Date().toISOString();
     const agent = agentList[Math.floor(Math.random() * agentList.length)];
     const context = DEMO_CONTEXTS[Math.floor(Math.random() * DEMO_CONTEXTS.length)];
     const prompt = DEMO_PROMPTS[Math.floor(Math.random() * DEMO_PROMPTS.length)];
     const intent = DEMO_INTENTS[Math.floor(Math.random() * DEMO_INTENTS.length)];
-    
+
     // Weight probabilities: more successes than failures
     const rand = Math.random();
     let actionType: DemoActionType;
     let reason: string | undefined;
-    
+
     if (rand < 0.50) {
       actionType = 'INJECT_SUCCESS';
     } else if (rand < 0.65) {
@@ -165,15 +282,18 @@ interface AgentPulseTerminalProps {
   onToggleFullScreen?: () => void;
   /** Called when entries change so parent can update A2A / blocked counts. */
   onEntriesChange?: (entries: A2ALogEntry[]) => void;
+  /** When set, only shows A2A traffic for this specific agent. */
+  filterAgentId?: string | null;
 }
 
-export function AgentPulseTerminal({ 
-  entries: initialEntries = [], 
+export function AgentPulseTerminal({
+  entries: initialEntries = [],
   agents = [],
   autoPlay = true,
   fullScreen = false,
   onToggleFullScreen,
   onEntriesChange,
+  filterAgentId,
 }: AgentPulseTerminalProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [entries, setEntries] = useState<A2ALogEntry[]>(initialEntries);
@@ -182,9 +302,9 @@ export function AgentPulseTerminal({
   const [newEntryIds, setNewEntryIds] = useState<Set<string>>(new Set());
   const agentColorMapRef = useRef<Map<string, typeof AGENT_COLORS[0]>>(new Map());
   const colorIndexRef = useRef(0);
-  
-  // Create demo entry generator with real agents
-  const generateDemoEntry = useMemo(() => createDemoEntryGenerator(agents), [agents]);
+
+  // Create demo entry generator with real agents (+ optional filter)
+  const generateDemoEntry = useMemo(() => createDemoEntryGenerator(agents, filterAgentId), [agents, filterAgentId]);
 
   // Assign colors to agents deterministically
   const getAgentColor = useCallback((agentId: string) => {
@@ -338,7 +458,11 @@ export function AgentPulseTerminal({
           </div>
           <div className="flex items-center gap-2 text-[#8b949e]">
             <Terminal className="w-4 h-4" />
-            <span className="text-xs font-medium">agent-pulse — A2A Communication Log</span>
+            <span className="text-xs font-medium">
+              {filterAgentId
+                ? `agent-pulse — ${filterAgentId} ↔ Sandarb`
+                : 'agent-pulse — A2A Communication Log'}
+            </span>
           </div>
         </div>
         

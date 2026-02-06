@@ -109,7 +109,7 @@ def sample_agent_data():
         "name": "Test Agent CRUD",
         "description": "Test agent for CRUD operations",
         "a2aUrl": "http://localhost:8001/agent",
-        "agentId": "test-agent-crud",
+        "agentId": "agent.test-agent-crud",
     }
 
 

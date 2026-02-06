@@ -7,7 +7,14 @@ import type { RegisteredAgent } from '@/types';
 
 export const dynamic = 'force-dynamic';
 
-export default async function AgentPulsePage() {
+interface AgentPulsePageProps {
+  searchParams: Promise<{ agentId?: string }>;
+}
+
+export default async function AgentPulsePage({ searchParams }: AgentPulsePageProps) {
+  const params = await searchParams;
+  const filterAgentId = params.agentId || null;
+
   let blocked: Array<{ id: string; createdAt?: string; details?: { agentId?: string; reason?: string }; resourceName?: string; createdBy?: string }> = [];
   let unauthenticated: Array<{ id: string; sourceUrl?: string; scanRunAt?: string; detectedAgentId?: string }> = [];
   let a2aLog: Array<{ id: string; [key: string]: unknown }> = [];
@@ -35,12 +42,38 @@ export default async function AgentPulsePage() {
     team: a.ownerTeam || 'unknown',
   }));
 
+  // Find the filtered agent for breadcrumb and link back
+  const filteredAgent = filterAgentId
+    ? agents.find((a) => (a.agentId || a.id) === filterAgentId)
+    : null;
+  const filteredAgentName = filteredAgent?.name || filterAgentId;
+  const filteredAgentUuid = filteredAgent?.id || null;
+
   return (
     <div className="flex flex-col h-full">
       <Header
-        title="Agent Pulse"
-        description="Live A2A communication feed — watch agents interact with Sandarb AI Governance in real-time"
-        breadcrumb={<Breadcrumb items={[{ label: 'Agent Pulse' }]} className="mb-2" />}
+        title={filterAgentId ? `Agent Pulse — ${filteredAgentName}` : 'Agent Pulse'}
+        description={
+          filterAgentId
+            ? `Live A2A communication feed for ${filterAgentId}`
+            : 'Live A2A communication feed — watch agents interact with Sandarb AI Governance in real-time'
+        }
+        breadcrumb={
+          <Breadcrumb
+            items={
+              filterAgentId
+                ? [
+                    { label: 'Agent Pulse', href: '/agent-pulse' },
+                    {
+                      label: `${filteredAgentName} [${filterAgentId}]`,
+                      href: filteredAgentUuid ? `/agents/${filteredAgentUuid}` : undefined,
+                    },
+                  ]
+                : [{ label: 'Agent Pulse' }]
+            }
+            className="mb-2"
+          />
+        }
       >
         <AgentPulseScanButton />
       </Header>
@@ -51,6 +84,7 @@ export default async function AgentPulsePage() {
         initialShadowAI={unauthenticated.length}
         initialA2ALog={a2aLog.length}
         agents={agentData}
+        filterAgentId={filterAgentId}
       />
     </div>
   );

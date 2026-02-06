@@ -63,6 +63,7 @@ class TestAgentsCRUD:
                 "orgId": self.test_org_id,
                 "name": f"Filter Test Agent {uuid.uuid4().hex[:8]}",
                 "a2aUrl": "http://localhost:8001/agent",
+                "agentId": f"agent.test-{uuid.uuid4().hex[:8]}",
             },
         )
         if create_resp.status_code in [200, 201]:
@@ -85,7 +86,7 @@ class TestAgentsCRUD:
                 "name": f"Test Agent {uuid.uuid4().hex[:8]}",
                 "description": "Test agent description",
                 "a2aUrl": "http://localhost:8001/agent",
-                "agentId": f"agent-{uuid.uuid4().hex[:8]}",
+                "agentId": f"agent.test-{uuid.uuid4().hex[:8]}",
             },
         )
         assert response.status_code in [200, 201]
@@ -113,6 +114,7 @@ class TestAgentsCRUD:
                 "orgId": self.test_org_id,
                 "name": f"Get Test Agent {uuid.uuid4().hex[:8]}",
                 "a2aUrl": "http://localhost:8001/agent",
+                "agentId": f"agent.test-{uuid.uuid4().hex[:8]}",
             },
         )
         agent_id = create_response.json()["data"]["id"]
@@ -142,6 +144,7 @@ class TestAgentsCRUD:
                 "name": f"Update Test Agent {uuid.uuid4().hex[:8]}",
                 "description": "Original description",
                 "a2aUrl": "http://localhost:8001/agent",
+                "agentId": f"agent.test-{uuid.uuid4().hex[:8]}",
             },
         )
         agent_id = create_response.json()["data"]["id"]
@@ -168,6 +171,7 @@ class TestAgentsCRUD:
                 "orgId": self.test_org_id,
                 "name": f"Status Test Agent {uuid.uuid4().hex[:8]}",
                 "a2aUrl": "http://localhost:8001/agent",
+                "agentId": f"agent.test-{uuid.uuid4().hex[:8]}",
             },
         )
         agent_id = create_response.json()["data"]["id"]
@@ -193,6 +197,7 @@ class TestAgentsCRUD:
                 "orgId": self.test_org_id,
                 "name": f"Delete Test Agent {uuid.uuid4().hex[:8]}",
                 "a2aUrl": "http://localhost:8001/agent",
+                "agentId": f"agent.test-{uuid.uuid4().hex[:8]}",
             },
         )
         agent_id = create_response.json()["data"]["id"]
@@ -258,6 +263,7 @@ class TestAgentApproval:
                 "orgId": self.test_org_id,
                 "name": f"Submit Test Agent {uuid.uuid4().hex[:8]}",
                 "a2aUrl": "http://localhost:8001/agent",
+                "agentId": f"agent.test-{uuid.uuid4().hex[:8]}",
             },
         )
         agent_id = create_response.json()["data"]["id"]
@@ -282,6 +288,7 @@ class TestAgentApproval:
                 "orgId": self.test_org_id,
                 "name": f"Approve Test Agent {uuid.uuid4().hex[:8]}",
                 "a2aUrl": "http://localhost:8001/agent",
+                "agentId": f"agent.test-{uuid.uuid4().hex[:8]}",
             },
         )
         agent_id = create_response.json()["data"]["id"]
@@ -349,6 +356,7 @@ class TestAgentContextLinks:
                 "orgId": self.test_org_id,
                 "name": f"Link Test Agent {uuid.uuid4().hex[:8]}",
                 "a2aUrl": "http://localhost:8001/agent",
+                "agentId": f"agent.test-{uuid.uuid4().hex[:8]}",
             },
         )
         agent_id = agent_response.json()["data"]["id"]
@@ -382,6 +390,7 @@ class TestAgentContextLinks:
                 "orgId": self.test_org_id,
                 "name": f"Contexts Test Agent {uuid.uuid4().hex[:8]}",
                 "a2aUrl": "http://localhost:8001/agent",
+                "agentId": f"agent.test-{uuid.uuid4().hex[:8]}",
             },
         )
         agent_id = agent_response.json()["data"]["id"]

@@ -223,7 +223,7 @@ export default function PromptDetailPage() {
       <header className="flex items-center justify-between border-b px-6 py-4 bg-background shrink-0">
         <div className="flex items-center gap-4 min-w-0">
           <div>
-            <Breadcrumb items={[{ label: 'Prompts', href: '/prompts' }, { label: prompt?.name ?? '…' }]} className="mb-1" />
+            <Breadcrumb items={[{ label: 'Agent Prompt', href: '/prompts' }, { label: prompt?.name ?? '…' }]} className="mb-1" />
             <div className="flex items-center gap-3">
               <h1 className="text-lg font-semibold font-mono truncate">{prompt?.name}</h1>
               {currentVersion && (

@@ -230,6 +230,7 @@ class TestOrganizationAgents:
                 "orgId": org_id,
                 "name": "Test Agent",
                 "a2aUrl": "http://localhost:8001/agent",
+                "agentId": f"agent.test-org-{uuid.uuid4().hex[:8]}",
             },
             headers=self.write_headers,
         )

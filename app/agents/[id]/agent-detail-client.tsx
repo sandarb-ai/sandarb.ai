@@ -19,6 +19,7 @@ import {
   FileText,
   FolderOpen,
   HeartPulse,
+  Activity,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,11 +33,11 @@ interface AgentDetailClientProps {
   initialAgent: RegisteredAgent;
 }
 
-function FieldRow({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) {
+function FieldRow({ label, value, mono, highlight }: { label: string; value: React.ReactNode; mono?: boolean; highlight?: boolean }) {
   if (value == null || value === '') return null;
   return (
-    <div className="grid grid-cols-[minmax(0,8rem)_1fr] gap-3 py-2 border-b border-border/50 last:border-0">
-      <span className="text-sm text-muted-foreground shrink-0">{label}</span>
+    <div className={`grid grid-cols-[minmax(0,8rem)_1fr] gap-3 py-2 border-b border-border/50 last:border-0 ${highlight ? '-mx-2 px-2 rounded-md bg-violet-50/60 dark:bg-violet-950/20' : ''}`}>
+      <span className={`text-sm shrink-0 ${highlight ? 'font-medium text-violet-700 dark:text-violet-400' : 'text-muted-foreground'}`}>{label}</span>
       <span className={mono ? 'text-sm font-mono break-all' : 'text-sm'}>{value}</span>
     </div>
   );
@@ -97,7 +98,7 @@ export function AgentDetailClient({ initialAgent }: AgentDetailClientProps) {
     <div className="flex flex-col h-full">
       <header className="flex items-center gap-4 border-b bg-background px-6 py-4">
         <div className="min-w-0 flex-1">
-          <Breadcrumb items={[{ label: 'Agents', href: '/agents' }, { label: agent.name }]} className="mb-1" />
+          <Breadcrumb items={[{ label: 'Agents', href: '/agents' }, { label: `${agent.name} [${agent.agentId}]` }]} className="mb-1" />
         <div className="flex flex-col gap-1.5 flex-1 min-w-0">
           {agent.organization && (
             <Link
@@ -170,6 +171,23 @@ export function AgentDetailClient({ initialAgent }: AgentDetailClientProps) {
               </CardHeader>
               <CardContent>
                 <div className="rounded-md border border-border/50 bg-muted/30 p-3">
+                  <FieldRow
+                    label="Agent ID"
+                    value={
+                      <span className="flex items-center gap-2">
+                        <span className="font-mono break-all">{agent.agentId}</span>
+                        <Link
+                          href={`/agent-pulse?agentId=${encodeURIComponent(agent.agentId)}`}
+                          className="inline-flex items-center gap-1 shrink-0 rounded-md px-1.5 py-0.5 text-xs font-medium text-violet-700 dark:text-violet-400 bg-violet-100 dark:bg-violet-900/30 hover:bg-violet-200 dark:hover:bg-violet-800/40 transition-colors"
+                          title="View Agent Pulse — live A2A communication"
+                        >
+                          <Activity className="h-3 w-3" />
+                          <span>Pulse</span>
+                        </Link>
+                      </span>
+                    }
+                    highlight
+                  />
                   {agent.organization && (
                     <FieldRow
                       label="Organization"
@@ -180,7 +198,6 @@ export function AgentDetailClient({ initialAgent }: AgentDetailClientProps) {
                       }
                     />
                   )}
-                  <FieldRow label="Agent ID" value={agent.agentId ?? '—'} mono />
                   <FieldRow label="Name" value={agent.name} />
                   <FieldRow label="Description" value={agent.description ?? '—'} />
                   <FieldRow

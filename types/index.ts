@@ -14,7 +14,7 @@ export const PROMPT_VERSION_STATUS_OPTIONS: PromptVersionStatus[] = ['draft', 'p
 export interface LinkedAgent {
   id: string;
   name: string;
-  agentId: string | null;
+  agentId: string;
 }
 
 export interface Prompt {
@@ -102,11 +102,14 @@ export type RegulatoryHook = 'FINRA' | 'SEC' | 'GDPR';
 export const DATA_CLASSIFICATION_OPTIONS: DataClassification[] = ['public', 'internal', 'confidential', 'restricted'];
 export const REGULATORY_HOOK_OPTIONS: RegulatoryHook[] = ['FINRA', 'SEC', 'GDPR'];
 
+/** Context content can be a JSON object (structured policy) or a string (Jinja2 template). */
+export type ContextContent = Record<string, unknown> | string;
+
 export interface Context {
   id: string;
   name: string;
   description: string | null;
-  content: Record<string, unknown>;
+  content: ContextContent;
   templateId: string | null;
   environment: 'development' | 'staging' | 'production';
   tags: string[];
@@ -140,7 +143,7 @@ export interface Context {
 export interface ContextCreateInput {
   name: string;
   description?: string;
-  content: Record<string, unknown>;
+  content: ContextContent;
   templateId?: string;
   environment?: 'development' | 'staging' | 'production';
   tags?: string[];
@@ -154,7 +157,7 @@ export interface ContextCreateInput {
 export interface ContextUpdateInput {
   name?: string;
   description?: string;
-  content?: Record<string, unknown>;
+  content?: ContextContent;
   templateId?: string;
   environment?: 'development' | 'staging' | 'production';
   tags?: string[];
@@ -175,7 +178,7 @@ export interface ContextRevision {
   contextId: string;
   /** Semantic version number (from context_versions.version). */
   version?: number;
-  content: Record<string, unknown>;
+  content: ContextContent;
   commitMessage: string | null;
   createdBy: string | null;
   createdAt: string;
@@ -186,13 +189,17 @@ export interface ContextRevision {
   updatedAt: string | null;
   updatedBy: string | null;
   parentRevisionId: string | null;
+  /** Natural language instructions used to generate this template (AI Generate feature). */
+  aiInstructions: string | null;
 }
 
 export interface ContextRevisionCreateInput {
   contextId: string;
-  content: Record<string, unknown>;
+  content: ContextContent;
   commitMessage?: string;
   createdBy?: string;
+  /** Natural language instructions for AI template generation. */
+  aiInstructions?: string;
 }
 
 // ============================================================================
@@ -601,7 +608,8 @@ export interface RegisteredAgent {
   id: string;
   orgId: string;
   /** Stable identity from manifest (agent_id). Unique per org; used for upsert on ping. */
-  agentId: string | null;
+  /** Globally unique SRN (Sandarb Resource Name, inspired by URN) identifier (e.g. agent.retail-banking-kyc-verification-bot). NOT NULL, UNIQUE. */
+  agentId: string;
   name: string;
   description: string | null;
   a2aUrl: string;
@@ -637,7 +645,7 @@ export interface RegisteredAgent {
 
 export interface RegisteredAgentCreateInput {
   orgId: string;
-  agentId?: string | null;
+  agentId: string;
   name: string;
   description?: string;
   a2aUrl: string;

@@ -88,7 +88,7 @@ export default function NewPromptPage() {
       <header className="flex items-center justify-between border-b bg-background px-6 py-4">
         <div className="flex items-center gap-4">
           <div>
-            <Breadcrumb items={[{ label: 'Prompts', href: '/prompts' }, { label: 'New prompt' }]} className="mb-2" />
+            <Breadcrumb items={[{ label: 'Agent Prompt', href: '/prompts' }, { label: 'New prompt' }]} className="mb-2" />
             <h1 className="text-2xl font-semibold tracking-tight">Create Agent Prompt</h1>
             <p className="text-sm text-muted-foreground">
               The "Employee Handbook" for agents: instructions on behavior, tone, and rules.

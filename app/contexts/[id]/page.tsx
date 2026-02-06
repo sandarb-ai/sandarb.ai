@@ -25,7 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ContextEditor } from '@/components/context-editor';
 import { ComplianceMetadataFields } from '@/components/compliance-metadata-fields';
 import { apiUrl, getWriteAuthHeaders } from '@/lib/api';
-import type { Context, ContextRevision, DataClassification, RegulatoryHook, Organization } from '@/types';
+import type { Context, ContextContent, ContextRevision, DataClassification, RegulatoryHook, Organization } from '@/types';
 import { formatDate, formatApprovedBy } from '@/lib/utils';
 import { ContentDiffView } from '@/components/content-diff-view';
 import {
@@ -77,7 +77,7 @@ export default function EditContextPage() {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [context, setContext] = useState<Context | null>(null);
   const [description, setDescription] = useState('');
-  const [content, setContent] = useState<Record<string, unknown>>({});
+  const [content, setContent] = useState<ContextContent>('');
   const [isActive, setIsActive] = useState(true);
   const [orgId, setOrgId] = useState<string | null>(null);
   const [dataClassification, setDataClassification] = useState<DataClassification | null>(null);
@@ -88,6 +88,7 @@ export default function EditContextPage() {
   const [commitMessage, setCommitMessage] = useState('');
   const [autoApprove, setAutoApprove] = useState(true);
   const [creatingRevision, setCreatingRevision] = useState(false);
+  const [aiInstructions, setAiInstructions] = useState('');
 
   const fetchContext = async () => {
     try {
@@ -97,7 +98,9 @@ export default function EditContextPage() {
         const ctx = data.data;
         setContext(ctx);
         setDescription(ctx.description || '');
-        setContent(ctx.content ?? {});
+        // Normalize content to string for Jinja2 editor
+        const rawContent = ctx.content ?? '';
+        setContent(typeof rawContent === 'string' ? rawContent : JSON.stringify(rawContent, null, 2));
         setIsActive(ctx.isActive);
         setOrgId(ctx.orgId ?? null);
         setDataClassification(ctx.dataClassification ?? null);
@@ -185,6 +188,7 @@ export default function EditContextPage() {
           content,
           commitMessage,
           autoApprove,
+          aiInstructions: aiInstructions || undefined,
         }),
       });
       if (res.ok) {
@@ -276,7 +280,7 @@ export default function EditContextPage() {
       <header className="sticky top-0 z-10 shrink-0 flex items-center justify-between border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-6 py-3">
         <div className="flex items-center gap-4 min-w-0">
           <div>
-            <Breadcrumb items={[{ label: 'Contexts', href: '/contexts' }, { label: context.name }]} className="mb-1" />
+            <Breadcrumb items={[{ label: 'Agent Context', href: '/contexts' }, { label: context.name }]} className="mb-1" />
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-semibold tracking-tight font-mono truncate">{context.name}</h1>
               {currentVersion && (
@@ -334,7 +338,7 @@ export default function EditContextPage() {
             <TabsContent value="content" className="mt-0 flex-1 flex flex-col min-h-0 m-0 overflow-hidden">
               <div className="flex-1 min-h-0 overflow-auto p-6">
                 <div className="h-full min-h-[300px] rounded-lg border bg-background overflow-hidden">
-                  <ContextEditor value={content} onChange={setContent} className="h-full min-w-0" />
+                  <ContextEditor value={content} onChange={setContent} aiInstructions={aiInstructions} onAiInstructionsChange={setAiInstructions} className="h-full min-w-0" />
                 </div>
               </div>
               {/* Save Changes — always at bottom of tab, never overlaps editor */}
@@ -445,7 +449,15 @@ export default function EditContextPage() {
                           <p className="font-medium text-sm mb-2">
                             {rev.commitMessage || 'No commit message'}
                           </p>
-                          
+
+                          {/* AI instructions (if present) */}
+                          {rev.aiInstructions && (
+                            <div className="mb-2 text-xs bg-violet-50 dark:bg-violet-950/20 border border-violet-200 dark:border-violet-800 rounded px-2 py-1.5">
+                              <span className="font-medium text-violet-700 dark:text-violet-400">AI Instructions: </span>
+                              <span className="text-violet-600 dark:text-violet-300">{rev.aiInstructions}</span>
+                            </div>
+                          )}
+
                           {/* Meta info row */}
                           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                             <span>Created {formatDate(rev.createdAt)}</span>
@@ -457,13 +469,13 @@ export default function EditContextPage() {
                               </span>
                             )}
                           </div>
-                          
+
                           {/* Inline diff preview */}
                           {context && (
                             <div className="mt-3 rounded border border-border/60 bg-muted/20 overflow-hidden max-h-32 overflow-y-auto">
                               <ContentDiffView
                                 oldContent={rev.content}
-                                newContent={context.content ?? {}}
+                                newContent={context.content ?? ''}
                                 oldLabel="Revision"
                                 newLabel="Current"
                                 className="!border-0 !rounded-none text-[11px]"
@@ -536,14 +548,22 @@ export default function EditContextPage() {
                         <p className="font-medium text-sm mb-2">
                           {rev.commitMessage || 'No commit message'}
                         </p>
-                        
+
+                        {/* AI instructions (if present) */}
+                        {rev.aiInstructions && (
+                          <div className="mb-2 text-xs bg-violet-50 dark:bg-violet-950/20 border border-violet-200 dark:border-violet-800 rounded px-2 py-1.5">
+                            <span className="font-medium text-violet-700 dark:text-violet-400">AI Instructions: </span>
+                            <span className="text-violet-600 dark:text-violet-300">{rev.aiInstructions}</span>
+                          </div>
+                        )}
+
                         {/* Meta info row */}
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mb-3">
                           <span>Created {formatDate(rev.createdAt)}</span>
                           {rev.createdBy && <span>by {formatApprovedBy(rev.createdBy)}</span>}
                           {rev.submittedBy && <span>Submitted by {formatApprovedBy(rev.submittedBy)}</span>}
                         </div>
-                        
+
                         {/* Diff preview */}
                         {context && (
                           <div 
@@ -552,7 +572,7 @@ export default function EditContextPage() {
                             title="Click to view full diff"
                           >
                             <ContentDiffView
-                              oldContent={context.content ?? {}}
+                              oldContent={context.content ?? ''}
                               newContent={rev.content}
                               oldLabel="Current"
                               newLabel="Proposed"
@@ -673,7 +693,7 @@ export default function EditContextPage() {
             {diffRevision && context && (
               <ContentDiffView
                 oldContent={diffRevision.content}
-                newContent={context.content ?? {}}
+                newContent={context.content ?? ''}
                 oldLabel={`Revision · ${diffRevision.commitMessage || diffRevision.id.slice(0, 8)}`}
                 newLabel="Current (saved)"
                 className="flex-1 min-h-0"

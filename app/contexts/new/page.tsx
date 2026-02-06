@@ -14,7 +14,7 @@ import { ContextEditor } from '@/components/context-editor';
 import { ContextPreview } from '@/components/context-preview';
 import { ComplianceMetadataFields } from '@/components/compliance-metadata-fields';
 import { apiUrl, getWriteAuthHeaders } from '@/lib/api';
-import type { DataClassification, RegulatoryHook } from '@/types';
+import type { ContextContent, DataClassification, RegulatoryHook } from '@/types';
 import type { Organization } from '@/types';
 
 // Validate name: lowercase alphanumeric, hyphens, underscores only
@@ -32,11 +32,10 @@ export default function NewContextPage() {
   const [orgId, setOrgId] = useState<string | null>(null);
   const [dataClassification, setDataClassification] = useState<DataClassification | null>(null);
   const [regulatoryHooks, setRegulatoryHooks] = useState<RegulatoryHook[]>([]);
-  const [content, setContent] = useState<Record<string, unknown>>({
-    system_prompt: 'You are a helpful assistant.',
-    model: 'gpt-4',
-    temperature: 0.7,
-  });
+  const [content, setContent] = useState<ContextContent>(
+    '# Context Template\n\nPolicy for {{ region }}\nCompliance: {{ compliance_code }}\nCurrency: {{ currency }}'
+  );
+  const [aiInstructions, setAiInstructions] = useState('');
 
   useEffect(() => {
     fetch(apiUrl('/api/organizations?limit=500&offset=0'))
@@ -110,7 +109,7 @@ export default function NewContextPage() {
       <header className="flex items-center justify-between border-b bg-background px-6 py-4">
         <div className="flex items-center gap-4">
           <div>
-            <Breadcrumb items={[{ label: 'Contexts', href: '/contexts' }, { label: 'New context' }]} className="mb-2" />
+            <Breadcrumb items={[{ label: 'Agent Context', href: '/contexts' }, { label: 'New context' }]} className="mb-2" />
             <h1 className="text-2xl font-semibold tracking-tight">
               New Agent Context
             </h1>
@@ -195,7 +194,7 @@ export default function NewContextPage() {
                 <CardTitle>Content</CardTitle>
               </CardHeader>
               <CardContent>
-                <ContextEditor value={content} onChange={setContent} />
+                <ContextEditor value={content} onChange={setContent} aiInstructions={aiInstructions} onAiInstructionsChange={setAiInstructions} />
               </CardContent>
             </Card>
           </div>

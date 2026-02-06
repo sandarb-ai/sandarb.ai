@@ -1,5 +1,18 @@
-"""Contexts service (dashboard + detail by id, revisions, approve/reject, update, delete)."""
+"""Contexts service (dashboard + detail by id, revisions, approve/reject, update, delete).
 
+Supports Jinja2-templated contexts for dynamic rendering at injection time.
+Context templates use ``{{ variable }}`` Jinja2 syntax.  At runtime, the agent
+passes variables via ``context_variables`` and Sandarb renders the template,
+returning the fully resolved content along with governance metadata (hash,
+version, classification, owner).
+
+Hash generation: The SHA-256 governance hash is derived from the **context name +
+raw Jinja2 template** of the active version (NOT the rendered output).  This
+ensures a stable, version-specific fingerprint that doesn't change across
+invocations with different runtime variables.
+"""
+
+import hashlib
 import json
 from typing import Any
 
@@ -27,7 +40,11 @@ def _parse_json_field(v: Any, default: Any = None) -> Any:
         try:
             return json.loads(v)
         except Exception:
-            return default
+            # For Jinja2 templated contexts (and other non-JSON strings),
+            # return the raw string instead of the default.  This ensures
+            # template content like "# Refund Policy for {{ region }}..."
+            # is preserved and displayed correctly.
+            return v
     return default
 
 
@@ -57,8 +74,14 @@ def get_recent_activity(limit: int = 10) -> list[dict]:
 
 
 def get_context_by_name(name: str) -> dict | None:
-    """Get context by name with content (for inject API)."""
-    row = query_one("SELECT id FROM contexts WHERE name = %s", (name.strip(),))
+    """Get context by name with content (for inject API). SRN-aware:
+    tries the name as-is, then with 'context.' stripped, then with 'context.' prepended."""
+    val = name.strip()
+    row = query_one("SELECT id FROM contexts WHERE name = %s", (val,))
+    if not row and val.startswith("context."):
+        row = query_one("SELECT id FROM contexts WHERE name = %s", (val[len("context."):],))
+    if not row and not val.startswith("context."):
+        row = query_one("SELECT id FROM contexts WHERE name = %s", (f"context.{val}",))
     if not row:
         return None
     return get_context_by_id(str(row["id"]))
@@ -198,7 +221,7 @@ def update_context(
         # Create new context_version with the new content (or update active?)
         active = query_one("SELECT id FROM context_versions WHERE context_id = %s AND is_active = true LIMIT 1", (context_id,))
         import hashlib
-        content_json = json.dumps(content) if isinstance(content, dict) else "{}"
+        content_json = json.dumps(content) if isinstance(content, (dict, str, list)) else '""'
         sha = hashlib.sha256(content_json.encode()).hexdigest()
         # Get next version number (integer starting from 1)
         next_version = 1
@@ -224,6 +247,7 @@ def create_context_revision(
     commit_message: str = "Update",
     auto_approve: bool = False,
     created_by: str | None = None,
+    ai_instructions: str | None = None,
 ) -> dict | None:
     """Create a new context revision. If auto_approve, mark it approved and active immediately."""
     row = query_one("SELECT id FROM contexts WHERE id = %s", (context_id,))
@@ -231,9 +255,9 @@ def create_context_revision(
         return None
     
     import hashlib
-    content_json = json.dumps(content) if isinstance(content, dict) else "{}"
+    content_json = json.dumps(content) if isinstance(content, (dict, str, list)) else '""'
     sha = hashlib.sha256(content_json.encode()).hexdigest()
-    
+
     # Get next version number
     next_version = 1
     max_ver = query_one(
@@ -252,8 +276,8 @@ def create_context_revision(
     
     if auto_approve:
         execute(
-            """INSERT INTO context_versions (context_id, version, content, sha256_hash, created_by, submitted_by, status, is_active, commit_message, approved_by, approved_at)
-             VALUES (%s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s, %s, NOW())""",
+            """INSERT INTO context_versions (context_id, version, content, sha256_hash, created_by, submitted_by, status, is_active, commit_message, approved_by, approved_at, ai_instructions)
+             VALUES (%s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s, %s, NOW(), %s)""",
             (
                 context_id,
                 next_version,
@@ -265,12 +289,13 @@ def create_context_revision(
                 is_active,
                 commit_message,
                 created_by or "system",
+                ai_instructions,
             ),
         )
     else:
         execute(
-            """INSERT INTO context_versions (context_id, version, content, sha256_hash, created_by, submitted_by, status, is_active, commit_message)
-             VALUES (%s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s)""",
+            """INSERT INTO context_versions (context_id, version, content, sha256_hash, created_by, submitted_by, status, is_active, commit_message, ai_instructions)
+             VALUES (%s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s, %s)""",
             (
                 context_id,
                 next_version,
@@ -281,6 +306,7 @@ def create_context_revision(
                 status,
                 is_active,
                 commit_message,
+                ai_instructions,
             ),
         )
     
@@ -354,8 +380,7 @@ def create_context(
     context_id = str(row["id"])
     # Create initial context version with content
     import hashlib
-    content_dict = content if isinstance(content, dict) else {}
-    content_json = json.dumps(content_dict)
+    content_json = json.dumps(content) if isinstance(content, (dict, str, list)) else '""'
     sha = hashlib.sha256(content_json.encode()).hexdigest()
     created = created_by or "system"
     execute(
@@ -372,3 +397,194 @@ def delete_context(context_id: str) -> bool:
         return False
     execute("DELETE FROM contexts WHERE id = %s", (context_id,))
     return True
+
+
+# ---------------------------------------------------------------------------
+# Jinja2 Templated Context Rendering & Governance Hash
+# ---------------------------------------------------------------------------
+
+
+def compute_governance_hash(context_name: str, template_content: str) -> str:
+    """Compute a stable SHA-256 governance hash from the context name + raw Jinja2 template.
+
+    The hash is deterministic for a given (name, template) pair and does NOT
+    depend on runtime variables passed during rendering.  This makes the hash
+    a version-level fingerprint suitable for audit and compliance checks.
+
+    Args:
+        context_name: The Sandarb Resource Name or plain name of the context.
+        template_content: The raw Jinja2 template string (before rendering).
+
+    Returns:
+        A lowercase hex SHA-256 digest.
+    """
+    payload = f"{context_name}:{template_content}"
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def render_template_content(template_content: str, variables: dict[str, Any]) -> str:
+    """Render a Jinja2 template string with the provided variables.
+
+    Uses ``SandboxedEnvironment`` with ``autoescape=True`` to prevent
+    template injection attacks (e.g. a malicious variable value containing
+    Jinja2 directives).
+
+    Args:
+        template_content: The raw Jinja2 template string (e.g.
+            ``"Refund Policy for {{ region }}\\nCurrency: {{ currency }}"``)
+        variables: Dictionary of variable names to values.
+
+    Returns:
+        The fully rendered string with all ``{{ ... }}`` placeholders resolved.
+
+    Raises:
+        jinja2.TemplateSyntaxError: If the template has invalid Jinja2 syntax.
+        jinja2.UndefinedError: If a required variable is missing from *variables*.
+    """
+    from jinja2.sandbox import SandboxedEnvironment
+
+    env = SandboxedEnvironment(autoescape=True)
+    template = env.from_string(template_content)
+    return template.render(**variables)
+
+
+def validate_jinja2_template(template_content: str) -> dict:
+    """Validate Jinja2 template syntax and extract referenced variables.
+
+    Uses ``SandboxedEnvironment`` (same sandbox as rendering) to parse the
+    template.  On success, walks the AST to find all undeclared variable
+    names referenced in the template.
+
+    Returns:
+        dict with keys:
+            - valid (bool): Whether the template compiles without errors.
+            - error (str | None): Error message if invalid.
+            - line (int | None): Line number of the error (1-based) if invalid.
+            - variables (list[str]): Sorted list of detected template variable names.
+    """
+    from jinja2.sandbox import SandboxedEnvironment
+    from jinja2 import TemplateSyntaxError, meta
+
+    env = SandboxedEnvironment(autoescape=True)
+
+    try:
+        ast = env.parse(template_content)
+        variables = sorted(meta.find_undeclared_variables(ast))
+        return {
+            "valid": True,
+            "error": None,
+            "line": None,
+            "variables": variables,
+        }
+    except TemplateSyntaxError as e:
+        return {
+            "valid": False,
+            "error": e.message if e.message else str(e),
+            "line": e.lineno,
+            "variables": [],
+        }
+
+
+def get_rendered_context(
+    context_name: str,
+    variables: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """Fetch a context by name, render its Jinja2 template, and return governance metadata.
+
+    This is the primary entry point for the Inject API when ``context_variables``
+    are provided.
+
+    Args:
+        context_name: The context name (plain or SRN like ``context.eu-refund-policy``).
+        variables: Optional dict of template variables to render into the context.
+
+    Returns:
+        A dict with keys:
+            - ``context_id``: The context UUID.
+            - ``context_name``: The context name.
+            - ``version_id``: The active version UUID.
+            - ``version``: The integer version number.
+            - ``content``: The rendered string (or raw content if no variables).
+            - ``metadata``: Governance metadata dict with ``classification``,
+              ``owner``, ``hash``, ``hash_type``.
+
+        Returns ``None`` if the context or an approved version is not found.
+    """
+    # get_context_by_name is SRN-aware — pass the name as-is
+    ctx = get_context_by_name(context_name)
+    if not ctx:
+        return None
+
+    context_id = ctx["id"]
+
+    # Get the active version with raw template content
+    ver = query_one(
+        "SELECT id, version, content, sha256_hash FROM context_versions "
+        "WHERE context_id = %s AND is_active = true ORDER BY created_at DESC LIMIT 1",
+        (context_id,),
+    )
+    if not ver:
+        ver = query_one(
+            "SELECT id, version, content, sha256_hash FROM context_versions "
+            "WHERE context_id = %s AND status = 'Approved' ORDER BY approved_at DESC NULLS LAST, created_at DESC LIMIT 1",
+            (context_id,),
+        )
+    if not ver:
+        return None
+
+    raw_content = ver.get("content")
+    # content is stored as JSONB — could be a dict or a string
+    if isinstance(raw_content, dict):
+        # If stored as a dict, serialize to string for template rendering
+        template_str = json.dumps(raw_content, indent=2)
+    elif isinstance(raw_content, str):
+        try:
+            parsed = json.loads(raw_content)
+            template_str = json.dumps(parsed, indent=2) if isinstance(parsed, dict) else raw_content
+        except (json.JSONDecodeError, TypeError):
+            template_str = raw_content
+    else:
+        template_str = str(raw_content) if raw_content else ""
+
+    # Compute governance hash from context name + raw template (stable across invocations)
+    governance_hash = compute_governance_hash(plain_name, template_str)
+
+    # Render with variables if provided
+    if variables:
+        rendered = render_template_content(template_str, variables)
+    else:
+        rendered = template_str
+
+    # Get full context metadata for governance proof (org, classification, regulatory hooks)
+    ctx_row = query_one(
+        "SELECT c.data_classification, c.owner_team, c.org_id, c.regulatory_hooks, "
+        "o.name AS org_name, o.slug AS org_slug "
+        "FROM contexts c LEFT JOIN organizations o ON c.org_id = o.id "
+        "WHERE c.id = %s",
+        (context_id,),
+    )
+    classification = (ctx_row.get("data_classification") or "Internal") if ctx_row else "Internal"
+    owner = (ctx_row.get("owner_team") or "") if ctx_row else ""
+    org_id = str(ctx_row["org_id"]) if ctx_row and ctx_row.get("org_id") else None
+    org_name = ctx_row.get("org_name") if ctx_row else None
+    org_slug = ctx_row.get("org_slug") if ctx_row else None
+    regulatory_hooks_raw = ctx_row.get("regulatory_hooks") if ctx_row else None
+    regulatory_hooks = _parse_json_field(regulatory_hooks_raw, [])
+
+    return {
+        "context_id": context_id,
+        "context_name": plain_name,
+        "version_id": str(ver["id"]),
+        "version": int(ver.get("version", 1)),
+        "content": rendered,
+        "metadata": {
+            "classification": classification,
+            "owner": owner,
+            "hash": governance_hash,
+            "hash_type": "sha256",
+            "org_id": org_id,
+            "org_name": org_name,
+            "org_slug": org_slug,
+            "regulatory_hooks": regulatory_hooks,
+        },
+    }

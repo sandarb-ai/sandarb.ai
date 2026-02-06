@@ -40,7 +40,7 @@ function normalizeAgentList(raw: unknown[]): RegisteredAgent[] {
     return {
       id: str(o.id) ?? '',
       orgId: str(o.orgId ?? o.org_id) ?? '',
-      agentId: (o.agentId ?? o.agent_id) != null ? (str(o.agentId ?? o.agent_id) ?? null) : null,
+      agentId: str(o.agentId ?? o.agent_id) ?? '',
       name: str(o.name) ?? '',
       description: o.description != null ? (str(o.description) ?? null) : null,
       a2aUrl: str(o.a2aUrl ?? o.a2a_url) ?? '',

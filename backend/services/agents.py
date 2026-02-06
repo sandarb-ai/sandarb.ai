@@ -16,7 +16,7 @@ def _row_to_agent(row: dict) -> RegisteredAgent:
     return RegisteredAgent(
         id=str(row["id"]),
         org_id=str(row["org_id"]),
-        agent_id=str(row["agent_id"]) if row.get("agent_id") else None,
+        agent_id=str(row["agent_id"]),
         name=str(row["name"]),
         description=str(row["description"]) if row.get("description") else None,
         a2a_url=str(row["a2a_url"]),
@@ -88,8 +88,16 @@ def get_agent_by_id(agent_id: str) -> RegisteredAgent | None:
 
 
 def get_agent_by_identifier(identifier: str) -> RegisteredAgent | None:
-    """Resolve agent by external identifier (agents.agent_id). Used by inject/pull APIs."""
-    row = query_one("SELECT * FROM agents WHERE agent_id = %s LIMIT 1", (identifier.strip(),))
+    """Resolve agent by external identifier (agents.agent_id). SRN-aware:
+    tries the identifier as-is first, then with 'agent.' prefix stripped,
+    then with 'agent.' prefix prepended — so lookups work regardless of
+    whether the caller or DB uses the SRN prefix."""
+    val = identifier.strip()
+    row = query_one("SELECT * FROM agents WHERE agent_id = %s LIMIT 1", (val,))
+    if not row and val.startswith("agent."):
+        row = query_one("SELECT * FROM agents WHERE agent_id = %s LIMIT 1", (val[len("agent."):],))
+    if not row and not val.startswith("agent."):
+        row = query_one("SELECT * FROM agents WHERE agent_id = %s LIMIT 1", (f"agent.{val}",))
     return _row_to_agent(dict(row)) if row else None
 
 

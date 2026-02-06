@@ -193,8 +193,14 @@ def reject_prompt_version(prompt_id: str, version_id: str, rejected_by: str | No
 
 
 def get_prompt_by_name(name: str) -> dict | None:
-    """Get prompt by name (for pull API)."""
-    row = query_one("SELECT id FROM prompts WHERE name = %s", (name.strip(),))
+    """Get prompt by name (for pull API). SRN-aware:
+    tries the name as-is, then with 'prompt.' stripped, then with 'prompt.' prepended."""
+    val = name.strip()
+    row = query_one("SELECT id FROM prompts WHERE name = %s", (val,))
+    if not row and val.startswith("prompt."):
+        row = query_one("SELECT id FROM prompts WHERE name = %s", (val[len("prompt."):],))
+    if not row and not val.startswith("prompt."):
+        row = query_one("SELECT id FROM prompts WHERE name = %s", (f"prompt.{val}",))
     if not row:
         return None
     return get_prompt_by_id(str(row["id"]))
