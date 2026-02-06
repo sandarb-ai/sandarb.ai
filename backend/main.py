@@ -41,7 +41,17 @@ async def lifespan(app: FastAPI):
     """Manage MCP session manager lifecycle alongside the FastAPI app."""
     async with sandarb_mcp.session_manager.run():
         logger.info("Sandarb MCP server started (Streamable HTTP at /mcp)")
+        # Initialize Kafka producer (lazy — connects on first event)
+        from backend.services.kafka_producer import is_available as kafka_available
+        if kafka_available():
+            logger.info("Kafka producer connected (events → ClickHouse pipeline active)")
+        else:
+            logger.info("Kafka unavailable — events logged to Postgres only")
         yield
+    # Shutdown: flush Kafka, close DB pool
+    from backend.services.kafka_producer import close as kafka_close
+    kafka_close()
+    logger.info("Kafka producer closed")
     from backend.db import close_pool
     close_pool()
     logger.info("Sandarb services stopped")

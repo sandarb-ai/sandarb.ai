@@ -1,7 +1,21 @@
-"""Audit service (blocked injections, lineage, A2A log)."""
+"""Audit service (blocked injections, lineage, A2A log).
+
+Dual-write architecture:
+  1. PostgreSQL (sandarb_access_logs) — transactional source of truth
+  2. Kafka (sandarb_events + category topics) — analytics pipeline → ClickHouse
+
+Kafka publishing is fire-and-forget; if Kafka is unavailable, Postgres
+remains the authoritative record. Events flow:
+
+  Sandarb API → Postgres (OLTP) + Kafka → ClickHouse (OLAP)
+"""
 
 import json
+import logging
 from backend.db import query, execute
+from backend.services import kafka_producer
+
+logger = logging.getLogger(__name__)
 
 
 def log_inject_success(
@@ -16,6 +30,8 @@ def log_inject_success(
 ) -> None:
     """Record successful context delivery for lineage.
 
+    Writes to both PostgreSQL (source of truth) and Kafka (analytics pipeline).
+
     Args:
         governance_hash: The SHA-256 governance hash of the context template (for rendered contexts).
         rendered: Whether the context was rendered with Jinja2 template variables.
@@ -28,11 +44,31 @@ def log_inject_success(
         meta["hash_type"] = "sha256"
     if rendered:
         meta["rendered"] = True
+    # 1. Postgres (source of truth)
     execute(
         """INSERT INTO sandarb_access_logs (agent_id, trace_id, context_id, version_id, metadata)
            VALUES (%s, %s, %s, %s, %s::jsonb)""",
         (agent_id, trace_id, context_id, version_id, json.dumps(meta)),
     )
+    # 2. Kafka (analytics pipeline → ClickHouse)
+    kafka_producer.publish_inject_success(
+        agent_id=agent_id,
+        trace_id=trace_id,
+        context_id=context_id,
+        context_name=context_name,
+        version_id=version_id or "",
+        governance_hash=governance_hash or "",
+        rendered=rendered,
+    )
+    # 3. Governance proof (if hash present — immutable delivery record)
+    if governance_hash:
+        kafka_producer.publish_governance_proof(
+            agent_id=agent_id,
+            trace_id=trace_id,
+            context_id=context_id,
+            context_name=context_name,
+            governance_hash=governance_hash,
+        )
 
 
 def log_inject_denied(
@@ -50,10 +86,19 @@ def log_inject_denied(
         "reason": reason,
         "traceId": trace_id,
     }
+    # 1. Postgres
     execute(
         """INSERT INTO sandarb_access_logs (agent_id, trace_id, context_id, metadata)
            VALUES (%s, %s, %s, %s::jsonb)""",
         (agent_id, trace_id, context_id, json.dumps(meta)),
+    )
+    # 2. Kafka
+    kafka_producer.publish_inject_denied(
+        agent_id=agent_id,
+        trace_id=trace_id,
+        context_id=context_id,
+        context_name=context_name,
+        reason=reason,
     )
 
 
@@ -69,30 +114,54 @@ def log_prompt_usage(
     meta = {"action_type": "PROMPT_USED", "promptName": prompt_name, "prompt_id": prompt_id}
     if intent:
         meta["intent"] = intent
+    # 1. Postgres
     execute(
         """INSERT INTO sandarb_access_logs (agent_id, trace_id, prompt_id, prompt_version_id, metadata)
            VALUES (%s, %s, %s, %s, %s::jsonb)""",
         (agent_id, trace_id, prompt_id, prompt_version_id, json.dumps(meta)),
+    )
+    # 2. Kafka
+    kafka_producer.publish_prompt_used(
+        agent_id=agent_id,
+        trace_id=trace_id,
+        prompt_id=prompt_id,
+        prompt_name=prompt_name,
     )
 
 
 def log_prompt_denied(agent_id: str, trace_id: str, prompt_name: str, reason: str) -> None:
     """Record blocked prompt pull."""
     meta = {"action_type": "PROMPT_DENIED", "promptName": prompt_name, "reason": reason, "traceId": trace_id}
+    # 1. Postgres
     execute(
         """INSERT INTO sandarb_access_logs (agent_id, trace_id, metadata)
            VALUES (%s, %s, %s::jsonb)""",
         (agent_id, trace_id, json.dumps(meta)),
+    )
+    # 2. Kafka
+    kafka_producer.publish_prompt_denied(
+        agent_id=agent_id,
+        trace_id=trace_id,
+        prompt_name=prompt_name,
+        reason=reason,
     )
 
 
 def log_activity(agent_id: str, trace_id: str, inputs: dict, outputs: dict) -> None:
     """Record SDK activity (inputs/outputs) in sandarb_access_logs for audit."""
     meta = {"action_type": "SDK_ACTIVITY", "inputs": inputs, "outputs": outputs}
+    # 1. Postgres
     execute(
         """INSERT INTO sandarb_access_logs (agent_id, trace_id, metadata)
            VALUES (%s, %s, %s::jsonb)""",
         (agent_id, trace_id, json.dumps(meta)),
+    )
+    # 2. Kafka
+    kafka_producer.publish_a2a_call(
+        agent_id=agent_id,
+        trace_id=trace_id,
+        skill="sdk_activity",
+        success=True,
     )
 
 
