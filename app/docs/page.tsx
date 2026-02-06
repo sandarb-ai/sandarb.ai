@@ -159,6 +159,15 @@ export default async function DocsPage() {
       ],
     },
     {
+      label: 'MCP',
+      items: [
+        { id: 'mcp', label: 'MCP overview' },
+        { id: 'mcp-tools', label: 'Available tools' },
+        { id: 'mcp-setup', label: 'Setup & configuration' },
+        { id: 'mcp-usage', label: 'Usage' },
+      ],
+    },
+    {
       label: 'A2A',
       items: [
     { id: 'a2a', label: 'A2A protocol' },
@@ -822,6 +831,128 @@ curl -H "X-Sandarb-Agent-ID: my-agent" -H "X-Sandarb-Trace-ID: req-123" \\
           <DocsTryPromptsPull />
         </section>
 
+        {/* ── MCP (Model Context Protocol) ── */}
+        <section id="mcp" className="scroll-mt-24 pt-6 border-t border-border/40">
+          <H2WithAnchor id="mcp">MCP (Model Context Protocol)</H2WithAnchor>
+          <P>
+            Sandarb exposes a fully compliant <strong>MCP server</strong> at <InlineCode>/mcp</InlineCode> using the official{' '}
+            <a href="https://github.com/modelcontextprotocol/python-sdk" target="_blank" rel="noopener noreferrer" className="text-violet-600 dark:text-violet-400 underline">mcp Python SDK</a>{' '}
+            with <strong>Streamable HTTP transport</strong>. Connect Claude Desktop, Cursor, Windsurf, VS Code Copilot, or any MCP-compatible client directly to Sandarb for governed access to prompts, contexts, and audit lineage.
+          </P>
+          <P>
+            MCP is the open standard for connecting AI assistants to external tools and data sources. Instead of building custom integrations, any MCP client can connect to Sandarb and use its governance tools natively.
+          </P>
+          <Admonition title="Architecture">
+            The MCP server is mounted inside the same FastAPI application as the REST API and A2A endpoints. It reuses the same backend services for contexts, prompts, agents, and audit. No separate process is needed.
+          </Admonition>
+          <DocsCodeBlock label="Architecture">{`FastAPI app (backend/main.py)
+  \u251c\u2500\u2500 /api/*         REST API routers
+  \u251c\u2500\u2500 /mcp           MCP server (Streamable HTTP transport)
+  \u251c\u2500\u2500 /a2a           A2A JSON-RPC endpoint
+  \u2514\u2500\u2500 /              Agent Card (when SANDARB_AGENT_SERVICE=1)`}</DocsCodeBlock>
+        </section>
+
+        <section id="mcp-tools" className="scroll-mt-24 pt-6 border-t border-border/40">
+          <H2WithAnchor id="mcp-tools">MCP Tools</H2WithAnchor>
+          <P>Six governance tools are exposed through MCP:</P>
+          <div className="overflow-x-auto mb-6">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b border-border/60">
+                  <th className="text-left py-2 pr-4 font-semibold text-foreground">Tool</th>
+                  <th className="text-left py-2 font-semibold text-foreground">Description</th>
+                </tr>
+              </thead>
+              <tbody className="text-muted-foreground">
+                <tr className="border-b border-border/30"><td className="py-2 pr-4"><InlineCode>list_contexts</InlineCode></td><td className="py-2">List context names available to your agent</td></tr>
+                <tr className="border-b border-border/30"><td className="py-2 pr-4"><InlineCode>get_context</InlineCode></td><td className="py-2">Get approved context content by name (agent must be linked)</td></tr>
+                <tr className="border-b border-border/30"><td className="py-2 pr-4"><InlineCode>get_prompt</InlineCode></td><td className="py-2">Get approved prompt content by name (agent must be linked)</td></tr>
+                <tr className="border-b border-border/30"><td className="py-2 pr-4"><InlineCode>get_lineage</InlineCode></td><td className="py-2">Get recent context delivery audit trail</td></tr>
+                <tr className="border-b border-border/30"><td className="py-2 pr-4"><InlineCode>register_agent</InlineCode></td><td className="py-2">Register a new agent with the governance platform</td></tr>
+                <tr><td className="py-2 pr-4"><InlineCode>validate_context</InlineCode></td><td className="py-2">Validate context content against governance rules</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <P>
+            Tools that access governed data require three parameters: <InlineCode>api_key</InlineCode> (your service account key),{' '}
+            <InlineCode>source_agent</InlineCode> (your registered agent ID), and <InlineCode>trace_id</InlineCode> (unique trace identifier for audit logging).
+          </P>
+        </section>
+
+        <section id="mcp-setup" className="scroll-mt-24 pt-6 border-t border-border/40">
+          <H2WithAnchor id="mcp-setup">MCP Setup &amp; Configuration</H2WithAnchor>
+
+          <H3WithAnchor>Prerequisites</H3WithAnchor>
+          <Ul>
+            <li>Sandarb backend running (locally or deployed)</li>
+            <li>A registered service account with an API key</li>
+            <li>An agent registered in Sandarb and linked to the prompts/contexts it needs access to</li>
+          </Ul>
+
+          <H3WithAnchor id="mcp-claude-desktop">Claude Desktop</H3WithAnchor>
+          <P>
+            Add to your Claude Desktop config file (<InlineCode>~/Library/Application Support/Claude/claude_desktop_config.json</InlineCode> on macOS):
+          </P>
+          <DocsCodeBlock label="Claude Desktop — Direct (Streamable HTTP)">{`{
+  "mcpServers": {
+    "sandarb": {
+      "url": "${baseUrl}/mcp"
+    }
+  }
+}`}</DocsCodeBlock>
+          <DocsCodeBlock label="Claude Desktop — via mcp-remote proxy">{`{
+  "mcpServers": {
+    "sandarb": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "${baseUrl}/mcp"]
+    }
+  }
+}`}</DocsCodeBlock>
+
+          <H3WithAnchor id="mcp-cursor">Cursor / Windsurf</H3WithAnchor>
+          <P>Add to your project&apos;s <InlineCode>.cursor/mcp.json</InlineCode>:</P>
+          <DocsCodeBlock label="Cursor / Windsurf config">{`{
+  "mcpServers": {
+    "sandarb": {
+      "url": "${baseUrl}/mcp"
+    }
+  }
+}`}</DocsCodeBlock>
+
+          <H3WithAnchor id="mcp-claude-code">Claude Code (CLI)</H3WithAnchor>
+          <DocsCodeBlock label="Claude Code CLI">{`claude mcp add sandarb --transport http ${baseUrl}/mcp`}</DocsCodeBlock>
+
+          <H3WithAnchor id="mcp-test-endpoint">Test the endpoint</H3WithAnchor>
+          <P>Verify the MCP server is running:</P>
+          <DocsCodeBlock label="curl test">{`curl -X POST ${baseUrl}/mcp/ \\
+  -H "Content-Type: application/json" \\
+  -H "Accept: application/json, text/event-stream" \\
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'`}</DocsCodeBlock>
+        </section>
+
+        <section id="mcp-usage" className="scroll-mt-24 pt-6 border-t border-border/40">
+          <H2WithAnchor id="mcp-usage">MCP Usage</H2WithAnchor>
+          <P>
+            Once connected, the AI assistant has access to all Sandarb governance tools. Ask the assistant to use the Sandarb MCP server to perform governance operations:
+          </P>
+          <DocsCodeBlock label="Example prompts in Claude Desktop">{`# Get an approved prompt
+"Use the sandarb MCP server to get the approved prompt named 'customer-support'."
+
+# List available contexts
+"What contexts are available to my agent via Sandarb?"
+
+# Get audit lineage
+"Show me the recent context delivery audit trail from Sandarb."
+
+# Register a new agent
+"Register a new agent called 'finance-bot' with Sandarb at http://localhost:9000/a2a."`}</DocsCodeBlock>
+          <Admonition title="Authentication">
+            Each tool call requires an <InlineCode>api_key</InlineCode>, <InlineCode>source_agent</InlineCode>, and <InlineCode>trace_id</InlineCode>.
+            The MCP client will prompt you for these values when calling tools. Create a service account in Sandarb to get your API key, and register your agent to get an agent ID.
+          </Admonition>
+        </section>
+
+        {/* ── A2A ── */}
         <section id="a2a" className="scroll-mt-24 pt-6 border-t border-border/40">
           <H2WithAnchor id="a2a">A2A protocol</H2WithAnchor>
           <P>
