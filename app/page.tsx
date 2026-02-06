@@ -114,7 +114,7 @@ export default function LandingPage() {
             </h2>
             <ol className="text-sm text-muted-foreground/90 space-y-1 list-decimal list-inside leading-relaxed">
               <li>AI Governance that doesn't slow shipping AI Agents to production</li>
-              <li>Version mgmt & traceability for prompts and context</li>
+              <li>Version mgmt & traceability for Agent prompts and contexts</li>
               <li>Living AI Agents registry</li>
             </ol>
           </div>
