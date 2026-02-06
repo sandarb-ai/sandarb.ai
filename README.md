@@ -104,15 +104,63 @@ Sandarb fits into your architecture however you need it to.
 
 Sandarb exposes a fully compliant MCP server at `/mcp` using the [official mcp Python SDK](https://github.com/modelcontextprotocol/python-sdk) with **Streamable HTTP transport**. This means Claude Desktop, Cursor, Windsurf, VS Code Copilot, and any MCP-compatible client can connect directly.
 
-### Available MCP Tools
+### Available MCP Tools (22 tools)
+
+**Agents**
+
+| Tool | Description |
+|------|-------------|
+| `list_agents` | List all registered agents, optionally filtered by org or approval status |
+| `get_agent` | Get detailed info about a specific agent by ID |
+| `get_agent_contexts` | List all contexts linked to a specific agent |
+| `get_agent_prompts` | List all prompts linked to a specific agent |
+| `register_agent` | Register a new agent with the governance platform |
+
+**Organizations**
+
+| Tool | Description |
+|------|-------------|
+| `list_organizations` | List all organizations |
+| `get_organization` | Get organization details by UUID or slug |
+| `get_organization_tree` | Get the full organization hierarchy tree |
+
+**Contexts**
 
 | Tool | Description |
 |------|-------------|
 | `list_contexts` | List context names available to your agent |
 | `get_context` | Get approved context content by name (agent must be linked) |
+| `get_context_by_id` | Get context details by UUID, including active version content |
+| `get_context_revisions` | List all revisions (versions) of a context |
+
+**Prompts**
+
+| Tool | Description |
+|------|-------------|
+| `list_prompts` | List prompts available to your agent |
 | `get_prompt` | Get approved prompt content by name (agent must be linked) |
-| `get_lineage` | Get recent context delivery audit trail |
-| `register_agent` | Register a new agent with the governance platform |
+| `get_prompt_by_id` | Get prompt details by UUID, including all versions |
+| `get_prompt_versions` | List all versions of a prompt |
+
+**Audit & Lineage**
+
+| Tool | Description |
+|------|-------------|
+| `get_lineage` | Get recent context delivery audit trail (successful deliveries) |
+| `get_blocked_injections` | Get blocked/denied context injection attempts |
+| `get_audit_log` | Get the full A2A audit log (inject, prompt, inference events) |
+
+**Dashboard & Reports**
+
+| Tool | Description |
+|------|-------------|
+| `get_dashboard` | Get aggregated dashboard data (counts, recent activity) |
+| `get_reports` | Get governance reports (risk, regulatory, compliance) |
+
+**Validation**
+
+| Tool | Description |
+|------|-------------|
 | `validate_context` | Validate context content against governance rules |
 
 ### Prerequisites
@@ -208,7 +256,14 @@ You can verify the MCP server is running with a simple curl:
 # Check MCP endpoint (Streamable HTTP)
 curl -X POST http://localhost:8000/mcp \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'
+
+# List all available tools
+curl -X POST http://localhost:8000/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
 ```
 
 ### Architecture

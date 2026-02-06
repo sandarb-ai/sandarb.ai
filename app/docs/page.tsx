@@ -853,8 +853,46 @@ curl -H "X-Sandarb-Agent-ID: my-agent" -H "X-Sandarb-Trace-ID: req-123" \\
         </section>
 
         <section id="mcp-tools" className="scroll-mt-24 pt-6 border-t border-border/40">
-          <H2WithAnchor id="mcp-tools">MCP Tools</H2WithAnchor>
-          <P>Six governance tools are exposed through MCP:</P>
+          <H2WithAnchor id="mcp-tools">MCP Tools (22 tools)</H2WithAnchor>
+          <P>Sandarb exposes 22 governance tools through MCP, organized by category:</P>
+
+          <H3WithAnchor>Agents</H3WithAnchor>
+          <div className="overflow-x-auto mb-6">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b border-border/60">
+                  <th className="text-left py-2 pr-4 font-semibold text-foreground">Tool</th>
+                  <th className="text-left py-2 font-semibold text-foreground">Description</th>
+                </tr>
+              </thead>
+              <tbody className="text-muted-foreground">
+                <tr className="border-b border-border/30"><td className="py-2 pr-4"><InlineCode>list_agents</InlineCode></td><td className="py-2">List all registered agents, optionally filtered by org or approval status</td></tr>
+                <tr className="border-b border-border/30"><td className="py-2 pr-4"><InlineCode>get_agent</InlineCode></td><td className="py-2">Get detailed info about a specific agent by ID</td></tr>
+                <tr className="border-b border-border/30"><td className="py-2 pr-4"><InlineCode>get_agent_contexts</InlineCode></td><td className="py-2">List all contexts linked to a specific agent</td></tr>
+                <tr className="border-b border-border/30"><td className="py-2 pr-4"><InlineCode>get_agent_prompts</InlineCode></td><td className="py-2">List all prompts linked to a specific agent</td></tr>
+                <tr className="border-b border-border/30"><td className="py-2 pr-4"><InlineCode>register_agent</InlineCode></td><td className="py-2">Register a new agent with the governance platform</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <H3WithAnchor>Organizations</H3WithAnchor>
+          <div className="overflow-x-auto mb-6">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b border-border/60">
+                  <th className="text-left py-2 pr-4 font-semibold text-foreground">Tool</th>
+                  <th className="text-left py-2 font-semibold text-foreground">Description</th>
+                </tr>
+              </thead>
+              <tbody className="text-muted-foreground">
+                <tr className="border-b border-border/30"><td className="py-2 pr-4"><InlineCode>list_organizations</InlineCode></td><td className="py-2">List all organizations</td></tr>
+                <tr className="border-b border-border/30"><td className="py-2 pr-4"><InlineCode>get_organization</InlineCode></td><td className="py-2">Get organization details by UUID or slug</td></tr>
+                <tr className="border-b border-border/30"><td className="py-2 pr-4"><InlineCode>get_organization_tree</InlineCode></td><td className="py-2">Get the full organization hierarchy tree</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <H3WithAnchor>Contexts</H3WithAnchor>
           <div className="overflow-x-auto mb-6">
             <table className="w-full text-sm border-collapse">
               <thead>
@@ -866,13 +904,78 @@ curl -H "X-Sandarb-Agent-ID: my-agent" -H "X-Sandarb-Trace-ID: req-123" \\
               <tbody className="text-muted-foreground">
                 <tr className="border-b border-border/30"><td className="py-2 pr-4"><InlineCode>list_contexts</InlineCode></td><td className="py-2">List context names available to your agent</td></tr>
                 <tr className="border-b border-border/30"><td className="py-2 pr-4"><InlineCode>get_context</InlineCode></td><td className="py-2">Get approved context content by name (agent must be linked)</td></tr>
-                <tr className="border-b border-border/30"><td className="py-2 pr-4"><InlineCode>get_prompt</InlineCode></td><td className="py-2">Get approved prompt content by name (agent must be linked)</td></tr>
-                <tr className="border-b border-border/30"><td className="py-2 pr-4"><InlineCode>get_lineage</InlineCode></td><td className="py-2">Get recent context delivery audit trail</td></tr>
-                <tr className="border-b border-border/30"><td className="py-2 pr-4"><InlineCode>register_agent</InlineCode></td><td className="py-2">Register a new agent with the governance platform</td></tr>
-                <tr><td className="py-2 pr-4"><InlineCode>validate_context</InlineCode></td><td className="py-2">Validate context content against governance rules</td></tr>
+                <tr className="border-b border-border/30"><td className="py-2 pr-4"><InlineCode>get_context_by_id</InlineCode></td><td className="py-2">Get context details by UUID, including active version content</td></tr>
+                <tr className="border-b border-border/30"><td className="py-2 pr-4"><InlineCode>get_context_revisions</InlineCode></td><td className="py-2">List all revisions (versions) of a context</td></tr>
               </tbody>
             </table>
           </div>
+
+          <H3WithAnchor>Prompts</H3WithAnchor>
+          <div className="overflow-x-auto mb-6">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b border-border/60">
+                  <th className="text-left py-2 pr-4 font-semibold text-foreground">Tool</th>
+                  <th className="text-left py-2 font-semibold text-foreground">Description</th>
+                </tr>
+              </thead>
+              <tbody className="text-muted-foreground">
+                <tr className="border-b border-border/30"><td className="py-2 pr-4"><InlineCode>list_prompts</InlineCode></td><td className="py-2">List prompts available to your agent</td></tr>
+                <tr className="border-b border-border/30"><td className="py-2 pr-4"><InlineCode>get_prompt</InlineCode></td><td className="py-2">Get approved prompt content by name (agent must be linked)</td></tr>
+                <tr className="border-b border-border/30"><td className="py-2 pr-4"><InlineCode>get_prompt_by_id</InlineCode></td><td className="py-2">Get prompt details by UUID, including all versions</td></tr>
+                <tr className="border-b border-border/30"><td className="py-2 pr-4"><InlineCode>get_prompt_versions</InlineCode></td><td className="py-2">List all versions of a prompt</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <H3WithAnchor>Audit &amp; Lineage</H3WithAnchor>
+          <div className="overflow-x-auto mb-6">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b border-border/60">
+                  <th className="text-left py-2 pr-4 font-semibold text-foreground">Tool</th>
+                  <th className="text-left py-2 font-semibold text-foreground">Description</th>
+                </tr>
+              </thead>
+              <tbody className="text-muted-foreground">
+                <tr className="border-b border-border/30"><td className="py-2 pr-4"><InlineCode>get_lineage</InlineCode></td><td className="py-2">Get recent context delivery audit trail (successful deliveries)</td></tr>
+                <tr className="border-b border-border/30"><td className="py-2 pr-4"><InlineCode>get_blocked_injections</InlineCode></td><td className="py-2">Get blocked/denied context injection attempts</td></tr>
+                <tr className="border-b border-border/30"><td className="py-2 pr-4"><InlineCode>get_audit_log</InlineCode></td><td className="py-2">Get the full A2A audit log (inject, prompt, inference events)</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <H3WithAnchor>Dashboard &amp; Reports</H3WithAnchor>
+          <div className="overflow-x-auto mb-6">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b border-border/60">
+                  <th className="text-left py-2 pr-4 font-semibold text-foreground">Tool</th>
+                  <th className="text-left py-2 font-semibold text-foreground">Description</th>
+                </tr>
+              </thead>
+              <tbody className="text-muted-foreground">
+                <tr className="border-b border-border/30"><td className="py-2 pr-4"><InlineCode>get_dashboard</InlineCode></td><td className="py-2">Get aggregated dashboard data (counts, recent activity)</td></tr>
+                <tr className="border-b border-border/30"><td className="py-2 pr-4"><InlineCode>get_reports</InlineCode></td><td className="py-2">Get governance reports (risk, regulatory, compliance)</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <H3WithAnchor>Validation</H3WithAnchor>
+          <div className="overflow-x-auto mb-6">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b border-border/60">
+                  <th className="text-left py-2 pr-4 font-semibold text-foreground">Tool</th>
+                  <th className="text-left py-2 font-semibold text-foreground">Description</th>
+                </tr>
+              </thead>
+              <tbody className="text-muted-foreground">
+                <tr className="border-b border-border/30"><td className="py-2 pr-4"><InlineCode>validate_context</InlineCode></td><td className="py-2">Validate context content against governance rules</td></tr>
+              </tbody>
+            </table>
+          </div>
+
           <P>
             Tools that access governed data require three parameters: <InlineCode>api_key</InlineCode> (your service account key),{' '}
             <InlineCode>source_agent</InlineCode> (your registered agent ID), and <InlineCode>trace_id</InlineCode> (unique trace identifier for audit logging).
@@ -924,7 +1027,7 @@ curl -H "X-Sandarb-Agent-ID: my-agent" -H "X-Sandarb-Trace-ID: req-123" \\
 
           <H3WithAnchor id="mcp-test-endpoint">Test the endpoint</H3WithAnchor>
           <P>Verify the MCP server is running:</P>
-          <DocsCodeBlock label="curl test">{`curl -X POST ${baseUrl}/mcp/ \\
+          <DocsCodeBlock label="curl test">{`curl -X POST ${baseUrl}/mcp \\
   -H "Content-Type: application/json" \\
   -H "Accept: application/json, text/event-stream" \\
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'`}</DocsCodeBlock>
@@ -935,14 +1038,27 @@ curl -H "X-Sandarb-Agent-ID: my-agent" -H "X-Sandarb-Trace-ID: req-123" \\
           <P>
             Once connected, the AI assistant has access to all Sandarb governance tools. Ask the assistant to use the Sandarb MCP server to perform governance operations:
           </P>
-          <DocsCodeBlock label="Example prompts in Claude Desktop">{`# Get an approved prompt
-"Use the sandarb MCP server to get the approved prompt named 'customer-support'."
+          <DocsCodeBlock label="Example prompts in Claude Desktop">{`# List and inspect agents
+"List all registered agents in Sandarb."
+"Show me details about the 'finance-bot' agent and what contexts it has access to."
 
-# List available contexts
+# Organizations
+"List all organizations in Sandarb."
+"Show me the organization hierarchy tree."
+
+# Contexts & Prompts
 "What contexts are available to my agent via Sandarb?"
+"Get the approved prompt named 'customer-support'."
+"Show me all versions of the 'onboarding-flow' prompt."
 
-# Get audit lineage
+# Audit & Compliance
 "Show me the recent context delivery audit trail from Sandarb."
+"Are there any blocked injection attempts?"
+"Show me the full audit log."
+
+# Dashboard & Reports
+"Get the Sandarb governance dashboard overview."
+"Show me the governance compliance reports."
 
 # Register a new agent
 "Register a new agent called 'finance-bot' with Sandarb at http://localhost:9000/a2a."`}</DocsCodeBlock>

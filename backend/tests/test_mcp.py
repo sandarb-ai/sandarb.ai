@@ -148,11 +148,35 @@ class TestMCPServerSetup:
     def test_mcp_tools_registered(self):
         tool_names = sorted([t.name for t in mcp._tool_manager.list_tools()])
         assert tool_names == sorted([
+            # Agents
+            "list_agents",
+            "get_agent",
+            "get_agent_contexts",
+            "get_agent_prompts",
+            # Organizations
+            "list_organizations",
+            "get_organization",
+            "get_organization_tree",
+            # Contexts
             "list_contexts",
             "get_context",
+            "get_context_by_id",
+            "get_context_revisions",
+            # Prompts
+            "list_prompts",
             "get_prompt",
+            "get_prompt_by_id",
+            "get_prompt_versions",
+            # Audit & Lineage
             "get_lineage",
+            "get_blocked_injections",
+            "get_audit_log",
+            # Dashboard & Reports
+            "get_dashboard",
+            "get_reports",
+            # Write
             "register_agent",
+            # Validation
             "validate_context",
         ])
 
@@ -599,12 +623,16 @@ class TestMCPEndpointMount:
         data = response.json()
         assert "result" in data
         tools = data["result"]["tools"]
-        assert len(tools) == 6
+        assert len(tools) == 22
         tool_names = sorted([t["name"] for t in tools])
-        assert tool_names == sorted([
-            "list_contexts", "get_context", "get_prompt",
-            "get_lineage", "register_agent", "validate_context",
-        ])
+        assert "list_agents" in tool_names
+        assert "list_organizations" in tool_names
+        assert "list_contexts" in tool_names
+        assert "list_prompts" in tool_names
+        assert "get_dashboard" in tool_names
+        assert "get_reports" in tool_names
+        assert "register_agent" in tool_names
+        assert "validate_context" in tool_names
 
     def test_a2a_still_works(self, client):
         """A2A endpoint should still be functional after MCP changes."""

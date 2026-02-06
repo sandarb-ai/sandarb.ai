@@ -15,6 +15,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.routing import Mount, Route
 
 from backend.config import settings as config
 from backend.middleware.security import setup_security_middleware
@@ -94,7 +95,35 @@ app.include_router(samples.router, prefix="/api")
 app.include_router(seed.router, prefix="/api")
 
 # Mount MCP server at /mcp (Streamable HTTP transport — works with Claude Desktop, Cursor, mcp-remote)
-app.mount("/mcp", sandarb_mcp.streamable_http_app())
+# Starlette's Mount("/mcp", ...) only matches /mcp/{path} and the Router redirect_slashes
+# logic 307-redirects /mcp → /mcp/. To keep the endpoint clean (no trailing slash needed),
+# we wrap the MCP ASGI app so it handles both /mcp and /mcp/ identically.
+_mcp_app = sandarb_mcp.streamable_http_app()
+
+
+class _MCPMount(Mount):
+    """Custom Mount that matches /mcp exactly (no trailing slash required)."""
+
+    def matches(self, scope):
+        # Let the default Mount matching handle /mcp/... paths
+        match, child_scope = super().matches(scope)
+        if match is not None and str(match) != "Match.NONE":
+            return match, child_scope
+
+        # Also match /mcp exactly (without trailing slash) — rewrite path to /
+        from starlette.routing import Match as _Match
+        path = scope.get("path", "")
+        if path == self.path:
+            child_scope = dict(scope)
+            child_scope["path_params"] = {}
+            child_scope["path"] = "/"
+            child_scope["root_path"] = scope.get("root_path", "") + self.path
+            child_scope["app"] = self.app
+            return _Match.FULL, child_scope
+        return match, child_scope
+
+
+app.router.routes.append(_MCPMount("/mcp", app=_mcp_app))
 
 # Agent service (agent.sandarb.ai): mount Agent Card + A2A at root
 if os.environ.get("SANDARB_AGENT_SERVICE", "").lower() in ("1", "true", "yes"):

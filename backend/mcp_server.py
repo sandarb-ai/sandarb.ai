@@ -1,7 +1,8 @@
 """
 Sandarb MCP Server — built with the official mcp Python SDK.
 
-Provides MCP tools for AI governance: contexts, prompts, lineage, and agent registration.
+Provides MCP tools for AI governance: agents, organizations, contexts, prompts,
+audit lineage, reports, and agent registration.
 Mounted on FastAPI at /mcp using Streamable HTTP transport.
 
 Configure in Claude Desktop / Cursor / mcp-remote as:
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 # URL validation pattern for agent registration
 VALID_URL_PATTERN = re.compile(r"^https?://[a-zA-Z0-9][-a-zA-Z0-9.]*[a-zA-Z0-9](:[0-9]+)?(/.*)?$")
 
+
 # ---------------------------------------------------------------------------
 # Create the FastMCP server instance
 # ---------------------------------------------------------------------------
@@ -35,10 +37,10 @@ mcp = FastMCP(
     name="sandarb-mcp",
     instructions=(
         "Sandarb AI Governance Server. "
-        "Provides governed access to approved prompts and contexts, "
-        "audit lineage, and agent registration. "
-        "Most tools require an API key (passed via Bearer token during MCP auth) "
-        "and a registered agent identity."
+        "Provides governed access to agents, organizations, prompts, contexts, "
+        "audit lineage, reports, and agent registration. "
+        "Most tools require an API key (passed as the api_key parameter) "
+        "and a registered agent identity (source_agent)."
     ),
     stateless_http=True,
     json_response=True,
@@ -62,8 +64,204 @@ def _resolve_auth(api_key: str | None, source_agent: str, trace_id: str) -> tupl
     return account, None
 
 
+def _resolve_agent(account: dict, source_agent: str, trace_id: str):
+    """Resolve effective agent from account + source_agent. Returns (effective_agent_id, agent_record, error)."""
+    from backend.services.agents import get_agent_by_identifier
+
+    agent_id_from_key = (account.get("agent_id") or "").strip()
+    effective_agent = source_agent.strip() or agent_id_from_key
+    if not effective_agent or not trace_id.strip():
+        return None, None, "source_agent and trace_id are required."
+
+    agent = get_agent_by_identifier(effective_agent)
+    if not agent:
+        return effective_agent, None, "Agent not registered with Sandarb."
+    return effective_agent, agent, None
+
+
+def _serialize(obj: Any) -> Any:
+    """Make objects JSON-safe: convert datetimes, UUIDs, etc. to strings."""
+    if obj is None:
+        return None
+    if isinstance(obj, dict):
+        return {k: _serialize(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_serialize(v) for v in obj]
+    if hasattr(obj, "isoformat"):
+        return obj.isoformat()
+    if hasattr(obj, "__dict__") and not isinstance(obj, type):
+        return _serialize(vars(obj))
+    return obj
+
+
 # ---------------------------------------------------------------------------
-# MCP Tools
+# MCP Tools — Agents
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def list_agents(api_key: str, source_agent: str, trace_id: str, org_id: str = "", approval_status: str = "") -> str:
+    """List all registered agents, optionally filtered by organization or approval status.
+
+    Args:
+        api_key: Your Sandarb API key (Bearer token).
+        source_agent: Your registered agent ID.
+        trace_id: A unique trace ID for this request.
+        org_id: Optional organization ID to filter by.
+        approval_status: Optional filter: 'Approved', 'Pending', or 'Rejected'.
+    """
+    account, err = _resolve_auth(api_key, source_agent, trace_id)
+    if err:
+        return json.dumps({"error": err})
+
+    from backend.services.agents import get_all_agents
+
+    agents = get_all_agents(
+        org_id=org_id.strip() or None,
+        approval_status=approval_status.strip() or None,
+    )
+    return json.dumps({"agents": _serialize(agents)}, default=str)
+
+
+@mcp.tool()
+def get_agent(agent_id: str, api_key: str, source_agent: str, trace_id: str) -> str:
+    """Get detailed information about a specific agent by its ID.
+
+    Args:
+        agent_id: The agent identifier (agent_id or UUID).
+        api_key: Your Sandarb API key (Bearer token).
+        source_agent: Your registered agent ID.
+        trace_id: A unique trace ID for this request.
+    """
+    account, err = _resolve_auth(api_key, source_agent, trace_id)
+    if err:
+        return json.dumps({"error": err})
+
+    from backend.services.agents import get_agent_by_id, get_agent_by_identifier
+
+    agent = get_agent_by_id(agent_id.strip()) or get_agent_by_identifier(agent_id.strip())
+    if not agent:
+        return json.dumps({"error": f"Agent not found: {agent_id}"})
+
+    return json.dumps({"agent": _serialize(agent)}, default=str)
+
+
+@mcp.tool()
+def get_agent_contexts(agent_id: str, api_key: str, source_agent: str, trace_id: str) -> str:
+    """List all contexts linked to a specific agent.
+
+    Args:
+        agent_id: The agent identifier (agent_id or UUID).
+        api_key: Your Sandarb API key (Bearer token).
+        source_agent: Your registered agent ID.
+        trace_id: A unique trace ID for this request.
+    """
+    account, err = _resolve_auth(api_key, source_agent, trace_id)
+    if err:
+        return json.dumps({"error": err})
+
+    from backend.services.agents import get_agent_by_id, get_agent_by_identifier
+    from backend.services.agent_links import list_contexts_for_agent
+
+    agent = get_agent_by_id(agent_id.strip()) or get_agent_by_identifier(agent_id.strip())
+    if not agent:
+        return json.dumps({"error": f"Agent not found: {agent_id}"})
+
+    contexts = list_contexts_for_agent(agent.id)
+    return json.dumps({"agentId": agent.agent_id, "contexts": contexts}, default=str)
+
+
+@mcp.tool()
+def get_agent_prompts(agent_id: str, api_key: str, source_agent: str, trace_id: str) -> str:
+    """List all prompts linked to a specific agent.
+
+    Args:
+        agent_id: The agent identifier (agent_id or UUID).
+        api_key: Your Sandarb API key (Bearer token).
+        source_agent: Your registered agent ID.
+        trace_id: A unique trace ID for this request.
+    """
+    account, err = _resolve_auth(api_key, source_agent, trace_id)
+    if err:
+        return json.dumps({"error": err})
+
+    from backend.services.agents import get_agent_by_id, get_agent_by_identifier
+    from backend.services.agent_links import list_prompts_for_agent
+
+    agent = get_agent_by_id(agent_id.strip()) or get_agent_by_identifier(agent_id.strip())
+    if not agent:
+        return json.dumps({"error": f"Agent not found: {agent_id}"})
+
+    prompts = list_prompts_for_agent(agent.id)
+    return json.dumps({"agentId": agent.agent_id, "prompts": prompts}, default=str)
+
+
+# ---------------------------------------------------------------------------
+# MCP Tools — Organizations
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def list_organizations(api_key: str, source_agent: str, trace_id: str) -> str:
+    """List all organizations in the governance platform.
+
+    Args:
+        api_key: Your Sandarb API key (Bearer token).
+        source_agent: Your registered agent ID.
+        trace_id: A unique trace ID for this request.
+    """
+    account, err = _resolve_auth(api_key, source_agent, trace_id)
+    if err:
+        return json.dumps({"error": err})
+
+    from backend.services.organizations import get_all_organizations
+
+    orgs = get_all_organizations()
+    return json.dumps({"organizations": _serialize(orgs)}, default=str)
+
+
+@mcp.tool()
+def get_organization(org_id: str, api_key: str, source_agent: str, trace_id: str) -> str:
+    """Get detailed information about a specific organization.
+
+    Args:
+        org_id: The organization UUID or slug.
+        api_key: Your Sandarb API key (Bearer token).
+        source_agent: Your registered agent ID.
+        trace_id: A unique trace ID for this request.
+    """
+    account, err = _resolve_auth(api_key, source_agent, trace_id)
+    if err:
+        return json.dumps({"error": err})
+
+    from backend.services.organizations import get_organization_by_id, get_organization_by_slug
+
+    org = get_organization_by_id(org_id.strip()) or get_organization_by_slug(org_id.strip())
+    if not org:
+        return json.dumps({"error": f"Organization not found: {org_id}"})
+
+    return json.dumps({"organization": _serialize(org)}, default=str)
+
+
+@mcp.tool()
+def get_organization_tree(api_key: str, source_agent: str, trace_id: str) -> str:
+    """Get the full organization hierarchy tree.
+
+    Args:
+        api_key: Your Sandarb API key (Bearer token).
+        source_agent: Your registered agent ID.
+        trace_id: A unique trace ID for this request.
+    """
+    account, err = _resolve_auth(api_key, source_agent, trace_id)
+    if err:
+        return json.dumps({"error": err})
+
+    from backend.services.organizations import get_organizations_tree
+
+    tree = get_organizations_tree()
+    return json.dumps({"tree": _serialize(tree)}, default=str)
+
+
+# ---------------------------------------------------------------------------
+# MCP Tools — Contexts
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
@@ -79,17 +277,11 @@ def list_contexts(api_key: str, source_agent: str, trace_id: str) -> str:
     if err:
         return json.dumps({"error": err})
 
-    from backend.services.agents import get_agent_by_identifier
     from backend.services.agent_links import list_contexts_for_agent
 
-    agent_id_from_key = (account.get("agent_id") or "").strip()
-    effective_agent = source_agent.strip() or agent_id_from_key
-    if not effective_agent or not trace_id.strip():
-        return json.dumps({"error": "source_agent and trace_id are required."})
-
-    agent = get_agent_by_identifier(effective_agent)
-    if not agent:
-        return json.dumps({"error": "Agent not registered with Sandarb."})
+    _, agent, agent_err = _resolve_agent(account, source_agent, trace_id)
+    if agent_err:
+        return json.dumps({"error": agent_err})
 
     contexts = list_contexts_for_agent(agent.id)
     return json.dumps({"contexts": contexts})
@@ -110,14 +302,10 @@ def get_context(name: str, api_key: str, source_agent: str, trace_id: str) -> st
         return json.dumps({"error": err})
 
     from backend.services.contexts import get_context_by_name
-    from backend.services.agents import get_agent_by_identifier
     from backend.services.agent_links import is_context_linked_to_agent
     from backend.services.audit import log_inject_success, log_inject_denied
 
-    agent_id_from_key = (account.get("agent_id") or "").strip()
-    effective_agent = source_agent.strip() or agent_id_from_key
-    if not effective_agent or not trace_id.strip():
-        return json.dumps({"error": "source_agent and trace_id are required."})
+    effective_agent, agent, agent_err = _resolve_agent(account, source_agent, trace_id)
     if not name.strip():
         return json.dumps({"error": "name is required."})
 
@@ -125,10 +313,9 @@ def get_context(name: str, api_key: str, source_agent: str, trace_id: str) -> st
     if not context:
         return json.dumps({"error": f"Context not found: {name}"})
 
-    agent = get_agent_by_identifier(effective_agent)
-    if not agent:
-        log_inject_denied(effective_agent, trace_id.strip(), context["id"], name.strip(), "Agent not registered with Sandarb.")
-        return json.dumps({"error": "Agent not registered with Sandarb."})
+    if agent_err:
+        log_inject_denied(effective_agent or source_agent, trace_id.strip(), context["id"], name.strip(), agent_err)
+        return json.dumps({"error": agent_err})
 
     if not is_context_linked_to_agent(agent.id, context["id"]):
         log_inject_denied(effective_agent, trace_id.strip(), context["id"], name.strip(), "Context is not linked to this agent.")
@@ -142,6 +329,76 @@ def get_context(name: str, api_key: str, source_agent: str, trace_id: str) -> st
         except Exception:
             pass
     return json.dumps({"name": context.get("name"), "content": content, "contextId": context.get("id")})
+
+
+@mcp.tool()
+def get_context_by_id(context_id: str, api_key: str, source_agent: str, trace_id: str) -> str:
+    """Get context details by UUID, including content from the active version.
+
+    Args:
+        context_id: The context UUID.
+        api_key: Your Sandarb API key (Bearer token).
+        source_agent: Your registered agent ID.
+        trace_id: A unique trace ID for this request.
+    """
+    account, err = _resolve_auth(api_key, source_agent, trace_id)
+    if err:
+        return json.dumps({"error": err})
+
+    from backend.services.contexts import get_context_by_id as _get_context_by_id
+
+    context = _get_context_by_id(context_id.strip())
+    if not context:
+        return json.dumps({"error": f"Context not found: {context_id}"})
+
+    return json.dumps({"context": _serialize(context)}, default=str)
+
+
+@mcp.tool()
+def get_context_revisions(context_id: str, api_key: str, source_agent: str, trace_id: str) -> str:
+    """List all revisions (versions) of a context.
+
+    Args:
+        context_id: The context UUID.
+        api_key: Your Sandarb API key (Bearer token).
+        source_agent: Your registered agent ID.
+        trace_id: A unique trace ID for this request.
+    """
+    account, err = _resolve_auth(api_key, source_agent, trace_id)
+    if err:
+        return json.dumps({"error": err})
+
+    from backend.services.contexts import get_context_revisions as _get_context_revisions
+
+    revisions = _get_context_revisions(context_id.strip())
+    return json.dumps({"contextId": context_id.strip(), "revisions": _serialize(revisions)}, default=str)
+
+
+# ---------------------------------------------------------------------------
+# MCP Tools — Prompts
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def list_prompts(api_key: str, source_agent: str, trace_id: str) -> str:
+    """List prompts available to this agent.
+
+    Args:
+        api_key: Your Sandarb API key (Bearer token).
+        source_agent: Your registered agent ID.
+        trace_id: A unique trace ID for this request.
+    """
+    account, err = _resolve_auth(api_key, source_agent, trace_id)
+    if err:
+        return json.dumps({"error": err})
+
+    from backend.services.agent_links import list_prompts_for_agent
+
+    _, agent, agent_err = _resolve_agent(account, source_agent, trace_id)
+    if agent_err:
+        return json.dumps({"error": agent_err})
+
+    prompts = list_prompts_for_agent(agent.id)
+    return json.dumps({"prompts": prompts})
 
 
 @mcp.tool()
@@ -159,14 +416,10 @@ def get_prompt(name: str, api_key: str, source_agent: str, trace_id: str) -> str
         return json.dumps({"error": err})
 
     from backend.services.prompts import get_prompt_by_name, get_current_prompt_version
-    from backend.services.agents import get_agent_by_identifier
     from backend.services.agent_links import is_prompt_linked_to_agent
     from backend.services.audit import log_prompt_usage, log_prompt_denied
 
-    agent_id_from_key = (account.get("agent_id") or "").strip()
-    effective_agent = source_agent.strip() or agent_id_from_key
-    if not effective_agent or not trace_id.strip():
-        return json.dumps({"error": "source_agent and trace_id are required."})
+    effective_agent, agent, agent_err = _resolve_agent(account, source_agent, trace_id)
     if not name.strip():
         return json.dumps({"error": "name is required."})
 
@@ -178,10 +431,9 @@ def get_prompt(name: str, api_key: str, source_agent: str, trace_id: str) -> str
     if not version:
         return json.dumps({"error": f"No approved version for prompt: {name}"})
 
-    agent = get_agent_by_identifier(effective_agent)
-    if not agent:
-        log_prompt_denied(effective_agent, trace_id.strip(), name.strip(), "Agent not registered with Sandarb.")
-        return json.dumps({"error": "Agent not registered with Sandarb."})
+    if agent_err:
+        log_prompt_denied(effective_agent or source_agent, trace_id.strip(), name.strip(), agent_err)
+        return json.dumps({"error": agent_err})
 
     if not is_prompt_linked_to_agent(agent.id, prompt["id"]):
         log_prompt_denied(effective_agent, trace_id.strip(), name.strip(), "Prompt is not linked to this agent.")
@@ -197,8 +449,55 @@ def get_prompt(name: str, api_key: str, source_agent: str, trace_id: str) -> str
 
 
 @mcp.tool()
+def get_prompt_by_id(prompt_id: str, api_key: str, source_agent: str, trace_id: str) -> str:
+    """Get prompt details by UUID, including all versions.
+
+    Args:
+        prompt_id: The prompt UUID.
+        api_key: Your Sandarb API key (Bearer token).
+        source_agent: Your registered agent ID.
+        trace_id: A unique trace ID for this request.
+    """
+    account, err = _resolve_auth(api_key, source_agent, trace_id)
+    if err:
+        return json.dumps({"error": err})
+
+    from backend.services.prompts import get_prompt_by_id as _get_prompt_by_id
+
+    prompt = _get_prompt_by_id(prompt_id.strip())
+    if not prompt:
+        return json.dumps({"error": f"Prompt not found: {prompt_id}"})
+
+    return json.dumps({"prompt": _serialize(prompt)}, default=str)
+
+
+@mcp.tool()
+def get_prompt_versions(prompt_id: str, api_key: str, source_agent: str, trace_id: str) -> str:
+    """List all versions of a prompt.
+
+    Args:
+        prompt_id: The prompt UUID.
+        api_key: Your Sandarb API key (Bearer token).
+        source_agent: Your registered agent ID.
+        trace_id: A unique trace ID for this request.
+    """
+    account, err = _resolve_auth(api_key, source_agent, trace_id)
+    if err:
+        return json.dumps({"error": err})
+
+    from backend.services.prompts import get_prompt_versions as _get_prompt_versions
+
+    versions = _get_prompt_versions(prompt_id.strip())
+    return json.dumps({"promptId": prompt_id.strip(), "versions": _serialize(versions)}, default=str)
+
+
+# ---------------------------------------------------------------------------
+# MCP Tools — Audit & Lineage
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
 def get_lineage(api_key: str, source_agent: str, trace_id: str, limit: int = 50) -> str:
-    """Get recent context delivery lineage (audit trail).
+    """Get recent context delivery lineage (successful deliveries audit trail).
 
     Args:
         api_key: Your Sandarb API key (Bearer token).
@@ -214,8 +513,96 @@ def get_lineage(api_key: str, source_agent: str, trace_id: str, limit: int = 50)
 
     safe_limit = min(max(int(limit), 1), 200)
     rows = _get_lineage(safe_limit)
-    return json.dumps({"lineage": rows})
+    return json.dumps({"lineage": _serialize(rows)}, default=str)
 
+
+@mcp.tool()
+def get_blocked_injections(api_key: str, source_agent: str, trace_id: str, limit: int = 50) -> str:
+    """Get recent blocked/denied context injection attempts (access control violations).
+
+    Args:
+        api_key: Your Sandarb API key (Bearer token).
+        source_agent: Your registered agent ID.
+        trace_id: A unique trace ID for this request.
+        limit: Maximum number of records to return (default 50, max 200).
+    """
+    account, err = _resolve_auth(api_key, source_agent, trace_id)
+    if err:
+        return json.dumps({"error": err})
+
+    from backend.services.audit import get_blocked_injections as _get_blocked
+
+    safe_limit = min(max(int(limit), 1), 200)
+    rows = _get_blocked(safe_limit)
+    return json.dumps({"blocked": _serialize(rows)}, default=str)
+
+
+@mcp.tool()
+def get_audit_log(api_key: str, source_agent: str, trace_id: str, limit: int = 100) -> str:
+    """Get the full A2A audit log (inject, prompt, and inference events).
+
+    Args:
+        api_key: Your Sandarb API key (Bearer token).
+        source_agent: Your registered agent ID.
+        trace_id: A unique trace ID for this request.
+        limit: Maximum number of records to return (default 100, max 500).
+    """
+    account, err = _resolve_auth(api_key, source_agent, trace_id)
+    if err:
+        return json.dumps({"error": err})
+
+    from backend.services.audit import get_a2a_log
+
+    safe_limit = min(max(int(limit), 1), 500)
+    rows = get_a2a_log(safe_limit)
+    return json.dumps({"auditLog": _serialize(rows)}, default=str)
+
+
+# ---------------------------------------------------------------------------
+# MCP Tools — Dashboard & Reports
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_dashboard(api_key: str, source_agent: str, trace_id: str) -> str:
+    """Get aggregated dashboard data: agent/prompt/context/org counts, recent activity.
+
+    Args:
+        api_key: Your Sandarb API key (Bearer token).
+        source_agent: Your registered agent ID.
+        trace_id: A unique trace ID for this request.
+    """
+    account, err = _resolve_auth(api_key, source_agent, trace_id)
+    if err:
+        return json.dumps({"error": err})
+
+    from backend.services.dashboard import get_dashboard_data
+
+    data = get_dashboard_data()
+    return json.dumps({"dashboard": _serialize(data)}, default=str)
+
+
+@mcp.tool()
+def get_reports(api_key: str, source_agent: str, trace_id: str) -> str:
+    """Get governance reports: risk overview, regulatory compliance, and access compliance.
+
+    Args:
+        api_key: Your Sandarb API key (Bearer token).
+        source_agent: Your registered agent ID.
+        trace_id: A unique trace ID for this request.
+    """
+    account, err = _resolve_auth(api_key, source_agent, trace_id)
+    if err:
+        return json.dumps({"error": err})
+
+    from backend.services.reports import get_all_reports
+
+    reports = get_all_reports()
+    return json.dumps({"reports": _serialize(reports)}, default=str)
+
+
+# ---------------------------------------------------------------------------
+# MCP Tools — Agent Registration (Write)
+# ---------------------------------------------------------------------------
 
 @mcp.tool()
 def register_agent(
@@ -289,6 +676,10 @@ def register_agent(
         logger.exception(f"Failed to register agent: {name}")
         return json.dumps({"error": "Failed to register agent. Please check your input and try again."})
 
+
+# ---------------------------------------------------------------------------
+# MCP Tools — Validation (placeholder)
+# ---------------------------------------------------------------------------
 
 @mcp.tool()
 def validate_context(name: str, content: str) -> str:
