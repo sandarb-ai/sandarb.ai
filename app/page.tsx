@@ -91,7 +91,7 @@ export default function LandingPage() {
           <div className="mt-5 max-w-2xl mx-auto rounded-lg border border-violet-300/40 dark:border-violet-700/40 bg-violet-50/60 dark:bg-violet-950/30 px-5 py-3">
             <p className="text-xs font-bold uppercase tracking-widest text-violet-500 dark:text-violet-400 mb-1">The Problem</p>
             <p className="text-sm sm:text-base text-foreground/80 leading-relaxed italic">
-              &ldquo;Prove to me, right now, that your AI agent accessed the right data, used the approved prompt, and didn&apos;t violate any policy.&rdquo;
+              &ldquo;Prove to me that your AI agent accessed the right data, used the approved prompt, and didn&apos;t violate any policy.&rdquo;
             </p>
             <p className="text-xs text-muted-foreground mt-1.5">
               Every regulator, auditor, and CISO will ask this. Sandarb answers it in under 10&nbsp;seconds.
