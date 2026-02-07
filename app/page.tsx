@@ -122,9 +122,10 @@ export default function LandingPage() {
               Goal
             </h2>
             <ol className="text-sm text-muted-foreground/90 space-y-1 list-decimal list-inside leading-relaxed">
-              <li>AI Governance that doesn't slow shipping AI Agents to production</li>
-              <li>Version mgmt & traceability for Agent prompts and contexts</li>
+              <li>AI Governance that doesn&apos;t slow shipping AI Agents to production</li>
+              <li>Version mgmt &amp; traceability for Agent prompts and contexts</li>
               <li>Living AI Agents registry</li>
+              <li>A small step toward standardizing AI Governance &mdash; open protocols (A2A, MCP), open data formats (AGP), and open infrastructure</li>
             </ol>
           </div>
           <div className="rounded-lg border border-border/80 bg-background/50 p-4">
