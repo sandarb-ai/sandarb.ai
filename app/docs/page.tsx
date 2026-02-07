@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { headers } from 'next/headers';
-import { BookOpen, ExternalLink, Home, Info } from 'lucide-react';
+import { BookOpen, ExternalLink, Home, Info, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MermaidDiagram } from '@/components/mermaid-diagram';
 import { MultiAgentA2ADiagram } from '@/components/multi-agent-a2a-diagram';
@@ -221,6 +221,7 @@ export default async function DocsPage() {
         { id: 'clickhouse-schema', label: 'ClickHouse schema', icon: 'Database' },
         { id: 'materialized-views', label: 'Materialized views', icon: 'Eye' },
         { id: 'pipeline-setup', label: 'Pipeline setup', icon: 'Settings' },
+        { id: 'agp-data-slas', label: 'AGP Data SLAs', icon: 'ShieldCheck' },
       ],
     },
     {
@@ -1775,6 +1776,191 @@ docker exec clickhouse01 clickhouse-client \\
             Set <InlineCode>KAFKA_BOOTSTRAP_SERVERS</InlineCode> (default: <InlineCode>localhost:9092,...,localhost:9096</InlineCode>)
             and <InlineCode>KAFKA_ENABLED=true</InlineCode> to activate AGP<InfoBubble term="AGP" /> event publishing.
             SKCC<InfoBubble term="SKCC" /> uses <InlineCode>--clickhouse-url</InlineCode> (default: <InlineCode>http://sandarb:sandarb@localhost:8123</InlineCode>).
+          </Admonition>
+        </section>
+
+        <section id="agp-data-slas" className="scroll-mt-24 pt-6 border-t border-border/40">
+          <H2WithAnchor id="agp-data-slas">AGP<InfoBubble term="AGP" /> Data SLAs</H2WithAnchor>
+          <P>
+            AI Agents operating inside enterprises need more than a governance UI &mdash; they need
+            <strong className="text-foreground"> provable, auditable, real-time proof</strong> that every governance action was captured.
+            Regulators (FINRA, SEC, GDPR, EU AI Act) don&apos;t ask &ldquo;do you have a policy?&rdquo; &mdash; they ask
+            &ldquo;show me proof that Agent&nbsp;X accessed Context&nbsp;Y at Time&nbsp;Z, and show me <em>now</em>.&rdquo;
+          </P>
+          <P>
+            This section is our transparent commitment to what the AGP<InfoBubble term="AGP" /> pipeline can deliver today,
+            where the gaps are, and what we&apos;re building next. We believe honesty about SLAs is itself a governance practice.
+          </P>
+
+          {/* ── Data Freshness ── */}
+          <H3WithAnchor id="sla-data-freshness">Data Freshness</H3WithAnchor>
+          <P>
+            End-to-end latency from API event to ClickHouse availability, measured across every pipeline stage:
+          </P>
+          <div className="overflow-x-auto mb-6">
+            <table className="w-full text-sm border border-border/40 rounded-lg overflow-hidden">
+              <thead>
+                <tr className="bg-muted/50">
+                  <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Pipeline Stage</th>
+                  <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Latency</th>
+                  <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">How</th>
+                </tr>
+              </thead>
+              <tbody className="text-muted-foreground">
+                <tr className="border-b border-border/20"><td className="px-3 py-2">API &rarr; Kafka buffer</td><td className="px-3 py-2">&lt;1ms</td><td className="px-3 py-2">In-memory buffer write via <InlineCode>confluent-kafka</InlineCode></td></tr>
+                <tr className="border-b border-border/20"><td className="px-3 py-2">Kafka batching</td><td className="px-3 py-2">~20ms</td><td className="px-3 py-2"><InlineCode>linger.ms=20</InlineCode>, LZ4 compression</td></tr>
+                <tr className="border-b border-border/20"><td className="px-3 py-2">Broker acknowledgment</td><td className="px-3 py-2">~5ms</td><td className="px-3 py-2">Leader ack (<InlineCode>acks=1</InlineCode>)</td></tr>
+                <tr className="border-b border-border/20"><td className="px-3 py-2">SKCC<InfoBubble term="SKCC" /> poll</td><td className="px-3 py-2">0&ndash;500ms</td><td className="px-3 py-2"><InlineCode>fetch.wait.max.ms=500</InlineCode></td></tr>
+                <tr className="border-b border-border/20"><td className="px-3 py-2">Batch accumulation</td><td className="px-3 py-2">0&ndash;5s (local) / 0&ndash;3s (GKE)</td><td className="px-3 py-2">Flush on batch size or timeout</td></tr>
+                <tr className="border-b border-border/20"><td className="px-3 py-2">ClickHouse insert + MVs</td><td className="px-3 py-2">15&ndash;120ms</td><td className="px-3 py-2">HTTP insert, 5 synchronous materialized views</td></tr>
+                <tr className="bg-violet-50/50 dark:bg-violet-900/10 font-semibold"><td className="px-3 py-2 text-foreground">Total (typical p95)</td><td className="px-3 py-2 text-violet-700 dark:text-violet-400">1&ndash;6 seconds</td><td className="px-3 py-2">Dominated by SKCC batch timeout</td></tr>
+                <tr className="bg-violet-50/50 dark:bg-violet-900/10 font-semibold"><td className="px-3 py-2 text-foreground">Total (best case)</td><td className="px-3 py-2 text-violet-700 dark:text-violet-400">~40ms</td><td className="px-3 py-2">Small batch, immediate flush</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <Admonition title="SLA commitment" icon={ShieldCheck}>
+            AGP<InfoBubble term="AGP" /> events are available in ClickHouse for querying within <strong className="text-foreground">10&nbsp;seconds (p99)</strong> of
+            the originating API call under normal operating conditions. Materialized views (daily KPIs, agent activity,
+            governance proofs) are updated synchronously at insert time &mdash; zero lag from base table.
+          </Admonition>
+
+          {/* ── Delivery Guarantees ── */}
+          <H3WithAnchor id="sla-delivery-guarantees">Delivery Guarantees</H3WithAnchor>
+          <div className="overflow-x-auto mb-6">
+            <table className="w-full text-sm border border-border/40 rounded-lg overflow-hidden">
+              <thead>
+                <tr className="bg-muted/50">
+                  <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Guarantee</th>
+                  <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Today</th>
+                  <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Roadmap</th>
+                </tr>
+              </thead>
+              <tbody className="text-muted-foreground">
+                <tr className="border-b border-border/20">
+                  <td className="px-3 py-2 font-semibold text-foreground">Producer &rarr; Kafka</td>
+                  <td className="px-3 py-2"><strong className="text-amber-600 dark:text-amber-400">At-most-once</strong> &mdash; <InlineCode>acks=1</InlineCode> (leader only). If the leader crashes before replication, the event is lost.</td>
+                  <td className="px-3 py-2"><strong className="text-emerald-600 dark:text-emerald-400">At-least-once</strong> &mdash; upgrade to <InlineCode>acks=all</InlineCode> + <InlineCode>enable.idempotence=true</InlineCode>. Combined with <InlineCode>min.insync.replicas=2</InlineCode> already configured on GKE.</td>
+                </tr>
+                <tr className="border-b border-border/20">
+                  <td className="px-3 py-2 font-semibold text-foreground">Kafka &rarr; ClickHouse</td>
+                  <td className="px-3 py-2"><strong className="text-emerald-600 dark:text-emerald-400">At-least-once</strong> &mdash; SKCC<InfoBubble term="SKCC" /> commits offsets only after successful ClickHouse insert (synchronous commit). Duplicates possible on crash recovery.</td>
+                  <td className="px-3 py-2">Add Dead Letter Queue for failed batches. Add <InlineCode>ReplicatedMergeTree</InlineCode> deduplication window.</td>
+                </tr>
+                <tr className="border-b border-border/20">
+                  <td className="px-3 py-2 font-semibold text-foreground">PostgreSQL (OLTP)</td>
+                  <td className="px-3 py-2"><strong className="text-emerald-600 dark:text-emerald-400">Durable</strong> &mdash; every governance event is written to Postgres transactionally before the API responds. This is the source of truth.</td>
+                  <td className="px-3 py-2">Postgres replication already configured (primary + 2 replicas).</td>
+                </tr>
+                <tr>
+                  <td className="px-3 py-2 font-semibold text-foreground">Kafka retention</td>
+                  <td className="px-3 py-2"><strong className="text-foreground">7 days</strong> &mdash; if SKCC<InfoBubble term="SKCC" /> or ClickHouse is down for more than 7 days, unprocessed events expire from Kafka.</td>
+                  <td className="px-3 py-2">Tiered storage (Kafka &rarr; S3) for extended retention.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <P>
+            <strong className="text-foreground">Can we guarantee zero data loss today?</strong> &mdash; We are transparent that the answer
+            is <em>not yet</em>. PostgreSQL captures every event durably, but the analytics pipeline (Kafka &rarr; ClickHouse) has
+            a narrow window of potential loss during Kafka leader failover with <InlineCode>acks=1</InlineCode>.
+            The fix is well-understood: <InlineCode>acks=all</InlineCode> + idempotent producer. No architectural redesign required.
+          </P>
+
+          {/* ── Known Gaps ── */}
+          <H3WithAnchor id="sla-known-gaps">Known Gaps &amp; Hardening Roadmap</H3WithAnchor>
+          <P>We believe documenting gaps openly is a governance practice in itself.</P>
+          <div className="overflow-x-auto mb-6">
+            <table className="w-full text-sm border border-border/40 rounded-lg overflow-hidden">
+              <thead>
+                <tr className="bg-muted/50">
+                  <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Gap</th>
+                  <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Impact</th>
+                  <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Fix</th>
+                  <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Effort</th>
+                </tr>
+              </thead>
+              <tbody className="text-muted-foreground">
+                <tr className="border-b border-border/20">
+                  <td className="px-3 py-2"><InlineCode>acks=1</InlineCode> on producer</td>
+                  <td className="px-3 py-2 text-amber-600 dark:text-amber-400">High</td>
+                  <td className="px-3 py-2">Switch to <InlineCode>acks=all</InlineCode> + <InlineCode>enable.idempotence=true</InlineCode></td>
+                  <td className="px-3 py-2">Config change</td>
+                </tr>
+                <tr className="border-b border-border/20">
+                  <td className="px-3 py-2">No Dead Letter Queue</td>
+                  <td className="px-3 py-2 text-amber-600 dark:text-amber-400">High</td>
+                  <td className="px-3 py-2">Route failed SKCC<InfoBubble term="SKCC" /> batches to a DLQ topic for replay</td>
+                  <td className="px-3 py-2">~1 sprint</td>
+                </tr>
+                <tr className="border-b border-border/20">
+                  <td className="px-3 py-2"><InlineCode>MergeTree</InlineCode> (non-replicated)</td>
+                  <td className="px-3 py-2 text-amber-600 dark:text-amber-400">High</td>
+                  <td className="px-3 py-2">Migrate to <InlineCode>ReplicatedMergeTree</InlineCode> for ClickHouse-level durability</td>
+                  <td className="px-3 py-2">Schema migration</td>
+                </tr>
+                <tr className="border-b border-border/20">
+                  <td className="px-3 py-2">No consumer lag monitoring</td>
+                  <td className="px-3 py-2 text-amber-600 dark:text-amber-400">Medium</td>
+                  <td className="px-3 py-2">Prometheus metrics + alerting for SKCC<InfoBubble term="SKCC" /> lag</td>
+                  <td className="px-3 py-2">~1 sprint</td>
+                </tr>
+                <tr>
+                  <td className="px-3 py-2">Sticky producer disable</td>
+                  <td className="px-3 py-2 text-amber-600 dark:text-amber-400">Medium</td>
+                  <td className="px-3 py-2">Periodic reconnect attempts instead of permanent <InlineCode>_producer_available=False</InlineCode></td>
+                  <td className="px-3 py-2">Small fix</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* ── Data Quality ── */}
+          <H3WithAnchor id="sla-data-quality">Data Quality</H3WithAnchor>
+          <div className="overflow-x-auto mb-6">
+            <table className="w-full text-sm border border-border/40 rounded-lg overflow-hidden">
+              <thead>
+                <tr className="bg-muted/50">
+                  <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Dimension</th>
+                  <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Guarantee</th>
+                </tr>
+              </thead>
+              <tbody className="text-muted-foreground">
+                <tr className="border-b border-border/20"><td className="px-3 py-2 font-semibold text-foreground">Cryptographic integrity</td><td className="px-3 py-2">Every AGP<InfoBubble term="AGP" /> event carries a SHA-256 <InlineCode>governance_hash</InlineCode> computed at the source. Tamper-evident from creation to storage.</td></tr>
+                <tr className="border-b border-border/20"><td className="px-3 py-2 font-semibold text-foreground">Trace correlation</td><td className="px-3 py-2">Every event includes <InlineCode>trace_id</InlineCode> and <InlineCode>agent_id</InlineCode>. A single regulatory query can reconstruct the full chain: which agent accessed which context with which prompt, and what the LLM responded.</td></tr>
+                <tr className="border-b border-border/20"><td className="px-3 py-2 font-semibold text-foreground">Schema consistency</td><td className="px-3 py-2">16 event types across 7 categories, all sharing a single wide <InlineCode>sandarb.events</InlineCode> table. No schema fragmentation across services.</td></tr>
+                <tr className="border-b border-border/20"><td className="px-3 py-2 font-semibold text-foreground">Deduplication</td><td className="px-3 py-2">At-least-once delivery means duplicates are possible during crash recovery. <InlineCode>event_id</InlineCode> (UUID) enables dedup at query time. Roadmap: <InlineCode>ReplicatedMergeTree</InlineCode> insert deduplication window.</td></tr>
+                <tr><td className="px-3 py-2 font-semibold text-foreground">Retention</td><td className="px-3 py-2">ClickHouse: 2-year TTL. Kafka: 7-day retention. PostgreSQL: indefinite (source of truth). Roadmap: Apache Iceberg on S3 for long-term archival.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* ── Schema Evolution ── */}
+          <H3WithAnchor id="sla-schema-evolution">Schema Evolution &amp; Change Management</H3WithAnchor>
+          <Ul>
+            <li><strong className="text-foreground">ClickHouse schema changes</strong> &mdash; <InlineCode>ALTER TABLE ADD COLUMN</InlineCode> is non-blocking and instant on MergeTree. New columns are populated on new inserts; historical rows return defaults. No downtime required.</li>
+            <li><strong className="text-foreground">Kafka serialization</strong> &mdash; Events use JSON (<InlineCode>JSONEachRow</InlineCode>). New fields are automatically forward-compatible. SKCC<InfoBubble term="SKCC" /> and ClickHouse ignore unknown fields. Roadmap: Confluent Schema Registry for strict contract enforcement.</li>
+            <li><strong className="text-foreground">Materialized views</strong> &mdash; Adding a new MV is non-blocking. Existing MVs are not affected. New MVs only process events inserted after creation (use <InlineCode>INSERT INTO ... SELECT</InlineCode> for backfill).</li>
+            <li><strong className="text-foreground">API event types</strong> &mdash; New event types (e.g. <InlineCode>CONTEXT_EXPIRED</InlineCode>) are added to the <InlineCode>LowCardinality</InlineCode> <InlineCode>event_type</InlineCode> column. No schema migration needed &mdash; ClickHouse auto-extends the dictionary.</li>
+          </Ul>
+
+          {/* ── Why this architecture has legs ── */}
+          <H3WithAnchor id="sla-why-it-works">Why This Architecture Works for the Real World</H3WithAnchor>
+          <P>
+            The hard problem in AI governance isn&apos;t building a policy UI &mdash; it&apos;s building the <em>data infrastructure</em> that
+            proves policies are being enforced. Most governance tools stop at the control plane. Sandarb built the data plane first.
+          </P>
+          <Ul>
+            <li><strong className="text-foreground">Protocol-agnostic integration</strong> &mdash; A2A, MCP, REST, and SDK integration means Sandarb meets agents where they are. Enterprises don&apos;t standardize on one protocol &mdash; they have dozens of agent frameworks across teams. Every integration path produces the same AGP<InfoBubble term="AGP" /> event.</li>
+            <li><strong className="text-foreground">AGP as a first-class artifact</strong> &mdash; Every governance action produces a cryptographic proof with trace IDs and audit metadata. When a regulator asks &ldquo;why did Agent X access Context Y at Time Z?&rdquo;, the answer is a sub-10-second ClickHouse query &mdash; not a manual log search.</li>
+            <li><strong className="text-foreground">Production-grade pipeline</strong> &mdash; Kafka (KRaft) + ClickHouse + Superset is the same stack powering real-time analytics at companies processing millions of events per second. This is not a prototype stack.</li>
+            <li><strong className="text-foreground">The gaps are engineering, not architecture</strong> &mdash; <InlineCode>acks=all</InlineCode>, <InlineCode>ReplicatedMergeTree</InlineCode>, DLQ, consumer lag monitoring &mdash; these are all well-understood, incremental improvements. The foundation (Kafka streaming, ClickHouse OLAP, materialized views, cryptographic hashing) is right.</li>
+            <li><strong className="text-foreground">Postgres as the safety net</strong> &mdash; Even if the entire analytics pipeline goes down, every governance event is durably committed to PostgreSQL first. The analytics pipeline is the fast lane; Postgres is the guarantee. Zero governance events are lost at the source of truth.</li>
+          </Ul>
+          <Admonition title="AI Governance at your fingertips" icon={ShieldCheck}>
+            Sandarb&apos;s AGP<InfoBubble term="AGP" /> pipeline delivers governance proof from agent action to queryable analytics in under
+            10&nbsp;seconds. PostgreSQL guarantees zero loss at the source of truth. The analytics pipeline provides
+            at-least-once delivery with a clear, documented roadmap to exactly-once semantics.
+            We don&apos;t claim perfection &mdash; we claim transparency, and we&apos;re building in the open.
           </Admonition>
         </section>
 
