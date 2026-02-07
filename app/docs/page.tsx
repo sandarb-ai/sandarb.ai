@@ -1876,7 +1876,6 @@ docker exec clickhouse01 clickhouse-client \\
                   <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Gap</th>
                   <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Impact</th>
                   <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Fix</th>
-                  <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Effort</th>
                 </tr>
               </thead>
               <tbody className="text-muted-foreground">
@@ -1884,31 +1883,26 @@ docker exec clickhouse01 clickhouse-client \\
                   <td className="px-3 py-2"><InlineCode>acks=1</InlineCode> on producer</td>
                   <td className="px-3 py-2 text-amber-600 dark:text-amber-400">High</td>
                   <td className="px-3 py-2">Switch to <InlineCode>acks=all</InlineCode> + <InlineCode>enable.idempotence=true</InlineCode></td>
-                  <td className="px-3 py-2">Config change</td>
                 </tr>
                 <tr className="border-b border-border/20">
                   <td className="px-3 py-2">No Dead Letter Queue</td>
                   <td className="px-3 py-2 text-amber-600 dark:text-amber-400">High</td>
                   <td className="px-3 py-2">Route failed SKCC<InfoBubble term="SKCC" /> batches to a DLQ topic for replay</td>
-                  <td className="px-3 py-2">~1 sprint</td>
                 </tr>
                 <tr className="border-b border-border/20">
                   <td className="px-3 py-2"><InlineCode>MergeTree</InlineCode> (non-replicated)</td>
                   <td className="px-3 py-2 text-amber-600 dark:text-amber-400">High</td>
                   <td className="px-3 py-2">Migrate to <InlineCode>ReplicatedMergeTree</InlineCode> for ClickHouse-level durability</td>
-                  <td className="px-3 py-2">Schema migration</td>
                 </tr>
                 <tr className="border-b border-border/20">
                   <td className="px-3 py-2">No consumer lag monitoring</td>
                   <td className="px-3 py-2 text-amber-600 dark:text-amber-400">Medium</td>
                   <td className="px-3 py-2">Prometheus metrics + alerting for SKCC<InfoBubble term="SKCC" /> lag</td>
-                  <td className="px-3 py-2">~1 sprint</td>
                 </tr>
                 <tr>
                   <td className="px-3 py-2">Sticky producer disable</td>
                   <td className="px-3 py-2 text-amber-600 dark:text-amber-400">Medium</td>
                   <td className="px-3 py-2">Periodic reconnect attempts instead of permanent <InlineCode>_producer_available=False</InlineCode></td>
-                  <td className="px-3 py-2">Small fix</td>
                 </tr>
               </tbody>
             </table>
@@ -1954,7 +1948,6 @@ docker exec clickhouse01 clickhouse-client \\
             <li><strong className="text-foreground">AGP as a first-class artifact</strong> &mdash; Every governance action produces a cryptographic proof with trace IDs and audit metadata. When a regulator asks &ldquo;why did Agent X access Context Y at Time Z?&rdquo;, the answer is a sub-10-second ClickHouse query &mdash; not a manual log search.</li>
             <li><strong className="text-foreground">Production-grade pipeline</strong> &mdash; Kafka (KRaft) + ClickHouse + Superset is the same stack powering real-time analytics at companies processing millions of events per second. This is not a prototype stack.</li>
             <li><strong className="text-foreground">The gaps are engineering, not architecture</strong> &mdash; <InlineCode>acks=all</InlineCode>, <InlineCode>ReplicatedMergeTree</InlineCode>, DLQ, consumer lag monitoring &mdash; these are all well-understood, incremental improvements. The foundation (Kafka streaming, ClickHouse OLAP, materialized views, cryptographic hashing) is right.</li>
-            <li><strong className="text-foreground">Postgres as the safety net</strong> &mdash; Even if the entire analytics pipeline goes down, every governance event is durably committed to PostgreSQL first. The analytics pipeline is the fast lane; Postgres is the guarantee. Zero governance events are lost at the source of truth.</li>
           </Ul>
           <Admonition title="AI Governance at your fingertips" icon={ShieldCheck}>
             Sandarb&apos;s AGP<InfoBubble term="AGP" /> pipeline delivers governance proof from agent action to queryable analytics in under
