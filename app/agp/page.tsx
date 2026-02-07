@@ -272,6 +272,164 @@ export default function AGPSpecPage() {
             </div>
           </section>
 
+          {/* ── Instrumentation Conventions ── */}
+          <section>
+            <h2 className="text-xl font-semibold text-foreground mb-3">Instrumentation Conventions</h2>
+            <P>
+              A common event format only works if the <em>values inside the events</em> follow shared conventions.
+              Without naming rules, one team writes <InlineCode>trading-bot-v2</InlineCode> while another
+              writes <InlineCode>TradingBot_V2</InlineCode> &mdash; and cross-organization queries break.
+              These conventions are inspired by{' '}
+              <a href="https://opentelemetry.io/docs/specs/semconv/" target="_blank" rel="noopener noreferrer" className="text-violet-600 dark:text-violet-400 underline">OpenTelemetry Semantic Conventions</a>
+              {' '}and adapted for AI governance.
+            </P>
+
+            {/* Resource Naming */}
+            <h3 className="text-sm font-bold text-violet-600 dark:text-violet-400 uppercase tracking-wider mt-8 mb-3">Resource Naming (SRN)</h3>
+            <P>
+              Every governed resource &mdash; agents, contexts, and prompts &mdash; should follow a
+              typed, kebab-case naming convention we call <strong className="text-foreground">Sandarb Resource Names (SRN)</strong>.
+              The format ensures names are globally unique, human-readable, and queryable.
+            </P>
+            <div className="overflow-x-auto mb-6">
+              <table className="w-full text-sm border border-border/40 rounded-lg overflow-hidden">
+                <thead>
+                  <tr className="bg-muted/50">
+                    <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Resource</th>
+                    <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">SRN Format</th>
+                    <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Example</th>
+                  </tr>
+                </thead>
+                <tbody className="text-muted-foreground">
+                  <tr className="border-b border-border/20"><td className="px-3 py-2">Agent</td><td className="px-3 py-2"><InlineCode>agent.&lt;kebab-name&gt;</InlineCode></td><td className="px-3 py-2"><InlineCode>agent.trading-bot-v2</InlineCode></td></tr>
+                  <tr className="border-b border-border/20"><td className="px-3 py-2">Context</td><td className="px-3 py-2"><InlineCode>context.&lt;kebab-name&gt;</InlineCode></td><td className="px-3 py-2"><InlineCode>context.eu-refund-policy</InlineCode></td></tr>
+                  <tr className="border-b border-border/20"><td className="px-3 py-2">Prompt</td><td className="px-3 py-2"><InlineCode>prompt.&lt;kebab-name&gt;</InlineCode></td><td className="px-3 py-2"><InlineCode>prompt.customer-support-v3</InlineCode></td></tr>
+                  <tr><td className="px-3 py-2">Organization</td><td className="px-3 py-2"><InlineCode>org.&lt;kebab-name&gt;</InlineCode></td><td className="px-3 py-2"><InlineCode>org.finco</InlineCode></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <P>
+              <strong className="text-foreground">Rules:</strong> Lowercase only. Letters, numbers, and hyphens.
+              No underscores, no double hyphens, no trailing hyphens. The type prefix (<InlineCode>agent.</InlineCode>,{' '}
+              <InlineCode>context.</InlineCode>, etc.) is part of the name and makes the resource self-describing
+              in any AGP event or log line.
+            </P>
+
+            {/* Event Type Naming */}
+            <h3 className="text-sm font-bold text-violet-600 dark:text-violet-400 uppercase tracking-wider mt-8 mb-3">Event Type Naming</h3>
+            <P>
+              Event types follow a <InlineCode>RESOURCE_ACTION</InlineCode> convention in <strong className="text-foreground">UPPER_SNAKE_CASE</strong>.
+              This makes events greppable, sortable, and self-describing.
+            </P>
+            <div className="overflow-x-auto mb-6">
+              <table className="w-full text-sm border border-border/40 rounded-lg overflow-hidden">
+                <thead>
+                  <tr className="bg-muted/50">
+                    <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Convention</th>
+                    <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Pattern</th>
+                    <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Examples</th>
+                  </tr>
+                </thead>
+                <tbody className="text-muted-foreground">
+                  <tr className="border-b border-border/20"><td className="px-3 py-2">Success actions</td><td className="px-3 py-2"><InlineCode>RESOURCE_SUCCESS</InlineCode> or <InlineCode>RESOURCE_USED</InlineCode></td><td className="px-3 py-2"><InlineCode>INJECT_SUCCESS</InlineCode>, <InlineCode>PROMPT_USED</InlineCode></td></tr>
+                  <tr className="border-b border-border/20"><td className="px-3 py-2">Denial actions</td><td className="px-3 py-2"><InlineCode>RESOURCE_DENIED</InlineCode></td><td className="px-3 py-2"><InlineCode>INJECT_DENIED</InlineCode>, <InlineCode>PROMPT_DENIED</InlineCode></td></tr>
+                  <tr className="border-b border-border/20"><td className="px-3 py-2">Lifecycle events</td><td className="px-3 py-2"><InlineCode>RESOURCE_LIFECYCLE_ACTION</InlineCode></td><td className="px-3 py-2"><InlineCode>AGENT_REGISTERED</InlineCode>, <InlineCode>CONTEXT_ARCHIVED</InlineCode></td></tr>
+                  <tr><td className="px-3 py-2">Versioned events</td><td className="px-3 py-2"><InlineCode>RESOURCE_VERSION_ACTION</InlineCode></td><td className="px-3 py-2"><InlineCode>PROMPT_VERSION_CREATED</InlineCode>, <InlineCode>CONTEXT_VERSION_APPROVED</InlineCode></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <P>
+              Custom event types should follow the same convention. For example, a healthcare implementation
+              might add <InlineCode>PATIENT_DATA_ACCESSED</InlineCode> or <InlineCode>CONSENT_VERIFIED</InlineCode>.
+            </P>
+
+            {/* Data Classification */}
+            <h3 className="text-sm font-bold text-violet-600 dark:text-violet-400 uppercase tracking-wider mt-8 mb-3">Data Classification</h3>
+            <P>
+              The <InlineCode>data_classification</InlineCode> field uses a four-tier model aligned with common
+              enterprise data governance frameworks:
+            </P>
+            <div className="overflow-x-auto mb-6">
+              <table className="w-full text-sm border border-border/40 rounded-lg overflow-hidden">
+                <thead>
+                  <tr className="bg-muted/50">
+                    <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Level</th>
+                    <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Value</th>
+                    <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Meaning</th>
+                    <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Example</th>
+                  </tr>
+                </thead>
+                <tbody className="text-muted-foreground">
+                  <tr className="border-b border-border/20"><td className="px-3 py-2">1</td><td className="px-3 py-2"><InlineCode>public</InlineCode></td><td className="px-3 py-2">Safe for external sharing</td><td className="px-3 py-2">Product FAQ, public docs</td></tr>
+                  <tr className="border-b border-border/20"><td className="px-3 py-2">2</td><td className="px-3 py-2"><InlineCode>internal</InlineCode></td><td className="px-3 py-2">For company use only</td><td className="px-3 py-2">Engineering runbooks, internal policies</td></tr>
+                  <tr className="border-b border-border/20"><td className="px-3 py-2">3</td><td className="px-3 py-2"><InlineCode>confidential</InlineCode></td><td className="px-3 py-2">Restricted, need-to-know</td><td className="px-3 py-2">Trading limits, customer PII</td></tr>
+                  <tr><td className="px-3 py-2">4</td><td className="px-3 py-2"><InlineCode>restricted</InlineCode></td><td className="px-3 py-2">Highest sensitivity, regulatory implications</td><td className="px-3 py-2">MNPI, pre-release financials</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Severity */}
+            <h3 className="text-sm font-bold text-violet-600 dark:text-violet-400 uppercase tracking-wider mt-8 mb-3">Severity Levels</h3>
+            <P>
+              For denial and policy violation events, the <InlineCode>severity</InlineCode> field follows
+              a four-tier model consistent with common incident management frameworks:
+            </P>
+            <div className="overflow-x-auto mb-6">
+              <table className="w-full text-sm border border-border/40 rounded-lg overflow-hidden">
+                <thead>
+                  <tr className="bg-muted/50">
+                    <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Value</th>
+                    <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">When to use</th>
+                  </tr>
+                </thead>
+                <tbody className="text-muted-foreground">
+                  <tr className="border-b border-border/20"><td className="px-3 py-2"><InlineCode>critical</InlineCode></td><td className="px-3 py-2">Regulatory breach, MNPI exposure, unauthorized access to restricted data</td></tr>
+                  <tr className="border-b border-border/20"><td className="px-3 py-2"><InlineCode>high</InlineCode></td><td className="px-3 py-2">Policy violation with business impact, confidential data accessed by wrong agent</td></tr>
+                  <tr className="border-b border-border/20"><td className="px-3 py-2"><InlineCode>medium</InlineCode></td><td className="px-3 py-2">Access denied by policy (expected behavior), classification mismatch</td></tr>
+                  <tr><td className="px-3 py-2"><InlineCode>low</InlineCode></td><td className="px-3 py-2">Informational denial, rate limiting, non-material policy flag</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Trace ID */}
+            <h3 className="text-sm font-bold text-violet-600 dark:text-violet-400 uppercase tracking-wider mt-8 mb-3">Trace ID Convention</h3>
+            <P>
+              The <InlineCode>trace_id</InlineCode> should be a stable identifier that correlates all AGP events
+              from a single user request or agent execution. Recommended formats:
+            </P>
+            <ul className="list-disc list-outside pl-6 text-[15px] text-muted-foreground space-y-2 mb-4 leading-relaxed">
+              <li><strong className="text-foreground">UUID v4</strong> &mdash; <InlineCode>550e8400-e29b-41d4-a716-446655440000</InlineCode></li>
+              <li><strong className="text-foreground">OpenTelemetry trace ID</strong> &mdash; 32-char hex, e.g. <InlineCode>4bf92f3577b34da6a3ce929d0e0e4736</InlineCode></li>
+              <li><strong className="text-foreground">Prefixed</strong> &mdash; <InlineCode>trace-&lt;uuid&gt;</InlineCode> or <InlineCode>req-&lt;uuid&gt;</InlineCode> for human readability</li>
+            </ul>
+            <P>
+              The same <InlineCode>trace_id</InlineCode> should be used across the full chain: the agent&apos;s
+              prompt pull, context injection, LLM inference, and audit log &mdash; so a single query can
+              reconstruct the entire governance path.
+            </P>
+
+            {/* Governance Hash */}
+            <h3 className="text-sm font-bold text-violet-600 dark:text-violet-400 uppercase tracking-wider mt-8 mb-3">Governance Hash</h3>
+            <P>
+              The <InlineCode>governance_hash</InlineCode> is computed over the <em>governed content at the time of delivery</em>.
+              For context injection, this is the context body (after template rendering if applicable).
+              For prompt usage, this is the prompt content. The hash proves the exact content that was delivered.
+            </P>
+            <div className="rounded-lg border border-border/60 bg-muted/30 p-4 overflow-x-auto mb-4">
+              <pre className="text-[13px] font-mono text-muted-foreground leading-relaxed whitespace-pre">{`# Computing a governance hash
+import hashlib
+
+content = "You are a trading assistant. Max position: $10M..."
+governance_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+# → "a3f2b8c1d4e5f67890abcdef1234567890abcdef1234567890abcdef12345678"`}</pre>
+            </div>
+            <P>
+              If the same context is delivered to two agents, they will produce the same <InlineCode>governance_hash</InlineCode> &mdash; proving
+              identical content. If the content is modified (even by one character), the hash changes,
+              making tampering detectable.
+            </P>
+          </section>
+
           {/* ── Example ── */}
           <section>
             <h2 className="text-xl font-semibold text-foreground mb-3">Example AGP Event</h2>
@@ -285,18 +443,19 @@ export default function AGPSpecPage() {
   "event_category": "inject",
   "event_time": "2025-01-15T14:30:00.123Z",
 
-  "agent_id": "trading-bot-v2",
+  "agent_id": "agent.trading-bot-v2",
   "agent_name": "Trading Bot",
-  "org_id": "finco",
+  "org_id": "org.finco",
 
-  "context_name": "trading-limits",
+  "context_name": "context.trading-limits",
   "version_number": 4,
   "data_classification": "confidential",
 
-  "governance_hash": "a3f2b8c1d4e5...sha256...",
+  "governance_hash": "a3f2b8c1d4e5f678...sha256...",
   "hash_type": "sha256",
-  "trace_id": "req-789xyz",
+  "trace_id": "550e8400-e29b-41d4-a716-446655440000",
 
+  "severity": "",
   "template_rendered": true,
   "metadata": "{\\"regulatory_hooks\\": [\\"FINRA\\", \\"SEC\\"]}"
 }`}</pre>
