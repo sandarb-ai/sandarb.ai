@@ -136,6 +136,8 @@ export default function LandingPage() {
               <li>Single place for approved prompts and context; agents pull via API, A2A, or MCP</li>
               <li>Audit trail: who requested what, when</li>
               <li>Manifest-based registration; git-like versioning</li>
+              <li>AI Governance Proof (AGP) &mdash; cryptographic proof for every governance action, with trace IDs and full audit metadata</li>
+              <li>Scalable Data Platform (Kafka + ClickHouse) &mdash; AGP events queryable in under 10 seconds for compliance and regulatory needs</li>
               <li>Sandarb AI Governance Agent: participates in A2A and MCP (industry standard protocols for agent-to-agent and tool-to-model communication)</li>
             </ol>
           </div>
