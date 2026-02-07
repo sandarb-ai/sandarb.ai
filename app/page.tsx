@@ -97,6 +97,23 @@ export default function LandingPage() {
               Every regulator, auditor, and CISO will ask this. Sandarb answers it in under 10&nbsp;seconds.
             </p>
           </div>
+          <div className="mt-5 max-w-2xl mx-auto rounded-lg border border-indigo-300/40 dark:border-indigo-700/40 bg-indigo-50/50 dark:bg-indigo-950/20 px-5 py-3">
+            <div className="flex items-start gap-3">
+              <ShieldCheck className="h-5 w-5 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-foreground/90">
+                  AI Governance Proof (AGP)
+                </p>
+                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                  An open specification for cryptographic proof of every AI agent governance action &mdash; trace IDs, SHA-256 hashes, and full audit metadata in a flat, queryable format.
+                </p>
+                <Link href="/agp" className="inline-flex items-center gap-1 mt-2 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline underline-offset-2">
+                  Read the AGP spec
+                  <ArrowRight className="h-3 w-3" />
+                </Link>
+              </div>
+            </div>
+          </div>
           <div className="mt-5 flex flex-wrap justify-center items-center gap-3">
             <Link href="/docs">
               <Button size="sm" className="gap-1.5 h-9 px-4 bg-foreground/10 hover:bg-foreground/15 text-foreground border border-border font-semibold">
