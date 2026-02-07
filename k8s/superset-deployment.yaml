@@ -1,0 +1,122 @@
+# Apache Superset — BI Dashboard for ClickHouse analytics
+# 1 replica for dev/staging. Redis caching deferred — will be added later.
+# Total CPU request: 250m
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sandarb-superset
+  namespace: sandarb-data
+  labels:
+    app: sandarb-superset
+    app.kubernetes.io/part-of: sandarb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sandarb-superset
+  template:
+    metadata:
+      labels:
+        app: sandarb-superset
+    spec:
+      initContainers:
+        # Run DB migrations and create admin user before starting Superset
+        - name: init-superset
+          image: REGION-docker.pkg.dev/PROJECT_ID/cloud-run/sandarb-superset:TAG
+          command:
+            - bash
+            - -c
+            - |
+              superset db upgrade && \
+              superset fab create-admin \
+                --username admin \
+                --firstname Sandarb \
+                --lastname Admin \
+                --email admin@sandarb.ai \
+                --password "$(SUPERSET_ADMIN_PASSWORD)" || true && \
+              superset init
+          env:
+            - name: SUPERSET_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: sandarb-data-secrets
+                  key: superset-secret-key
+            - name: SUPERSET_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: sandarb-data-secrets
+                  key: superset-admin-password
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: sandarb-postgres-credentials
+                  key: password
+            - name: SQLALCHEMY_DATABASE_URI
+              value: "postgresql+psycopg2://sandarb:$(POSTGRES_PASSWORD)@sandarb-postgres-rw:5432/superset"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+      containers:
+        - name: superset
+          image: REGION-docker.pkg.dev/PROJECT_ID/cloud-run/sandarb-superset:TAG
+          ports:
+            - containerPort: 8088
+              name: http
+          command:
+            - gunicorn
+            - --bind
+            - 0.0.0.0:8088
+            - --workers
+            - "2"
+            - --timeout
+            - "120"
+            - "superset.app:create_app()"
+          env:
+            - name: SUPERSET_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: sandarb-data-secrets
+                  key: superset-secret-key
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: sandarb-postgres-credentials
+                  key: password
+            - name: SQLALCHEMY_DATABASE_URI
+              value: "postgresql+psycopg2://sandarb:$(POSTGRES_PASSWORD)@sandarb-postgres-rw:5432/superset"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8088
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8088
+            initialDelaySeconds: 60
+            periodSeconds: 15
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sandarb-superset
+  namespace: sandarb-data
+  labels:
+    app: sandarb-superset
+    app.kubernetes.io/part-of: sandarb
+spec:
+  selector:
+    app: sandarb-superset
+  ports:
+    - name: http
+      port: 8088
+      targetPort: 8088

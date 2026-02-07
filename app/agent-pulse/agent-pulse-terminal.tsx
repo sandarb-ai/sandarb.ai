@@ -12,7 +12,42 @@ import {
   ArrowDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { apiUrl } from '@/lib/api';
 import type { A2ALogEntry } from '@/types';
+
+// ============================================================================
+// KAFKA PUBLISHING — fire-and-forget POST to backend
+// Each simulated A2A entry is published to Kafka via the backend,
+// exactly as real agent API/MCP/A2A calls would be in production.
+// ============================================================================
+function publishToKafka(entry: A2ALogEntry) {
+  try {
+    fetch(apiUrl('/api/agent-pulse/simulate'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        agent_id: entry.agentId,
+        trace_id: entry.traceId,
+        action_type: entry.actionType,
+        context_name: entry.contextName || '',
+        context_id: entry.contextId || '',
+        context_version_id: entry.contextVersionId || '',
+        prompt_name: entry.promptName || '',
+        prompt_id: entry.promptId || '',
+        intent: entry.intent || '',
+        reason: entry.reason || '',
+        method: entry.method || '',
+        input_summary: entry.inputSummary || '',
+        result_summary: entry.resultSummary || '',
+        error: entry.error || '',
+      }),
+    }).catch(() => {
+      // Silent — Kafka publishing is best-effort
+    });
+  } catch {
+    // Silent — never block the UI for Kafka
+  }
+}
 
 // ============================================================================
 // AGENT COLOR PALETTE
@@ -336,6 +371,9 @@ export function AgentPulseTerminal({
         const entry = generateDemoEntry();
         setEntries((prev) => [...prev.slice(-199), entry]);
         setNewEntryIds((prev) => new Set([...prev, entry.id]));
+
+        // Publish to Kafka — simulating real agent→Sandarb event logging
+        publishToKafka(entry);
         
         // Clear animation class after animation completes
         setTimeout(() => {

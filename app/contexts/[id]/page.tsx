@@ -73,6 +73,7 @@ export default function EditContextPage() {
   const id = params.id as string;
 
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [context, setContext] = useState<Context | null>(null);
@@ -92,7 +93,14 @@ export default function EditContextPage() {
 
   const fetchContext = async () => {
     try {
-      const res = await fetch(apiUrl(`/api/contexts/${id}`));
+      setError(null);
+      const url = apiUrl(`/api/contexts/${id}`);
+      const res = await fetch(url);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body?.detail || `API error ${res.status}: ${res.statusText}`);
+        return;
+      }
       const data = await res.json();
       if (data.success) {
         const ctx = data.data;
@@ -105,8 +113,12 @@ export default function EditContextPage() {
         setOrgId(ctx.orgId ?? null);
         setDataClassification(ctx.dataClassification ?? null);
         setRegulatoryHooks(ctx.regulatoryHooks ?? []);
+      } else {
+        setError(data.error || 'Failed to load context');
       }
-    } catch {
+    } catch (err) {
+      console.error('Failed to fetch context:', err);
+      setError(`Network error: could not reach API. ${err instanceof Error ? err.message : ''}`);
     } finally {
       setLoading(false);
     }
@@ -115,9 +127,11 @@ export default function EditContextPage() {
   const fetchRevisions = async () => {
     try {
       const res = await fetch(apiUrl(`/api/contexts/${id}/revisions`));
+      if (!res.ok) return;
       const data = await res.json();
       if (data.success) setRevisions(data.data);
-    } catch {
+    } catch (err) {
+      console.error('Failed to fetch context revisions:', err);
     }
   };
 
@@ -264,7 +278,12 @@ export default function EditContextPage() {
   if (!context) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 p-8">
-        <p className="text-muted-foreground">Context not found.</p>
+        <p className="text-muted-foreground">{error || 'Context not found.'}</p>
+        {error && (
+          <Button variant="outline" size="sm" onClick={() => { setLoading(true); fetchContext(); }}>
+            Retry
+          </Button>
+        )}
         <Link href="/contexts">
           <Button variant="outline">
             <ArrowLeft className="h-4 w-4 mr-2" />

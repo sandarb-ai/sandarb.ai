@@ -411,6 +411,54 @@ For full security documentation, see **[docs/SECURITY.md](docs/SECURITY.md)**.
 
 ---
 
+## Data Platform
+
+Sandarb includes a real-time analytics data platform for governance event processing, audit trail storage, and dashboarding.
+
+### Technology Stack
+
+| Layer | Technology | Role | When |
+|-------|-----------|------|------|
+| OLTP | PostgreSQL | Entity CRUD, approvals, config | Now |
+| Streaming | Apache Kafka | Event bus, decouple ingest from analytics | Phase 1 |
+| OLAP | ClickHouse | Real-time analytics, dashboards, reports | Phase 1 |
+| Data Lakehouse | Apache Iceberg on S3 | Long-term storage, AI/ML use-cases | Phase 2 |
+
+### Architecture
+
+```
+Sandarb API  -->  Kafka (5 KRaft brokers)  -->  Consumer Bridge (2-3 instances)  -->  ClickHouse (4 nodes, 3 Keeper)  -->  Superset (HA)
+                                                                                       PostgreSQL (1 primary + 2 replicas, CNPG on GKE)
+```
+
+### Local Development
+
+The local environment runs 6 Docker Compose projects mirroring the GKE production topology:
+
+| Service | Containers | Technology |
+|---------|-----------|------------|
+| PostgreSQL HA | 1 primary + 2 streaming replicas | Native streaming replication |
+| Kafka | 5 KRaft brokers | No ZooKeeper |
+| ClickHouse | 4 nodes + 3 ClickHouse Keeper | Raft consensus, no ZooKeeper |
+| Consumer Bridge | 2 instances | Kafka consumer group, auto partition rebalance |
+| Superset | 2 nodes (HA) | Shared PostgreSQL metadata |
+
+### GKE Production
+
+The data platform deploys to GKE via a single command:
+
+```bash
+./scripts/deploy-data-platform-gcp.sh [PROJECT_ID] [REGION]
+```
+
+The core services (UI, API, Agent) run on Cloud Run. The data platform (Kafka, ClickHouse, PostgreSQL, Consumer, Superset) runs on GKE as stateful workloads. PostgreSQL uses the CloudNativePG (CNPG) operator for automated failover.
+
+Full data platform documentation: **[docs/DATA_PLATFORM.md](docs/DATA_PLATFORM.md)**
+
+GKE deployment guide: **[docs/deploy-gcp.md](docs/deploy-gcp.md)**
+
+---
+
 ## Testing
 
 Sandarb has **198 tests** covering both frontend and backend:

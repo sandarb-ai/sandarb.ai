@@ -1,0 +1,11 @@
+# Cloud Build config for sandarb-superset (Apache Superset + ClickHouse drivers). Use with:
+#   gcloud builds submit --config=config/cloudbuild-superset.yaml --substitutions=_IMAGE=REGION-docker.pkg.dev/PROJECT/cloud-run/sandarb-superset:TAG superset/
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - build
+      - -t
+      - '${_IMAGE}'
+      - .
+images:
+  - '${_IMAGE}'

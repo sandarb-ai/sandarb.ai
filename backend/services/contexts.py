@@ -581,7 +581,7 @@ def get_rendered_context(
         template_str = str(raw_content) if raw_content else ""
 
     # Compute governance hash from context name + raw template (stable across invocations)
-    governance_hash = compute_governance_hash(plain_name, template_str)
+    governance_hash = compute_governance_hash(context_name, template_str)
 
     # Render with variables if provided
     if variables:
@@ -607,7 +607,7 @@ def get_rendered_context(
 
     return {
         "context_id": context_id,
-        "context_name": plain_name,
+        "context_name": context_name,
         "version_id": str(ver["id"]),
         "version": int(ver.get("version", 1)),
         "content": rendered,

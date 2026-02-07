@@ -35,6 +35,8 @@ export default async function RootLayout({
         <ThemeProvider
           attribute="class"
           defaultTheme="light"
+          enableSystem={false}
+          forcedTheme={undefined}
           storageKey="sandarb-theme"
           disableTransitionOnChange
         >

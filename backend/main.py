@@ -25,7 +25,7 @@ from starlette.routing import Mount, Route
 
 from backend.config import settings as config
 from backend.middleware.security import setup_security_middleware
-from backend.routers import health, agents, organizations, dashboard, governance, agent_pulse, lineage, contexts, prompts, templates, settings, inject, reports, audit, samples, seed, agent_protocol
+from backend.routers import health, agents, organizations, dashboard, governance, agent_pulse, lineage, contexts, prompts, templates, settings, inject, reports, audit, samples, seed, agent_protocol, platform_config, notifications
 from backend.mcp_server import mcp as sandarb_mcp
 
 # Configure logging
@@ -41,6 +41,9 @@ async def lifespan(app: FastAPI):
     """Manage MCP session manager lifecycle alongside the FastAPI app."""
     async with sandarb_mcp.session_manager.run():
         logger.info("Sandarb MCP server started (Streamable HTTP at /mcp)")
+        # Ensure platform config tables exist
+        from backend.services.platform_config import ensure_tables as ensure_config_tables
+        ensure_config_tables()
         # Initialize Kafka producer (lazy — connects on first event)
         from backend.services.kafka_producer import is_available as kafka_available
         if kafka_available():
@@ -111,6 +114,8 @@ app.include_router(reports.router, prefix="/api")
 app.include_router(audit.router, prefix="/api")
 app.include_router(samples.router, prefix="/api")
 app.include_router(seed.router, prefix="/api")
+app.include_router(platform_config.router, prefix="/api")
+app.include_router(notifications.router, prefix="/api")
 
 # Mount MCP server at /mcp (Streamable HTTP transport — works with Claude Desktop, Cursor, mcp-remote)
 # Starlette's Mount("/mcp", ...) only matches /mcp/{path} and the Router redirect_slashes

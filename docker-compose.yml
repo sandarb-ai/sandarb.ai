@@ -1,37 +1,21 @@
 # Sandarb: containerized for local dev and GCP (Cloud Run / GKE).
-# Deploy: docker compose up -d  (Postgres + Sandarb app). GCP: See docs/deploy-gcp.md.
+# Prerequisites: start sandarb-postgres first (cd postgres && docker compose up -d).
+# Deploy: docker compose up -d  (Sandarb app). GCP: See docs/deploy-gcp.md.
 
 version: '3.8'
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: sandarb
-      POSTGRES_DB: sandarb
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
   sandarb:
     build:
       context: .
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:sandarb@postgres:5432/sandarb}
-    depends_on:
-      postgres:
-        condition: service_healthy
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:sandarb@host.docker.internal:5432/sandarb}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
@@ -39,7 +23,3 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-
-volumes:
-  postgres-data:
-    driver: local

@@ -1,0 +1,134 @@
+# CloudNativePG (CNPG) PostgreSQL Cluster for Sandarb
+# Requires CNPG operator: kubectl apply --server-side -f \
+#   https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.28/releases/cnpg-1.28.0.yaml
+#
+# This cluster serves two databases:
+#   - sandarb   : API/backend governance data
+#   - superset  : Superset BI metadata
+#
+# Architecture: 1 primary + 1 standby (2 total) for dev/staging.
+# Total CPU request: 2 × 250m = 500m
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: sandarb-postgres
+  namespace: sandarb-data
+  labels:
+    app.kubernetes.io/part-of: sandarb
+spec:
+  description: "Sandarb PostgreSQL cluster — governance + Superset metadata"
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.4
+
+  # ── HA: 1 primary + 1 standby ──
+  instances: 2
+
+  # ── Bootstrap: create databases and users on first deploy ──
+  bootstrap:
+    initdb:
+      database: sandarb
+      owner: sandarb
+      secret:
+        name: sandarb-postgres-credentials
+      postInitApplicationSQL:
+        - CREATE DATABASE superset OWNER sandarb;
+
+  # ── Storage: premium SSD on GKE ──
+  storage:
+    size: 1Gi
+    storageClass: premium-rwo
+
+  # ── Resource management ──
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+
+  # ── Replication and failover ──
+  minSyncReplicas: 1
+  maxSyncReplicas: 1
+
+  # ── PostgreSQL configuration ──
+  postgresql:
+    parameters:
+      max_connections: "200"
+      shared_buffers: "128MB"
+      effective_cache_size: "384MB"
+      work_mem: "4MB"
+      maintenance_work_mem: "32MB"
+      wal_buffers: "4MB"
+      random_page_cost: "1.1"
+      effective_io_concurrency: "200"
+      log_statement: "ddl"
+      log_min_duration_statement: "1000"
+    pg_hba:
+      - host sandarb sandarb all md5
+      - host superset sandarb all md5
+
+  # ── Monitoring: Prometheus metrics ──
+  monitoring:
+    enablePodMonitor: true
+
+  # ── Pod scheduling: spread across nodes ──
+  affinity:
+    topologyKey: kubernetes.io/hostname
+
+---
+# Credentials for the sandarb PostgreSQL user.
+# Replace with real values before applying (or use sealed-secrets / external-secrets).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: sandarb-postgres-credentials
+  namespace: sandarb-data
+  labels:
+    app.kubernetes.io/part-of: sandarb
+type: kubernetes.io/basic-auth
+stringData:
+  username: sandarb
+  password: "<strong-password>"
+
+---
+# Read-Write Service: routes to the primary instance
+# Connection: sandarb-postgres-rw.sandarb-data.svc.cluster.local:5432
+apiVersion: v1
+kind: Service
+metadata:
+  name: sandarb-postgres-rw
+  namespace: sandarb-data
+  labels:
+    app.kubernetes.io/part-of: sandarb
+    cnpg.io/cluster: sandarb-postgres
+spec:
+  type: ClusterIP
+  selector:
+    cnpg.io/cluster: sandarb-postgres
+    role: primary
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+
+---
+# Read-Only Service: load-balanced across standby replicas
+# Connection: sandarb-postgres-ro.sandarb-data.svc.cluster.local:5432
+apiVersion: v1
+kind: Service
+metadata:
+  name: sandarb-postgres-ro
+  namespace: sandarb-data
+  labels:
+    app.kubernetes.io/part-of: sandarb
+    cnpg.io/cluster: sandarb-postgres
+spec:
+  type: ClusterIP
+  selector:
+    cnpg.io/cluster: sandarb-postgres
+    role: replica
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432

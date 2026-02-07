@@ -1,0 +1,134 @@
+name: sandarb-postgres
+
+# PostgreSQL HA Cluster: 1 Primary + 2 Replicas (streaming replication)
+# Mirrors CNPG architecture on GKE (k8s/postgres-cnpg.yaml).
+#
+# Primary:   sandarb-postgres-primary   (port 5432) — handles all writes
+# Replica 1: sandarb-postgres-replica-1 (port 5433) — read-only, HA standby
+# Replica 2: sandarb-postgres-replica-2 (port 5434) — read-only, HA standby
+#
+# Services connect to primary on port 5432 for read-write.
+# Both replicas auto-stream WAL from primary for real-time sync.
+
+x-replica-common: &replica-common
+  image: postgres:latest
+  environment:
+    PGUSER: postgres
+    PGPASSWORD: sandarb
+  entrypoint:
+    - bash
+    - -c
+    - |
+      set -e
+
+      # Wait for primary to be ready
+      until pg_isready -h sandarb-postgres-primary -U postgres; do
+        echo "Waiting for primary..."
+        sleep 2
+      done
+
+      # Data directory
+      PGDATA="/var/lib/postgresql/data"
+      mkdir -p "$$PGDATA"
+      chown -R postgres:postgres /var/lib/postgresql
+
+      # Initialize from primary if first boot
+      if [ ! -f "$$PGDATA/PG_VERSION" ]; then
+        echo "Initializing replica via pg_basebackup..."
+        rm -rf "$$PGDATA"/*
+        gosu postgres env PGPASSWORD=sandarb_repl pg_basebackup \
+          -h sandarb-postgres-primary \
+          -U replicator \
+          -D "$$PGDATA" \
+          -Fp -Xs -P -R
+        echo "Base backup complete. Starting replica..."
+      else
+        echo "Replica data exists. Ensuring standby.signal is present..."
+        gosu postgres touch "$$PGDATA/standby.signal"
+      fi
+
+      # Ensure correct permissions
+      chmod 0700 "$$PGDATA"
+      chown -R postgres:postgres "$$PGDATA"
+
+      # Start postgres as standby
+      exec gosu postgres postgres \
+        -D "$$PGDATA" \
+        -c hot_standby=on \
+        -c max_connections=200 \
+        -c shared_buffers=256MB
+  depends_on:
+    sandarb-postgres-primary:
+      condition: service_healthy
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U postgres"]
+    interval: 10s
+    timeout: 5s
+    retries: 5
+  networks:
+    - postgres-net
+  restart: unless-stopped
+
+services:
+  # ── Primary: read-write, handles all client connections ──
+  sandarb-postgres-primary:
+    image: postgres:latest
+    container_name: sandarb-postgres-primary
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: sandarb
+      POSTGRES_DB: sandarb
+    volumes:
+      - pgdata-primary:/var/lib/postgresql
+      - ./init:/docker-entrypoint-initdb.d
+    command:
+      - postgres
+      - -c
+      - wal_level=replica
+      - -c
+      - max_wal_senders=5
+      - -c
+      - wal_keep_size=256MB
+      - -c
+      - hot_standby=on
+      - -c
+      - max_connections=200
+      - -c
+      - shared_buffers=256MB
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - postgres-net
+    restart: unless-stopped
+
+  # ── Replica 1: read-only streaming standby ──
+  sandarb-postgres-replica-1:
+    <<: *replica-common
+    container_name: sandarb-postgres-replica-1
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata-replica-1:/var/lib/postgresql
+
+  # ── Replica 2: read-only streaming standby ──
+  sandarb-postgres-replica-2:
+    <<: *replica-common
+    container_name: sandarb-postgres-replica-2
+    ports:
+      - "5434:5432"
+    volumes:
+      - pgdata-replica-2:/var/lib/postgresql
+
+volumes:
+  pgdata-primary:
+  pgdata-replica-1:
+  pgdata-replica-2:
+
+networks:
+  postgres-net:
+    driver: bridge

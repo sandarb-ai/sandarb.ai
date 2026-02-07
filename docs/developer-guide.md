@@ -1028,7 +1028,358 @@ For on-premises or custom cloud deployments, configure your domain:
 | OTEL_TRACES_EXPORTER | Trace exporter: `otlp` or `none` (default: otlp when endpoint set) |
 | OTEL_LOGS_EXPORTER | Log exporter: `otlp` or `none` (default: otlp when endpoint set) |
 
+### Kafka (Data Platform)
+
+| Variable | Description |
+|----------|-------------|
+| KAFKA_BOOTSTRAP_SERVERS | Comma-separated Kafka broker list (default: `localhost:9092,...,localhost:9096`) |
+| KAFKA_ENABLED | Set to `false` to disable Kafka publishing (default: `true`) |
+
+### ClickHouse (Analytics)
+
+| Variable | Description |
+|----------|-------------|
+| CLICKHOUSE_URL | ClickHouse HTTP URL with auth (e.g. `http://sandarb:sandarb@localhost:8123`) |
+
 See [.env.example](../.env.example) for a complete list of configuration options.
+
+---
+
+## Sandarb AI Governance Data Platform
+
+Sandarb's transactional PostgreSQL database serves OLTP workloads (entity CRUD, approval workflows, access control) but cannot scale for analytics at 100M+ events/day. The **Sandarb Data Platform** extends the architecture with a three-tier design: PostgreSQL (OLTP) + Kafka (streaming) + ClickHouse (OLAP).
+
+### Architecture Overview
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  SANDARB PLATFORM (UI, API, A2A, MCP)                        │
+│                                                               │
+│  POST /api/inject  ──► audit.py (dual-write)                 │
+│  POST /a2a         ──►   ├── PostgreSQL  (OLTP, source of truth)
+│  MCP tools         ──►   └── Kafka       (fire-and-forget)   │
+└──────────────────┬───────────────────────────────────────────┘
+                   │
+                   ▼
+┌──────────────────────────────────────────────────────────────┐
+│  KAFKA CLUSTER (5 brokers, KRaft, ports 9092–9096)           │
+│                                                               │
+│  8 Topics:                                                    │
+│    sandarb_events ────────── Primary firehose (all events)    │
+│    sandarb.inject ────────── Context injection events          │
+│    sandarb.audit ─────────── Immutable audit trail (∞ retain) │
+│    sandarb.agent-lifecycle ─ Agent register/approve/deactivate│
+│    sandarb.governance-proof  Governance hash proofs (compacted)│
+│    sandarb.context-lifecycle Context version lifecycle         │
+│    sandarb.prompt-lifecycle  Prompt version lifecycle          │
+│    sandarb.policy-violations Policy & compliance violations   │
+└──────────────────┬───────────────────────────────────────────┘
+                   │  kafka_to_clickhouse.py (consumer bridge)
+                   ▼
+┌──────────────────────────────────────────────────────────────┐
+│  CLICKHOUSE CLUSTER (4 nodes, 2 shards x 2 replicas)         │
+│                                                               │
+│  Database: sandarb                                            │
+│    events ─────────── All governance events (denormalized)    │
+│    daily_kpis ─────── Pre-aggregated daily KPIs               │
+│    agent_activity ──── Agent hourly heatmap                   │
+│    top_contexts ────── Top consumed contexts by day           │
+│    governance_proofs ─ Hash + delivery ledger                 │
+│    denial_reasons ──── Blocked injection reason breakdown     │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### Dual-Write Architecture
+
+Every governance event writes to **two** destinations:
+
+1. **PostgreSQL** (source of truth) — the `sandarb_access_logs` table stores the transactional record with ACID guarantees. This is the authoritative audit trail.
+2. **Kafka** (analytics pipeline) — the `kafka_producer.py` service publishes events to the `sandarb_events` firehose topic and to category-specific topics for filtered consumers. This is fire-and-forget.
+
+If Kafka is unavailable, PostgreSQL remains the authoritative record — the backend continues to operate normally (graceful degradation). The Kafka producer is a singleton, created lazily on first event, and managed by the FastAPI lifecycle (initialized on startup, flushed on shutdown).
+
+### Kafka Topics
+
+Sandarb publishes governance events to 8 Kafka topics:
+
+| Topic | Partitions | RF | Retention | Purpose |
+|-------|-----------|-----|-----------|---------|
+| `sandarb_events` | 5 | 3 | 7 days | Primary firehose — all events. ClickHouse consumes from here. |
+| `sandarb.inject` | 12 | 3 | 30 days | Context injection events (success + denied) |
+| `sandarb.audit` | 6 | 3 | Infinite | Immutable audit trail — never deleted |
+| `sandarb.agent-lifecycle` | 6 | 3 | 30 days | Agent registration, approval, deactivation |
+| `sandarb.governance-proof` | 6 | 3 | Infinite | Governance hash proofs (log-compacted) |
+| `sandarb.context-lifecycle` | 6 | 3 | 30 days | Context version create, approve, reject, archive |
+| `sandarb.prompt-lifecycle` | 6 | 3 | 30 days | Prompt version lifecycle events |
+| `sandarb.policy-violations` | 6 | 3 | Infinite | Policy and compliance violation alerts |
+
+**Partition key:** `org_id` — all events for an organization go to the same partition, enabling per-org ordering and data locality.
+
+**Compression:** LZ4 across all topics for fast compression/decompression with minimal CPU overhead.
+
+### Governance Event Types
+
+The data platform captures 16 event types across 7 categories:
+
+| Category | Event Types | Description |
+|----------|-------------|-------------|
+| **inject** | `INJECT_SUCCESS`, `INJECT_DENIED` | Context injection (the primary governance action) |
+| **prompt** | `PROMPT_USED`, `PROMPT_DENIED` | Prompt pull events |
+| **agent-lifecycle** | `AGENT_REGISTERED`, `AGENT_APPROVED`, `AGENT_DEACTIVATED` | Agent registry mutations |
+| **context-lifecycle** | `CONTEXT_CREATED`, `CONTEXT_VERSION_APPROVED`, `CONTEXT_VERSION_REJECTED`, `CONTEXT_ARCHIVED` | Context version workflow |
+| **prompt-lifecycle** | `PROMPT_VERSION_CREATED`, `PROMPT_VERSION_APPROVED` | Prompt version workflow |
+| **governance-proof** | `GOVERNANCE_PROOF` | Immutable proof of delivery with governance hash |
+| **policy-violations** | `POLICY_VIOLATION` | Unauthorized access, data classification breach, etc. |
+| **a2a** | `A2A_CALL` | Agent-to-agent communication events |
+
+### ClickHouse Schema
+
+ClickHouse stores events in a **denormalized** columnar table optimized for analytical queries. No JOINs are needed — agent name, org name, classification are embedded in each event row.
+
+**Primary table:** `sandarb.events`
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `event_id` | UUID | Unique event identifier |
+| `event_type` | LowCardinality(String) | Event type (e.g. `INJECT_SUCCESS`) |
+| `event_category` | LowCardinality(String) | Category (e.g. `inject`, `audit`) |
+| `agent_id` | String | SRN of the agent (e.g. `agent.kyc-bot`) |
+| `agent_name` | LowCardinality(String) | Human-readable agent name |
+| `org_id` | String | Organization slug |
+| `org_name` | LowCardinality(String) | Organization display name |
+| `context_id` | String | Context UUID (for inject events) |
+| `context_name` | LowCardinality(String) | Context SRN |
+| `version_id` | String | Context version UUID |
+| `version_number` | UInt32 | Version number |
+| `prompt_id` | String | Prompt UUID (for prompt events) |
+| `prompt_name` | LowCardinality(String) | Prompt SRN |
+| `data_classification` | LowCardinality(String) | Public, Internal, Confidential, Restricted |
+| `governance_hash` | String | SHA-256 governance hash |
+| `template_rendered` | Bool | Whether Jinja2 rendering was applied |
+| `denial_reason` | String | Reason for denial (INJECT_DENIED, etc.) |
+| `violation_type` | LowCardinality(String) | Violation type (for POLICY_VIOLATION) |
+| `severity` | LowCardinality(String) | LOW, MEDIUM, HIGH, CRITICAL |
+| `trace_id` | String | Correlation / trace ID |
+| `event_time` | DateTime64(3, 'UTC') | Event timestamp |
+| `metadata` | String | JSON string for flexible extra fields |
+
+**Engine:** `MergeTree()` partitioned by `toYYYYMM(event_time)`, ordered by `(org_id, event_type, event_time, event_id)`. TTL: 2 years.
+
+### Materialized Views
+
+ClickHouse materialized views pre-aggregate data at insert time for sub-10ms dashboard queries:
+
+| View | Target Table | Aggregation | Use Case |
+|------|-------------|-------------|----------|
+| `daily_kpis_mv` | `daily_kpis` | Daily count by org, event_type, classification | Dashboard KPI cards, inject trend chart |
+| `agent_activity_mv` | `agent_activity` | Hourly count by agent, event_type | Agent activity heatmap, Agent Pulse |
+| `top_contexts_mv` | `top_contexts` | Daily inject count by context name | Top consumed contexts chart |
+| `governance_proofs_mv` | `governance_proofs` | Daily delivery count by context, hash, agent | Governance proof-of-delivery ledger |
+| `denial_reasons_mv` | `denial_reasons` | Daily denial count by reason, event_type | Blocked injection reason breakdown |
+
+**Example: Daily KPI query (sub-10ms at billion-event scale):**
+
+```sql
+SELECT
+    day,
+    sumIf(event_count, event_type = 'INJECT_SUCCESS') AS success,
+    sumIf(event_count, event_type = 'INJECT_DENIED') AS denied
+FROM sandarb.daily_kpis
+WHERE day >= today() - 30
+GROUP BY day
+ORDER BY day;
+```
+
+### ClickHouse SQL Differences from PostgreSQL
+
+ClickHouse has its own SQL dialect. Key differences from PostgreSQL:
+
+| PostgreSQL | ClickHouse | Notes |
+|-----------|-----------|-------|
+| `COUNT(*) FILTER (WHERE cond)` | `countIf(cond)` | Conditional count |
+| `SUM(x) FILTER (WHERE cond)` | `sumIf(x, cond)` | Conditional sum |
+| `AVG(x) FILTER (WHERE cond)` | `avgIf(x, cond)` | Conditional average |
+| `date_trunc('day', ts)` | `toDate(ts)` | Date truncation |
+| `date_trunc('hour', ts)` | `toStartOfHour(ts)` | Hour truncation |
+| `ts::date` | `toDate(ts)` | Cast to date |
+| `now() - interval '30 days'` | `now() - INTERVAL 30 DAY` | Interval (no quotes, singular) |
+| `metadata->>'key'` | `JSONExtractString(metadata, 'key')` | JSON field extraction |
+
+### Infrastructure Setup
+
+#### Kafka Cluster
+
+The Kafka cluster runs 5 brokers using **KRaft** (no external ZooKeeper) on Apache Kafka 3.7.0:
+
+| Node | Role | External Port |
+|------|------|--------------|
+| broker01 | Controller + Broker | 9092 |
+| broker02 | Controller + Broker | 9093 |
+| broker03 | Controller + Broker | 9094 |
+| broker04 | Broker only | 9095 |
+| broker05 | Broker only | 9096 |
+
+```bash
+# Start the Kafka cluster
+cd kafka-cluster && docker compose up -d
+
+# Verify brokers
+docker exec broker01 /opt/kafka/bin/kafka-topics.sh --list --bootstrap-server localhost:9090
+
+# Describe a topic
+docker exec broker01 /opt/kafka/bin/kafka-topics.sh --describe \
+  --topic sandarb_events --bootstrap-server localhost:9090
+```
+
+#### ClickHouse Cluster
+
+The ClickHouse cluster runs 4 nodes (2 shards x 2 replicas) with ZooKeeper coordination:
+
+| Node | Shard | Replica | HTTP Port | Native Port |
+|------|-------|---------|-----------|------------|
+| clickhouse01 | 01 | replica_01 | 8123 | 9000 |
+| clickhouse02 | 01 | replica_02 | 8124 | 9001 |
+| clickhouse03 | 02 | replica_01 | 8125 | 9002 |
+| clickhouse04 | 02 | replica_02 | 8126 | 9003 |
+
+Cluster name: `sandarb_cluster` (defined in `clickhouse-cluster/config.xml`).
+
+```bash
+# Start the ClickHouse cluster
+cd clickhouse-cluster && docker compose up -d
+
+# Initialize schema (run once)
+docker exec clickhouse01 clickhouse-client --multiquery \
+  < clickhouse-cluster/schema/001_sandarb_events.sql
+
+# Verify tables
+docker exec clickhouse01 clickhouse-client \
+  --query "SHOW TABLES FROM sandarb"
+
+# Query event count
+docker exec clickhouse01 clickhouse-client \
+  --query "SELECT count() FROM sandarb.events"
+```
+
+### Event Driver (Generating Test Events)
+
+The **sandarb_event_driver.py** script generates realistic governance events and publishes them to Kafka at 40K+ events/sec. It simulates 16 event types across 26 agents, 42 contexts, 21 prompts, and 15 organizations.
+
+```bash
+# Generate 10K events (burst mode, maximum throughput)
+python scripts/sandarb_event_driver.py --count 10000 --mode burst
+
+# Generate 1M events
+python scripts/sandarb_event_driver.py --count 1000000
+
+# Rate-limited (5K events/sec)
+python scripts/sandarb_event_driver.py --count 100000 --rate 5000
+
+# Continuous mode (real-time simulation at 1K events/sec)
+python scripts/sandarb_event_driver.py --mode continuous --eps 1000
+
+# Fan-out to all category-specific topics
+python scripts/sandarb_event_driver.py --count 50000 --fan-out
+
+# Specific topic
+python scripts/sandarb_event_driver.py --topic sandarb.inject --count 50000
+```
+
+### Kafka to ClickHouse Consumer
+
+The **kafka_to_clickhouse.py** consumer bridge reads events from Kafka and batch-inserts them into ClickHouse:
+
+```bash
+# Consume all events from the beginning
+python scripts/kafka_to_clickhouse.py --from-beginning
+
+# Custom batch size (for higher throughput)
+python scripts/kafka_to_clickhouse.py --batch-size 5000
+
+# Custom ClickHouse URL
+python scripts/kafka_to_clickhouse.py \
+  --clickhouse-url http://sandarb:sandarb@localhost:8123
+```
+
+The consumer automatically:
+- Batches events (default: 2000 per insert) for ClickHouse efficiency
+- Converts timestamps from ISO 8601 (`2026-01-21T00:21:40.524Z`) to ClickHouse format (`2026-01-21 00:21:40.524`)
+- Commits Kafka offsets only after successful ClickHouse insertion (at-least-once delivery)
+- Reports progress every 10 seconds with throughput metrics
+
+### Full Pipeline Test
+
+```bash
+# 1. Start both clusters
+cd kafka-cluster && docker compose up -d
+cd ../clickhouse-cluster && docker compose up -d
+
+# 2. Initialize ClickHouse schema
+docker exec clickhouse01 clickhouse-client --multiquery \
+  < clickhouse-cluster/schema/001_sandarb_events.sql
+
+# 3. Generate events into Kafka
+python scripts/sandarb_event_driver.py --count 100000 --mode burst
+
+# 4. Consume into ClickHouse
+python scripts/kafka_to_clickhouse.py --from-beginning
+
+# 5. Verify in ClickHouse
+docker exec clickhouse01 clickhouse-client \
+  --query "SELECT event_type, count() AS cnt FROM sandarb.events GROUP BY event_type ORDER BY cnt DESC FORMAT PrettyCompact"
+
+# 6. Query materialized views
+docker exec clickhouse01 clickhouse-client \
+  --query "SELECT day, sumIf(event_count, event_type = 'INJECT_SUCCESS') AS success, sumIf(event_count, event_type = 'INJECT_DENIED') AS denied FROM sandarb.daily_kpis GROUP BY day ORDER BY day DESC LIMIT 10 FORMAT PrettyCompact"
+```
+
+### Kafka Producer Service
+
+The backend Kafka producer (`backend/services/kafka_producer.py`) is designed for zero-impact integration:
+
+- **Singleton pattern:** One producer per process, created lazily on first event
+- **Graceful degradation:** If Kafka is unavailable, events are logged only to PostgreSQL — no exceptions, no failures
+- **Dual-topic publishing:** Each event goes to both the firehose (`sandarb_events`) and the category-specific topic (e.g. `sandarb.inject`)
+- **High throughput:** LZ4 compression, 20ms linger, 64KB batches, leader-only acks
+- **Lifecycle managed:** Producer is initialized in the FastAPI `lifespan` context and flushed on shutdown
+
+**Convenience methods for each event type:**
+
+```python
+from backend.services.kafka_producer import (
+    publish_inject_success,
+    publish_inject_denied,
+    publish_prompt_used,
+    publish_prompt_denied,
+    publish_governance_proof,
+    publish_agent_lifecycle,
+    publish_context_lifecycle,
+    publish_policy_violation,
+    publish_a2a_call,
+)
+```
+
+### Production Scaling
+
+| Layer | Technology | Dev (Docker) | Production |
+|-------|-----------|-------------|------------|
+| **OLTP** | PostgreSQL | localhost:5432 | Cloud SQL / RDS |
+| **Streaming** | Apache Kafka | 5-broker KRaft cluster | MSK / Confluent Cloud |
+| **OLAP** | ClickHouse | 4-node cluster (2x2) | ClickHouse Cloud / self-hosted |
+| **Lake** | Apache Iceberg on S3 | — | S3 + Spark (Phase 3) |
+| **ML** | Spark + Python | — | Databricks / EMR (Phase 4) |
+
+**Cost estimate at 500M events/day:**
+
+| Component | Monthly Cost |
+|-----------|-------------|
+| ClickHouse Cloud (3x Production) | ~$800–1,200 |
+| Kafka (Confluent Cloud Basic) | ~$400–600 |
+| S3 Iceberg storage (1TB/mo) | ~$25 |
+| Spark (serverless, occasional) | ~$200–500 |
+| **Total** | **~$1,500–2,300** |
+
+---
 
 ## Deployment
 

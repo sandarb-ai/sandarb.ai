@@ -1,0 +1,150 @@
+name: sandarb-clickhouse-cluster
+
+# ClickHouse HA Cluster: 4 nodes (2 shards × 2 replicas) + 3 Keeper nodes
+# Mirrors GKE architecture (k8s/clickhouse-statefulset.yaml).
+#
+# Keeper ensemble (replaces ZooKeeper):
+#   sandarb-keeper01 (port 9181) — Raft leader election
+#   sandarb-keeper02 (port 9182) — Raft follower
+#   sandarb-keeper03 (port 9183) — Raft follower
+#
+# ClickHouse nodes:
+#   Shard 01: sandarb-clickhouse01 (8123/9000), sandarb-clickhouse02 (8124/9001)
+#   Shard 02: sandarb-clickhouse03 (8125/9002), sandarb-clickhouse04 (8126/9003)
+
+x-keeper-common: &keeper-common
+  image: clickhouse/clickhouse-keeper:latest
+  restart: unless-stopped
+  networks:
+    - clickhouse-net
+  healthcheck:
+    test: ["CMD-SHELL", "echo ruok | nc localhost 9181 | grep -q imok"]
+    interval: 10s
+    timeout: 5s
+    retries: 5
+
+x-clickhouse-common: &clickhouse-common
+  image: clickhouse/clickhouse-server:latest
+  environment:
+    - CLICKHOUSE_USER=default
+    - CLICKHOUSE_PASSWORD=sandarb
+    - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+  volumes:
+    - ./config.xml:/etc/clickhouse-server/config.d/cluster_config.xml
+  depends_on:
+    sandarb-keeper01:
+      condition: service_healthy
+    sandarb-keeper02:
+      condition: service_healthy
+    sandarb-keeper03:
+      condition: service_healthy
+  ulimits:
+    nofile:
+      soft: 262144
+      hard: 262144
+  restart: unless-stopped
+  networks:
+    - clickhouse-net
+  healthcheck:
+    test: ["CMD-SHELL", "clickhouse-client --password sandarb -q 'SELECT 1'"]
+    interval: 10s
+    timeout: 5s
+    retries: 5
+
+services:
+  # ── ClickHouse Keeper ensemble (3-node Raft, replaces ZooKeeper) ──
+
+  sandarb-keeper01:
+    <<: *keeper-common
+    container_name: sandarb-keeper01
+    hostname: sandarb-keeper01
+    volumes:
+      - ./keeper/keeper1.xml:/etc/clickhouse-keeper/keeper_config.xml
+      - keeper-data-01:/var/lib/clickhouse-keeper
+    ports:
+      - "9181:9181"
+
+  sandarb-keeper02:
+    <<: *keeper-common
+    container_name: sandarb-keeper02
+    hostname: sandarb-keeper02
+    volumes:
+      - ./keeper/keeper2.xml:/etc/clickhouse-keeper/keeper_config.xml
+      - keeper-data-02:/var/lib/clickhouse-keeper
+    ports:
+      - "9182:9181"
+
+  sandarb-keeper03:
+    <<: *keeper-common
+    container_name: sandarb-keeper03
+    hostname: sandarb-keeper03
+    volumes:
+      - ./keeper/keeper3.xml:/etc/clickhouse-keeper/keeper_config.xml
+      - keeper-data-03:/var/lib/clickhouse-keeper
+    ports:
+      - "9183:9181"
+
+  # ── Shard 1, Replica 1 ──
+  clickhouse01:
+    <<: *clickhouse-common
+    container_name: sandarb-clickhouse01
+    hostname: clickhouse01
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - ./config.xml:/etc/clickhouse-server/config.d/cluster_config.xml
+      - ./macros/node1.xml:/etc/clickhouse-server/config.d/macros.xml
+      - clickhouse-data-01:/var/lib/clickhouse
+
+  # ── Shard 1, Replica 2 ──
+  clickhouse02:
+    <<: *clickhouse-common
+    container_name: sandarb-clickhouse02
+    hostname: clickhouse02
+    ports:
+      - "8124:8123"
+      - "9001:9000"
+    volumes:
+      - ./config.xml:/etc/clickhouse-server/config.d/cluster_config.xml
+      - ./macros/node2.xml:/etc/clickhouse-server/config.d/macros.xml
+      - clickhouse-data-02:/var/lib/clickhouse
+
+  # ── Shard 2, Replica 1 ──
+  clickhouse03:
+    <<: *clickhouse-common
+    container_name: sandarb-clickhouse03
+    hostname: clickhouse03
+    ports:
+      - "8125:8123"
+      - "9002:9000"
+    volumes:
+      - ./config.xml:/etc/clickhouse-server/config.d/cluster_config.xml
+      - ./macros/node3.xml:/etc/clickhouse-server/config.d/macros.xml
+      - clickhouse-data-03:/var/lib/clickhouse
+
+  # ── Shard 2, Replica 2 ──
+  clickhouse04:
+    <<: *clickhouse-common
+    container_name: sandarb-clickhouse04
+    hostname: clickhouse04
+    ports:
+      - "8126:8123"
+      - "9003:9000"
+    volumes:
+      - ./config.xml:/etc/clickhouse-server/config.d/cluster_config.xml
+      - ./macros/node4.xml:/etc/clickhouse-server/config.d/macros.xml
+      - clickhouse-data-04:/var/lib/clickhouse
+
+volumes:
+  keeper-data-01:
+  keeper-data-02:
+  keeper-data-03:
+  clickhouse-data-01:
+  clickhouse-data-02:
+  clickhouse-data-03:
+  clickhouse-data-04:
+
+networks:
+  clickhouse-net:
+    driver: bridge

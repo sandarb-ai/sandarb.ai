@@ -28,6 +28,37 @@ logger = logging.getLogger(__name__)
 
 # ── Configuration ────────────────────────────────────────────────────
 
+
+def _cfg(key: str, env_key: str, default: str) -> str:
+    """Read config from platform_config DB table, falling back to env var."""
+    try:
+        from backend.services.platform_config import get_raw_value
+        val = get_raw_value("kafka", key)
+        if val:
+            return val
+    except Exception:
+        pass
+    return os.environ.get(env_key, default)
+
+
+def _kafka_bootstrap_servers() -> str:
+    return _cfg("bootstrap_servers", "KAFKA_BOOTSTRAP_SERVERS",
+                "localhost:9092,localhost:9093,localhost:9094,localhost:9095,localhost:9096")
+
+
+def _kafka_enabled() -> bool:
+    return _cfg("enabled", "KAFKA_ENABLED", "true").lower() in ("true", "1", "yes")
+
+
+def _kafka_compression() -> str:
+    return _cfg("compression_type", "KAFKA_COMPRESSION_TYPE", "lz4")
+
+
+def _kafka_acks() -> str:
+    return _cfg("acks", "KAFKA_ACKS", "1")
+
+
+# Legacy module-level constants (for backwards compatibility with imports)
 KAFKA_BOOTSTRAP_SERVERS = os.environ.get(
     "KAFKA_BOOTSTRAP_SERVERS",
     "localhost:9092,localhost:9093,localhost:9094,localhost:9095,localhost:9096",
@@ -56,7 +87,7 @@ def _get_producer():
     """Lazily create and return the singleton Kafka producer."""
     global _producer, _producer_available
 
-    if not KAFKA_ENABLED:
+    if not _kafka_enabled():
         return None
 
     if _producer is not None:
@@ -68,14 +99,15 @@ def _get_producer():
     try:
         from confluent_kafka import Producer
 
+        servers = _kafka_bootstrap_servers()
         conf = {
-            "bootstrap.servers": KAFKA_BOOTSTRAP_SERVERS,
+            "bootstrap.servers": servers,
             "client.id": "sandarb-api",
             # Throughput settings
             "linger.ms": 20,
             "batch.size": 65536,
-            "compression.type": "lz4",
-            "acks": "1",
+            "compression.type": _kafka_compression(),
+            "acks": _kafka_acks(),
             # Reliability
             "retries": 3,
             "retry.backoff.ms": 100,
@@ -86,7 +118,7 @@ def _get_producer():
         # Verify connectivity
         metadata = _producer.list_topics(timeout=5)
         broker_count = len(metadata.brokers)
-        logger.info(f"Kafka producer connected: {broker_count} brokers at {KAFKA_BOOTSTRAP_SERVERS}")
+        logger.info(f"Kafka producer connected: {broker_count} brokers at {servers}")
         _producer_available = True
         return _producer
 
@@ -469,7 +501,7 @@ def close():
 
 def is_available() -> bool:
     """Check if Kafka is configured and reachable."""
-    if not KAFKA_ENABLED:
+    if not _kafka_enabled():
         return False
     if _producer_available is not None:
         return _producer_available

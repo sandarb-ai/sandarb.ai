@@ -1,0 +1,49 @@
+# ClickHouse cluster configuration for GKE — 1 shard × 2 replicas + 3 Keepers
+# Minimal topology for dev/staging.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sandarb-clickhouse-config
+  namespace: sandarb-data
+  labels:
+    app: sandarb-clickhouse
+data:
+  cluster_config.xml: |
+    <clickhouse>
+        <remote_servers>
+            <sandarb_cluster>
+                <!-- Shard 01: 2 replicas -->
+                <shard>
+                    <internal_replication>true</internal_replication>
+                    <replica>
+                        <host>sandarb-clickhouse-0.sandarb-clickhouse-nodes.sandarb-data.svc.cluster.local</host>
+                        <port>9000</port>
+                    </replica>
+                    <replica>
+                        <host>sandarb-clickhouse-1.sandarb-clickhouse-nodes.sandarb-data.svc.cluster.local</host>
+                        <port>9000</port>
+                    </replica>
+                </shard>
+            </sandarb_cluster>
+        </remote_servers>
+        <!-- 3-node ClickHouse Keeper ensemble for HA -->
+        <zookeeper>
+            <node>
+                <host>sandarb-clickhouse-keeper-0.sandarb-clickhouse-keeper.sandarb-data.svc.cluster.local</host>
+                <port>9181</port>
+            </node>
+            <node>
+                <host>sandarb-clickhouse-keeper-1.sandarb-clickhouse-keeper.sandarb-data.svc.cluster.local</host>
+                <port>9181</port>
+            </node>
+            <node>
+                <host>sandarb-clickhouse-keeper-2.sandarb-clickhouse-keeper.sandarb-data.svc.cluster.local</host>
+                <port>9181</port>
+            </node>
+        </zookeeper>
+    </clickhouse>
+  # Per-node macros — init container copies the right file based on pod ordinal
+  macros_node0.xml: |
+    <clickhouse><macros><shard>01</shard><replica>replica_01</replica></macros></clickhouse>
+  macros_node1.xml: |
+    <clickhouse><macros><shard>01</shard><replica>replica_02</replica></macros></clickhouse>

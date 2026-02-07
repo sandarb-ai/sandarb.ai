@@ -271,3 +271,119 @@ spec:
 ## Health check
 
 The app exposes `GET /api/health`. Use it for Cloud Run and GKE liveness/readiness probes.
+
+---
+
+## Data Platform (GKE)
+
+The Sandarb Data Platform (Kafka, ClickHouse, Superset, Consumer Bridge) runs on **GKE** as stateful workloads, separate from the stateless core services on Cloud Run.
+
+### Architecture
+
+```
+Cloud Run (core):        sandarb-ui, sandarb-api, sandarb-agent
+GKE (data platform):     Kafka (StatefulSet) → Consumer Bridge (Deployment) → ClickHouse (StatefulSet) → Superset (Deployment)
+```
+
+### Technology Stack
+
+| Layer | Technology | Role | When |
+|-------|-----------|------|------|
+| OLTP | PostgreSQL (CNPG) | Entity CRUD, approvals, config | Now |
+| Streaming | Apache Kafka (KRaft) | Event bus, decouple ingest from analytics | Phase 1 |
+| OLAP | ClickHouse + Keeper | Real-time analytics, dashboards, reports | Phase 1 |
+| Data Lakehouse | Apache Iceberg on S3 | Long-term storage, AI/ML use-cases | Phase 2 |
+
+### Images
+
+| Service | Image |
+|---------|-------|
+| PostgreSQL | Managed by CNPG operator (CloudNativePG) |
+| Kafka | `apache/kafka:latest` |
+| ClickHouse | `clickhouse/clickhouse-server:latest` |
+| ClickHouse Keeper | `clickhouse/clickhouse-keeper:latest` |
+| Superset | `apache/superset:latest` (+ ClickHouse drivers) |
+| Consumer Bridge | `python:3.12-slim` (custom, built per deploy) |
+
+### Prerequisites
+
+1. `gcloud` and `kubectl` installed
+2. GCP project with billing enabled
+3. Create secrets file: `cp k8s/secrets.yaml.example k8s/secrets.yaml` and fill in real values
+
+### One-command deploy
+
+```bash
+./scripts/deploy-data-platform-gcp.sh [PROJECT_ID] [REGION]
+```
+
+This will:
+1. Enable GKE + Cloud Build + Artifact Registry APIs
+2. Build Superset and Consumer Bridge images via Cloud Build
+3. Create a GKE Autopilot cluster (`sandarb-data`)
+4. Install CloudNativePG (CNPG) operator for PostgreSQL HA
+5. Apply PostgreSQL CNPG cluster (1 primary + 2 standbys)
+6. Deploy Kafka (5 KRaft brokers), ClickHouse (5 nodes + 3 Keepers)
+7. Deploy Consumer Bridge (3 replicas), Superset (2 replicas HA)
+8. Wait for all pods to be ready
+
+### Flags
+
+- `--build-only`: Build and push images to Artifact Registry only (no GKE deploy)
+- `--deploy-only`: Apply k8s manifests only (images must already exist)
+
+### Kubernetes manifests
+
+All manifests are in `k8s/`:
+
+| File | Resource |
+|------|----------|
+| `namespace.yaml` | `sandarb-data` namespace |
+| `secrets.yaml.example` | Template for passwords and secret keys |
+| `postgres-cnpg.yaml` | CNPG PostgreSQL cluster (1 primary + 2 standbys) + RW/RO Services |
+| `kafka-statefulset.yaml` | 5-broker KRaft cluster (3 controller+broker, 2 broker-only) + headless Service |
+| `clickhouse-configmap.yaml` | Cluster config (2 shards) + per-node macros (5 nodes) + 3 Keepers |
+| `clickhouse-statefulset.yaml` | 5-node cluster (2 shards × replicas) + 3 Keepers + Services |
+| `consumer-deployment.yaml` | Kafka→ClickHouse consumer bridge (3 replicas) |
+| `superset-deployment.yaml` | Apache Superset BI dashboard (2 replicas HA, CNPG PostgreSQL metadata) |
+
+### Accessing services
+
+```bash
+# Superset dashboard
+kubectl port-forward svc/superset -n sandarb-data 8088:8088
+
+# Consumer health
+kubectl port-forward svc/sandarb-consumer -n sandarb-data 8079:8079
+curl http://localhost:8079/health
+
+# ClickHouse query
+kubectl exec -it clickhouse-0 -n sandarb-data -- clickhouse-client -q "SELECT count() FROM sandarb.events"
+
+# Kafka topics
+kubectl exec -it kafka-0 -n sandarb-data -- /opt/kafka/bin/kafka-topics.sh --list --bootstrap-server localhost:9092
+```
+
+### Cloud Build configs
+
+Custom images are built with Cloud Build (in `config/`):
+
+```bash
+# Build Superset
+gcloud builds submit --config=config/cloudbuild-superset.yaml \
+  --substitutions="_IMAGE=REGION-docker.pkg.dev/PROJECT/cloud-run/sandarb-superset:TAG" superset/
+
+# Build Consumer Bridge
+gcloud builds submit --config=config/cloudbuild-consumer.yaml \
+  --substitutions="_IMAGE=REGION-docker.pkg.dev/PROJECT/cloud-run/sandarb-kafka-clickhouse-consumer:TAG" kafka-clickhouse-consumer/
+```
+
+### Enterprise configuration
+
+In the Sandarb UI Settings page, enterprise teams can configure their own Kafka and ClickHouse endpoints:
+
+- **Kafka**: Bootstrap servers (comma-separated broker:port list), compression, acks
+- **ClickHouse**: URL, database, user, password
+- **Superset**: URL for external link in sidebar
+
+This allows enterprises to point Sandarb at their existing data infrastructure (behind load balancers, on-prem clusters, managed services) without changing any code.

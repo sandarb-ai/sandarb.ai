@@ -1,0 +1,11 @@
+# Cloud Build config for sandarb-kafka-clickhouse-consumer. Use with:
+#   gcloud builds submit --config=config/cloudbuild-consumer.yaml --substitutions=_IMAGE=REGION-docker.pkg.dev/PROJECT/cloud-run/sandarb-kafka-clickhouse-consumer:TAG kafka-clickhouse-consumer/
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - build
+      - -t
+      - '${_IMAGE}'
+      - .
+images:
+  - '${_IMAGE}'

@@ -1,0 +1,89 @@
+# Kafka → ClickHouse Consumer Bridge
+# 1 replica for dev/staging — single consumer for ordered processing.
+# Total CPU request: 250m
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sandarb-consumer
+  namespace: sandarb-data
+  labels:
+    app: sandarb-consumer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sandarb-consumer
+  template:
+    metadata:
+      labels:
+        app: sandarb-consumer
+    spec:
+      containers:
+        - name: consumer
+          image: REGION-docker.pkg.dev/PROJECT_ID/cloud-run/sandarb-kafka-clickhouse-consumer:TAG
+          ports:
+            - containerPort: 8079
+              name: health
+          env:
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: "sandarb-kafka-0.sandarb-kafka-brokers.sandarb-data.svc.cluster.local:9092,sandarb-kafka-1.sandarb-kafka-brokers.sandarb-data.svc.cluster.local:9092,sandarb-kafka-2.sandarb-kafka-brokers.sandarb-data.svc.cluster.local:9092"
+            - name: KAFKA_TOPIC
+              value: "sandarb_events"
+            - name: KAFKA_GROUP_ID
+              value: "sandarb-clickhouse-consumer"
+            - name: KAFKA_AUTO_OFFSET_RESET
+              value: "latest"
+            - name: CLICKHOUSE_URL
+              value: "http://sandarb-clickhouse.sandarb-data.svc.cluster.local:8123"
+            - name: CLICKHOUSE_DATABASE
+              value: "sandarb"
+            - name: CLICKHOUSE_USER
+              value: "default"
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: sandarb-data-secrets
+                  key: clickhouse-password
+            - name: BATCH_SIZE
+              value: "5000"
+            - name: BATCH_TIMEOUT_MS
+              value: "3000"
+            - name: HEALTH_PORT
+              value: "8079"
+            - name: LOG_LEVEL
+              value: "INFO"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8079
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8079
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sandarb-consumer
+  namespace: sandarb-data
+  labels:
+    app: sandarb-consumer
+spec:
+  selector:
+    app: sandarb-consumer
+  ports:
+    - name: health
+      port: 8079
+      targetPort: 8079

@@ -55,6 +55,7 @@ export default function PromptDetailPage() {
   const id = params.id as string;
 
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [creatingVersion, setCreatingVersion] = useState(false);
   const [prompt, setPrompt] = useState<Prompt | null>(null);
   const [versions, setVersions] = useState<PromptVersion[]>([]);
@@ -75,7 +76,14 @@ export default function PromptDetailPage() {
 
   const fetchPrompt = async () => {
     try {
-      const res = await fetch(apiUrl(`/api/prompts/${id}`));
+      setError(null);
+      const url = apiUrl(`/api/prompts/${id}`);
+      const res = await fetch(url);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body?.detail || `API error ${res.status}: ${res.statusText}`);
+        return;
+      }
       const data = await res.json();
       if (data.success) {
         const p = data.data;
@@ -83,13 +91,17 @@ export default function PromptDetailPage() {
         setDescription(p.description || '');
         setVersions(p.versions || []);
         setCurrentVersion(p.currentVersion || null);
-        
+
         // Pre-fill editor with current version content
         if (p.currentVersion) {
           setNewContent(p.currentVersion.content || '');
         }
+      } else {
+        setError(data.error || 'Failed to load prompt');
       }
-    } catch {
+    } catch (err) {
+      console.error('Failed to fetch prompt:', err);
+      setError(`Network error: could not reach API. ${err instanceof Error ? err.message : ''}`);
     } finally {
       setLoading(false);
     }
@@ -197,7 +209,12 @@ export default function PromptDetailPage() {
   if (!prompt) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 p-8">
-        <p className="text-muted-foreground">Prompt not found.</p>
+        <p className="text-muted-foreground">{error || 'Prompt not found.'}</p>
+        {error && (
+          <Button variant="outline" size="sm" onClick={() => { setLoading(true); fetchPrompt(); }}>
+            Retry
+          </Button>
+        )}
         <Link href="/prompts">
           <Button variant="outline">
             <ArrowLeft className="h-4 w-4 mr-2" />

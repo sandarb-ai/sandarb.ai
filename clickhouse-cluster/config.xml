@@ -1,0 +1,43 @@
+<clickhouse>
+    <remote_servers>
+        <sandarb_cluster>
+            <shard>
+                <internal_replication>true</internal_replication>
+                <replica>
+                    <host>clickhouse01</host>
+                    <port>9000</port>
+                </replica>
+                <replica>
+                    <host>clickhouse02</host>
+                    <port>9000</port>
+                </replica>
+            </shard>
+            <shard>
+                <internal_replication>true</internal_replication>
+                <replica>
+                    <host>clickhouse03</host>
+                    <port>9000</port>
+                </replica>
+                <replica>
+                    <host>clickhouse04</host>
+                    <port>9000</port>
+                </replica>
+            </shard>
+        </sandarb_cluster>
+    </remote_servers>
+    <!-- 3-node ClickHouse Keeper ensemble (replaces ZooKeeper) -->
+    <zookeeper>
+        <node>
+            <host>sandarb-keeper01</host>
+            <port>9181</port>
+        </node>
+        <node>
+            <host>sandarb-keeper02</host>
+            <port>9181</port>
+        </node>
+        <node>
+            <host>sandarb-keeper03</host>
+            <port>9181</port>
+        </node>
+    </zookeeper>
+</clickhouse>

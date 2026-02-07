@@ -1,0 +1,98 @@
+name: sandarb-superset-cluster
+
+services:
+  # Init container: run DB migrations and create admin user (once)
+  sandarb-superset-init:
+    build: .
+    image: sandarb-superset:latest
+    container_name: sandarb-superset-init
+    environment:
+      SUPERSET_SECRET_KEY: "sandarb_super_secret_key_change_me"
+      SQLALCHEMY_DATABASE_URI: "postgresql+psycopg2://postgres:sandarb@sandarb-postgres-primary:5432/superset"
+    command:
+      - bash
+      - -c
+      - |
+        superset db upgrade && \
+        superset fab create-admin --username admin --firstname Sandarb --lastname Admin --email admin@sandarb.ai --password admin || true && \
+        superset init
+    networks:
+      - superset-net
+      - postgres-net
+    # Runs once and exits
+    restart: "no"
+
+  # Node 1: Superset worker (port 8088)
+  sandarb-superset-01:
+    build: .
+    image: sandarb-superset:latest
+    container_name: sandarb-superset-01
+    ports:
+      - "8088:8088"
+    environment:
+      SUPERSET_SECRET_KEY: "sandarb_super_secret_key_change_me"
+      SQLALCHEMY_DATABASE_URI: "postgresql+psycopg2://postgres:sandarb@sandarb-postgres-primary:5432/superset"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command:
+      - gunicorn
+      - --bind
+      - 0.0.0.0:8088
+      - --workers
+      - "4"
+      - --timeout
+      - "120"
+      - "superset.app:create_app()"
+    depends_on:
+      sandarb-superset-init:
+        condition: service_completed_successfully
+    networks:
+      - superset-net
+      - postgres-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # Node 2: Superset worker (port 8089)
+  sandarb-superset-02:
+    build: .
+    image: sandarb-superset:latest
+    container_name: sandarb-superset-02
+    ports:
+      - "8089:8088"
+    environment:
+      SUPERSET_SECRET_KEY: "sandarb_super_secret_key_change_me"
+      SQLALCHEMY_DATABASE_URI: "postgresql+psycopg2://postgres:sandarb@sandarb-postgres-primary:5432/superset"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command:
+      - gunicorn
+      - --bind
+      - 0.0.0.0:8088
+      - --workers
+      - "4"
+      - --timeout
+      - "120"
+      - "superset.app:create_app()"
+    depends_on:
+      sandarb-superset-init:
+        condition: service_completed_successfully
+    networks:
+      - superset-net
+      - postgres-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+networks:
+  superset-net:
+    driver: bridge
+  postgres-net:
+    external: true
+    name: sandarb-postgres_postgres-net

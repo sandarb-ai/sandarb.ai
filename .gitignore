@@ -53,6 +53,10 @@ __pycache__/
 
 # Deploy / Cloud SQL Proxy (downloaded by deploy-gcp.sh --seed)
 .tmp/
+cloud-sql-proxy
+
+# Kubernetes secrets (NEVER commit)
+k8s/secrets.yaml
 
 # Misc
 *.tsbuildinfo

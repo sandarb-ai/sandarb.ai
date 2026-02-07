@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sandarb-data
+  labels:
+    app.kubernetes.io/part-of: sandarb
+    app.kubernetes.io/component: data-platform

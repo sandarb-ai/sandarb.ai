@@ -61,6 +61,13 @@ class TestSettings:
         data = response.json()
         assert data["success"] is True
 
+        # Clean up: restore theme to light so tests don't pollute the dev database
+        client.patch(
+            "/api/settings",
+            json={"theme": "light"},
+            headers=write_headers,
+        )
+
     def test_update_setting_invalid_key(self, client, write_headers):
         """Test PATCH /api/settings rejects invalid keys."""
         response = client.patch(

@@ -146,10 +146,10 @@ export function SignupCardOrTerminal({ from }: { from?: string }) {
           ))}
           {showWarn && (
             <>
-              <div className="text-amber-500 animate-pulse">
-                &gt; WARN: NO_API_KEY_FOUND. BYPASSING...
+              <div className="text-green-400 animate-pulse">
+                &gt; human verification complete
               </div>
-              <div className="text-zinc-500">
+              <div className="text-green-600">
                 &gt; granting access in {bypassCountdown ?? 3}s...
               </div>
             </>

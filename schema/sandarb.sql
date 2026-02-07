@@ -193,6 +193,52 @@ CREATE INDEX IF NOT EXISTS idx_agent_prompts_prompt_id ON agent_prompts(prompt_i
 -- Settings (key-value)
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 
+-- ── Data Platform: Kafka configuration ──
+CREATE TABLE IF NOT EXISTS config_kafka (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  bootstrap_servers TEXT NOT NULL DEFAULT 'localhost:9092,localhost:9093,localhost:9094,localhost:9095,localhost:9096',
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  compression_type TEXT NOT NULL DEFAULT 'lz4',
+  acks TEXT NOT NULL DEFAULT '1',
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_by TEXT
+);
+
+-- ── Data Platform: ClickHouse configuration ──
+CREATE TABLE IF NOT EXISTS config_clickhouse (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  url TEXT NOT NULL DEFAULT 'http://localhost:8123',
+  database_name TEXT NOT NULL DEFAULT 'sandarb',
+  username TEXT NOT NULL DEFAULT 'default',
+  password TEXT NOT NULL DEFAULT '',
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_by TEXT
+);
+
+-- ── Data Platform: Superset configuration ──
+CREATE TABLE IF NOT EXISTS config_superset (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  url TEXT NOT NULL DEFAULT 'http://localhost:8088',
+  username TEXT NOT NULL DEFAULT 'admin',
+  password TEXT NOT NULL DEFAULT '',
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_by TEXT
+);
+
+-- ── Gen AI: LLM configuration for context generation ──
+CREATE TABLE IF NOT EXISTS config_gen_ai (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  provider TEXT NOT NULL DEFAULT 'anthropic',
+  model TEXT NOT NULL DEFAULT 'claude-sonnet-4-5-20250929',
+  api_key TEXT NOT NULL DEFAULT '',
+  base_url TEXT NOT NULL DEFAULT '',
+  temperature REAL NOT NULL DEFAULT 0.3,
+  max_tokens INTEGER NOT NULL DEFAULT 4096,
+  system_prompt TEXT NOT NULL DEFAULT '',
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_by TEXT
+);
+
 -- Scan targets (governance discovery)
 CREATE TABLE IF NOT EXISTS scan_targets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

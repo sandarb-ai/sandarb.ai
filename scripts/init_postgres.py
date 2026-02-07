@@ -300,6 +300,11 @@ MIGRATIONS = [
     "UPDATE prompts p SET org_id = (SELECT a.org_id FROM agents a INNER JOIN agent_prompts ap ON ap.agent_id = a.id WHERE ap.prompt_id = p.id LIMIT 1) WHERE p.org_id IS NULL AND EXISTS (SELECT 1 FROM agent_prompts ap2 INNER JOIN agents a2 ON a2.id = ap2.agent_id WHERE ap2.prompt_id = p.id)",
     "UPDATE prompts SET org_id = (SELECT id FROM organizations ORDER BY name LIMIT 1) WHERE org_id IS NULL AND EXISTS (SELECT 1 FROM organizations LIMIT 1)",
     "CREATE INDEX IF NOT EXISTS idx_prompts_org_id ON prompts(org_id)",
+    # Data Platform config tables
+    "CREATE TABLE IF NOT EXISTS config_kafka (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), bootstrap_servers TEXT NOT NULL DEFAULT 'localhost:9092', enabled BOOLEAN NOT NULL DEFAULT TRUE, compression_type TEXT NOT NULL DEFAULT 'lz4', acks TEXT NOT NULL DEFAULT '1', updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(), updated_by TEXT)",
+    "CREATE TABLE IF NOT EXISTS config_clickhouse (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), url TEXT NOT NULL DEFAULT 'http://localhost:8123', database_name TEXT NOT NULL DEFAULT 'sandarb', username TEXT NOT NULL DEFAULT 'default', password TEXT NOT NULL DEFAULT '', updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(), updated_by TEXT)",
+    "CREATE TABLE IF NOT EXISTS config_superset (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), url TEXT NOT NULL DEFAULT 'http://localhost:8088', username TEXT NOT NULL DEFAULT 'admin', password TEXT NOT NULL DEFAULT '', updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(), updated_by TEXT)",
+    "CREATE TABLE IF NOT EXISTS config_gen_ai (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), provider TEXT NOT NULL DEFAULT 'anthropic', model TEXT NOT NULL DEFAULT 'claude-sonnet-4-5-20250929', api_key TEXT NOT NULL DEFAULT '', base_url TEXT NOT NULL DEFAULT '', temperature REAL NOT NULL DEFAULT 0.3, max_tokens INTEGER NOT NULL DEFAULT 4096, system_prompt TEXT NOT NULL DEFAULT '', updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(), updated_by TEXT)",
 ]
 
 

@@ -1,10 +1,12 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { Settings } from 'lucide-react';
-import { SignedInStrip } from '@/components/signed-in-strip';
+import { SignedInStrip, DEMO_COOKIE_NAME } from '@/components/signed-in-strip';
+import { NotificationFeed } from '@/components/notification-feed';
 
 const navLink =
   'text-sm font-medium rounded-md px-3 py-2 transition-colors hover:bg-muted/60 hover:text-foreground';
@@ -23,6 +25,16 @@ export function PublicHeader({
   const isHome = pathname === '/';
   const isDocs = pathname?.startsWith('/docs');
   const isSettings = pathname === '/settings';
+
+  // Notification bell: only show when signed in and not on public pages
+  const isPublicPath = isHome || pathname === '/signup' || isDocs;
+  const [signedIn, setSignedIn] = useState(initialSignedIn ?? false);
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      setSignedIn(document.cookie.includes(`${DEMO_COOKIE_NAME}=`));
+    }
+  }, []);
+  const showNotifications = signedIn && !isPublicPath;
 
   return (
     <header className="flex shrink-0 items-center justify-between border-b border-border bg-background px-4 sm:px-6 py-2">
@@ -53,6 +65,7 @@ export function PublicHeader({
         </nav>
       </div>
       <div className="flex items-center gap-1">
+        {showNotifications && <NotificationFeed />}
         <SignedInStrip
           variant="header"
           initialSignedIn={initialSignedIn}

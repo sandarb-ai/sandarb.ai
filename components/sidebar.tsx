@@ -1,14 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { apiUrl } from '@/lib/api';
+import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
-  LayoutGrid,
   FileJson,
-  FileText,
   Plus,
   Building2,
   Bot,
@@ -17,10 +13,6 @@ import {
   Activity,
   MessageSquareText,
   BarChart3,
-  ShieldCheck,
-  AlertTriangle,
-  FileCheck,
-  Scale,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -34,7 +26,6 @@ const contentNav = [
   { title: 'Agent Registry', href: '/agents', icon: Bot },
   { title: 'Agent Prompt', href: '/prompts', icon: MessageSquareText },
   { title: 'Agent Context', href: '/contexts', icon: FileJson },
-  { title: 'Templates', href: '/templates', icon: FileText },
 ];
 
 const workspaceNav = [
@@ -43,48 +34,29 @@ const workspaceNav = [
   { title: 'Organizations', href: '/organizations', icon: Building2 },
 ];
 
-const reportsNav = [
-  { title: 'Overview', href: '/reports', icon: LayoutGrid },
-  { title: 'Risk & Controls', href: '/reports/risk-controls', icon: ShieldCheck },
-  { title: 'Context Governance', href: '/reports/context', icon: FileJson },
-  { title: 'Un-Registered Agents', href: '/reports/unregistered', icon: AlertTriangle },
-  { title: 'Regulatory', href: '/reports/regulatory', icon: Scale },
-  { title: 'Compliance', href: '/reports/compliance', icon: FileCheck },
-];
-
 export function Sidebar() {
   const pathname = usePathname();
+
   const isActive = (href: string) =>
     pathname === href || (href !== '/' && pathname.startsWith(href + '/'));
-  // Reports: only the longest-matching href is active so "Overview" (/reports) isn't active on /reports/risk-controls
-  const reportsActiveHref = (() => {
-    const matches = reportsNav.filter(
-      (item) => pathname === item.href || pathname.startsWith(item.href + '/')
-    );
-    if (matches.length === 0) return pathname === '/reports' ? '/reports' : null;
-    return matches.sort((a, b) => b.href.length - a.href.length)[0]?.href ?? null;
-  })();
-  const isReportsActive = (href: string) => reportsActiveHref === href;
 
   const NavItem = ({
     href,
     icon: Icon,
     title,
     badge,
-    useActive,
   }: {
     href: string;
     icon: React.ComponentType<{ className?: string }>;
     title: string;
     badge?: React.ReactNode;
-    useActive?: (href: string) => boolean;
   }) => {
-    const active = (useActive ?? isActive)(href);
+    const active = isActive(href);
     return (
       <Link
         href={href}
         className={cn(
-          'group relative flex items-center gap-3 rounded-md px-2 py-2 text-[15px] font-medium transition-colors',
+          'group relative flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[13px] font-medium transition-colors',
           'hover:bg-violet-100/80 dark:hover:bg-violet-900/20',
           active
             ? 'bg-violet-100 text-violet-900 dark:bg-violet-900/40 dark:text-violet-100'
@@ -97,15 +69,15 @@ export function Sidebar() {
         )}
         <span
           className={cn(
-            'flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors',
+            'flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors',
             active
               ? 'bg-violet-200/80 text-violet-700 shadow-sm dark:bg-violet-800/50 dark:text-violet-200'
               : 'text-muted-foreground group-hover:text-foreground'
           )}
         >
-          <Icon className="h-[18px] w-[18px]" />
+          <Icon className="h-[16px] w-[16px]" />
         </span>
-        <span className="min-w-0 truncate">{title}</span>
+        <span className="min-w-0 leading-tight">{title}</span>
         {badge}
       </Link>
     );
@@ -126,7 +98,7 @@ export function Sidebar() {
       <div className="flex items-center justify-between gap-1 px-2 py-1.5">
         <div className="flex items-center gap-2 min-w-0">
           <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground truncate">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground truncate">
             {label}
           </span>
         </div>
@@ -140,7 +112,7 @@ export function Sidebar() {
     <TooltipProvider delayDuration={0}>
       <aside
         className={cn(
-          'flex h-full w-[220px] flex-col border-r border-border/80 bg-background',
+          'flex h-full w-[240px] flex-col border-r border-border/80 bg-background',
           'dark:border-border/60 dark:bg-[hsl(var(--background))]'
         )}
       >
@@ -185,17 +157,15 @@ export function Sidebar() {
             ))}
           </Section>
 
-          <Section label="Reports" icon={BarChart3}>
-            {reportsNav.map((item) => (
+          <div className="mb-4">
+            <div className="space-y-0.5">
               <NavItem
-                key={item.href}
-                href={item.href}
-                icon={item.icon}
-                title={item.title}
-                useActive={isReportsActive}
+                href="/reports"
+                icon={BarChart3}
+                title="AI Governance Reports"
               />
-            ))}
-          </Section>
+            </div>
+          </div>
         </div>
       </aside>
     </TooltipProvider>

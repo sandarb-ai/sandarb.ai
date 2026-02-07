@@ -1,0 +1,82 @@
+name: sandarb-kafka-clickhouse-consumer
+
+services:
+  # Consumer 01: handles ~half the Kafka partitions via consumer group
+  sandarb-consumer-01:
+    build: .
+    image: sandarb-kafka-to-clickhouse-consumer:latest
+    container_name: sandarb-consumer-01
+    restart: unless-stopped
+    ports:
+      - "8079:8079"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - kafka-net
+    environment:
+      # Kafka: use internal PLAINTEXT listener (broker names on kafka-net)
+      - KAFKA_BOOTSTRAP_SERVERS=broker01:9090,broker02:9090,broker03:9090,broker04:9090,broker05:9090
+      - KAFKA_TOPIC=sandarb_events
+      - KAFKA_GROUP_ID=sandarb-clickhouse-consumer
+      - KAFKA_AUTO_OFFSET_RESET=latest
+      # ClickHouse: use host.docker.internal (separate Docker network)
+      - CLICKHOUSE_URL=http://host.docker.internal:8123
+      - CLICKHOUSE_DATABASE=sandarb
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=sandarb
+      - BATCH_SIZE=2000
+      - BATCH_TIMEOUT_MS=5000
+      - HEALTH_PORT=8079
+      - LOG_LEVEL=INFO
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8079/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # Consumer 02: handles the other half of Kafka partitions via same consumer group
+  sandarb-consumer-02:
+    build: .
+    image: sandarb-kafka-to-clickhouse-consumer:latest
+    container_name: sandarb-consumer-02
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - kafka-net
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=broker01:9090,broker02:9090,broker03:9090,broker04:9090,broker05:9090
+      - KAFKA_TOPIC=sandarb_events
+      - KAFKA_GROUP_ID=sandarb-clickhouse-consumer
+      - KAFKA_AUTO_OFFSET_RESET=latest
+      - CLICKHOUSE_URL=http://host.docker.internal:8123
+      - CLICKHOUSE_DATABASE=sandarb
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=sandarb
+      - BATCH_SIZE=2000
+      - BATCH_TIMEOUT_MS=5000
+      - HEALTH_PORT=8080
+      - LOG_LEVEL=INFO
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+# Horizontal scaling:
+#   - Both consumers use the same KAFKA_GROUP_ID so Kafka auto-distributes
+#     12 partitions across them (6 each with 2 consumers).
+#   - To scale to 3+: duplicate a service block with a new container name,
+#     host port, and HEALTH_PORT. Max useful replicas = 12 (partition count).
+#   - On GKE: k8s/consumer-deployment.yaml uses replicas: 3 with a single
+#     Deployment, Kafka handles partition rebalancing automatically.
+
+# Join the existing sandarb-kafka-cluster network so we can reach brokers by name
+networks:
+  kafka-net:
+    external: true
+    name: sandarb-kafka-cluster_kafka-net
