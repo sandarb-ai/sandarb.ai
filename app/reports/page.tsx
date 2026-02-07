@@ -100,10 +100,10 @@ export default function ReportsPage() {
           {/* Title */}
           <div className="text-center mb-8">
             <h2 className="text-lg font-semibold text-foreground mb-1">
-              Sandarb Data Platform
+              AGP Pipeline — Sandarb Data Platform
             </h2>
             <p className="text-sm text-muted-foreground">
-              AI Agents communicate with Sandarb, events flow through Kafka, get consumed into ClickHouse, and are visualized in Superset.
+              AI Governance Proof (AGP) events flow from AI Agents through Sandarb to Kafka, consumed by SKCC into ClickHouse, and visualized in Superset.
             </p>
           </div>
 

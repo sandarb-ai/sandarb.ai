@@ -7,6 +7,8 @@ import { MultiAgentA2ADiagram } from '@/components/multi-agent-a2a-diagram';
 import { DocsTryInject, DocsTryPromptsPull, DocsTryA2a } from './docs-try-api';
 import { DocsLayout } from './docs-layout';
 import { DocsCodeBlock } from './docs-code-block';
+import { DataPipelineDiagram } from '@/components/data-pipeline-diagram';
+import { InfoBubble } from '@/components/info-bubble';
 import type { AgentSkill } from '@/types';
 
 /** Static A2A skills list for docs (canonical list lives in backend/routers/agent_protocol.py). */
@@ -210,6 +212,18 @@ export default async function DocsPage() {
       ],
     },
     {
+      label: 'AGP Data Platform',
+      icon: 'Database',
+      items: [
+        { id: 'data-platform', label: 'AGP Pipeline', icon: 'Network' },
+        { id: 'kafka-topics', label: 'Kafka topics', icon: 'Layers' },
+        { id: 'event-types', label: 'Governance events', icon: 'ClipboardList' },
+        { id: 'clickhouse-schema', label: 'ClickHouse schema', icon: 'Database' },
+        { id: 'materialized-views', label: 'Materialized views', icon: 'Eye' },
+        { id: 'pipeline-setup', label: 'Pipeline setup', icon: 'Settings' },
+      ],
+    },
+    {
       label: 'Reference',
       icon: 'BookOpen',
       items: [
@@ -229,18 +243,6 @@ export default async function DocsPage() {
         { id: 'enterprise-api-key-expiration', label: 'API key expiration', icon: 'Key' },
         { id: 'enterprise-pagination', label: 'Pagination', icon: 'ListOrdered' },
         { id: 'enterprise-rate-limiting', label: 'Rate limiting', icon: 'Gauge' },
-      ],
-    },
-    {
-      label: 'Data Platform',
-      icon: 'Database',
-      items: [
-        { id: 'data-platform', label: 'Architecture', icon: 'Network' },
-        { id: 'kafka-topics', label: 'Kafka topics', icon: 'Layers' },
-        { id: 'event-types', label: 'Governance events', icon: 'ClipboardList' },
-        { id: 'clickhouse-schema', label: 'ClickHouse schema', icon: 'Database' },
-        { id: 'materialized-views', label: 'Materialized views', icon: 'Eye' },
-        { id: 'pipeline-setup', label: 'Pipeline setup', icon: 'Settings' },
       ],
     },
     {
@@ -1503,6 +1505,279 @@ sandarb.audit("inference", details={"response_length": 120})`}</DocsCodeBlock>
           <DocsTryA2a skills={skills} />
         </section>
 
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* AGP Data Platform — placed after A2A since every A2A call,    */}
+        {/* audit log, and governance event produces AGP data.            */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+
+        <section id="data-platform" className="scroll-mt-24 pt-6 border-t border-border/40">
+          <H2WithAnchor id="data-platform">AGP<InfoBubble term="AGP" /> Pipeline &mdash; Sandarb Data Platform</H2WithAnchor>
+          <P>
+            Every A2A integration, REST API call, MCP tool invocation, and audit log described above produces
+            an <strong className="text-violet-600 dark:text-violet-400">AI Governance Proof (AGP)</strong><InfoBubble term="AGP" /> event.
+            AGP<InfoBubble term="AGP" /> is the core data that powers AI Governance, Risk &amp; Controls, Compliance, and Regulatory requirements
+            &mdash; capturing cryptographic hash proofs, trace IDs, and full audit metadata for every governance action.
+          </P>
+          <P>
+            Sandarb&apos;s Data Platform streams these AGP<InfoBubble term="AGP" /> events through Kafka
+            and SKCC<InfoBubble term="SKCC" /> into ClickHouse for sub-10ms OLAP analytics and Superset dashboards.
+            PostgreSQL remains the OLTP source of truth.
+          </P>
+
+          {/* Animated AGP Pipeline diagram */}
+          <div className="my-8">
+            <DataPipelineDiagram />
+          </div>
+
+          <DocsCodeBlock label="AGP Pipeline architecture">{`Sandarb API (FastAPI)
+    │
+    ├──► PostgreSQL (OLTP — source of truth)
+    │
+    └──► Kafka Producer (AGP event publisher)
+              │
+              ▼
+         Kafka Cluster (KRaft — 5 local / 3 GKE brokers)
+              │
+              ▼
+         SKCC (Sandarb Kafka to ClickHouse Consumer)
+              │
+              ▼
+         ClickHouse (MergeTree — 4 local / 2 GKE nodes)
+              │
+              ├── sandarb.events (raw AGP events)
+              ├── sandarb.daily_kpis (materialized)
+              ├── sandarb.agent_activity (materialized)
+              ├── sandarb.top_contexts (materialized)
+              ├── sandarb.governance_proofs (materialized)
+              └── sandarb.denial_reasons (materialized)`}</DocsCodeBlock>
+          <Admonition title="AGP is critical infrastructure">
+            The AGP<InfoBubble term="AGP" /> pipeline is central to Sandarb&apos;s compliance and regulatory value.
+            Every A2A call, context injection, prompt delivery, and audit log entry generates an AGP event.
+            SKCC<InfoBubble term="SKCC" /> consumes events from all 8 Kafka topics and batch-inserts them into ClickHouse
+            for real-time governance analytics.
+          </Admonition>
+        </section>
+
+        <section id="kafka-topics" className="scroll-mt-24 pt-6 border-t border-border/40">
+          <H2WithAnchor id="kafka-topics">Kafka Topics</H2WithAnchor>
+          <P>
+            The Kafka cluster runs in KRaft mode (5 local brokers / 3 GKE brokers).
+            Eight AGP<InfoBubble term="AGP" /> topics are provisioned:
+          </P>
+          <div className="overflow-x-auto mb-6">
+            <table className="w-full text-sm border border-border/40 rounded-lg overflow-hidden">
+              <thead>
+                <tr className="bg-muted/50">
+                  <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Topic</th>
+                  <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Partitions</th>
+                  <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Purpose</th>
+                </tr>
+              </thead>
+              <tbody className="text-muted-foreground">
+                <tr className="border-b border-border/20"><td className="px-3 py-2 font-mono text-xs"><InlineCode>sandarb_events</InlineCode></td><td className="px-3 py-2">12</td><td className="px-3 py-2">Firehose &mdash; all AGP events land here</td></tr>
+                <tr className="border-b border-border/20"><td className="px-3 py-2 font-mono text-xs"><InlineCode>sandarb.inject</InlineCode></td><td className="px-3 py-2">6</td><td className="px-3 py-2">Context injection events (success + denied)</td></tr>
+                <tr className="border-b border-border/20"><td className="px-3 py-2 font-mono text-xs"><InlineCode>sandarb.audit</InlineCode></td><td className="px-3 py-2">6</td><td className="px-3 py-2">Full audit trail &mdash; A2A calls, prompt usage (infinite retention)</td></tr>
+                <tr className="border-b border-border/20"><td className="px-3 py-2 font-mono text-xs"><InlineCode>sandarb.agent-lifecycle</InlineCode></td><td className="px-3 py-2">3</td><td className="px-3 py-2">Agent registered/approved/deactivated</td></tr>
+                <tr className="border-b border-border/20"><td className="px-3 py-2 font-mono text-xs"><InlineCode>sandarb.governance-proof</InlineCode></td><td className="px-3 py-2">6</td><td className="px-3 py-2">Compacted proof of delivery ledger</td></tr>
+                <tr className="border-b border-border/20"><td className="px-3 py-2 font-mono text-xs"><InlineCode>sandarb.context-lifecycle</InlineCode></td><td className="px-3 py-2">3</td><td className="px-3 py-2">Context create/approve/archive events</td></tr>
+                <tr className="border-b border-border/20"><td className="px-3 py-2 font-mono text-xs"><InlineCode>sandarb.prompt-lifecycle</InlineCode></td><td className="px-3 py-2">3</td><td className="px-3 py-2">Prompt version create/approve events</td></tr>
+                <tr><td className="px-3 py-2 font-mono text-xs"><InlineCode>sandarb.policy-violations</InlineCode></td><td className="px-3 py-2">3</td><td className="px-3 py-2">Policy violations (infinite retention)</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <P>
+            All topics use LZ4 compression and replication factor 3. The firehose topic
+            (<InlineCode>sandarb_events</InlineCode>) is partitioned by <InlineCode>org_id</InlineCode> for data locality.
+          </P>
+        </section>
+
+        <section id="event-types" className="scroll-mt-24 pt-6 border-t border-border/40">
+          <H2WithAnchor id="event-types">Governance Event Types</H2WithAnchor>
+          <P>
+            Sixteen event types are emitted across seven categories. Every A2A integration and audit log generates one or more of these AGP<InfoBubble term="AGP" /> events:
+          </P>
+          <div className="overflow-x-auto mb-6">
+            <table className="w-full text-sm border border-border/40 rounded-lg overflow-hidden">
+              <thead>
+                <tr className="bg-muted/50">
+                  <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Category</th>
+                  <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Event Type</th>
+                  <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Kafka Topic</th>
+                </tr>
+              </thead>
+              <tbody className="text-muted-foreground">
+                <tr className="border-b border-border/20"><td className="px-3 py-2" rowSpan={2}>Context Injection</td><td className="px-3 py-2"><InlineCode>INJECT_SUCCESS</InlineCode></td><td className="px-3 py-2 font-mono text-xs">sandarb.inject</td></tr>
+                <tr className="border-b border-border/20"><td className="px-3 py-2"><InlineCode>INJECT_DENIED</InlineCode></td><td className="px-3 py-2 font-mono text-xs">sandarb.inject</td></tr>
+                <tr className="border-b border-border/20"><td className="px-3 py-2" rowSpan={2}>Prompt Usage</td><td className="px-3 py-2"><InlineCode>PROMPT_USED</InlineCode></td><td className="px-3 py-2 font-mono text-xs">sandarb.audit</td></tr>
+                <tr className="border-b border-border/20"><td className="px-3 py-2"><InlineCode>PROMPT_DENIED</InlineCode></td><td className="px-3 py-2 font-mono text-xs">sandarb.audit</td></tr>
+                <tr className="border-b border-border/20"><td className="px-3 py-2" rowSpan={3}>Agent Lifecycle</td><td className="px-3 py-2"><InlineCode>AGENT_REGISTERED</InlineCode></td><td className="px-3 py-2 font-mono text-xs">sandarb.agent-lifecycle</td></tr>
+                <tr className="border-b border-border/20"><td className="px-3 py-2"><InlineCode>AGENT_APPROVED</InlineCode></td><td className="px-3 py-2 font-mono text-xs">sandarb.agent-lifecycle</td></tr>
+                <tr className="border-b border-border/20"><td className="px-3 py-2"><InlineCode>AGENT_DEACTIVATED</InlineCode></td><td className="px-3 py-2 font-mono text-xs">sandarb.agent-lifecycle</td></tr>
+                <tr className="border-b border-border/20"><td className="px-3 py-2" rowSpan={3}>Context Lifecycle</td><td className="px-3 py-2"><InlineCode>CONTEXT_CREATED</InlineCode></td><td className="px-3 py-2 font-mono text-xs">sandarb.context-lifecycle</td></tr>
+                <tr className="border-b border-border/20"><td className="px-3 py-2"><InlineCode>CONTEXT_VERSION_APPROVED</InlineCode></td><td className="px-3 py-2 font-mono text-xs">sandarb.context-lifecycle</td></tr>
+                <tr className="border-b border-border/20"><td className="px-3 py-2"><InlineCode>CONTEXT_ARCHIVED</InlineCode></td><td className="px-3 py-2 font-mono text-xs">sandarb.context-lifecycle</td></tr>
+                <tr className="border-b border-border/20"><td className="px-3 py-2" rowSpan={2}>Prompt Lifecycle</td><td className="px-3 py-2"><InlineCode>PROMPT_VERSION_CREATED</InlineCode></td><td className="px-3 py-2 font-mono text-xs">sandarb.prompt-lifecycle</td></tr>
+                <tr className="border-b border-border/20"><td className="px-3 py-2"><InlineCode>PROMPT_VERSION_APPROVED</InlineCode></td><td className="px-3 py-2 font-mono text-xs">sandarb.prompt-lifecycle</td></tr>
+                <tr className="border-b border-border/20"><td className="px-3 py-2">Governance Proof</td><td className="px-3 py-2"><InlineCode>GOVERNANCE_PROOF</InlineCode></td><td className="px-3 py-2 font-mono text-xs">sandarb.governance-proof</td></tr>
+                <tr className="border-b border-border/20"><td className="px-3 py-2">Policy</td><td className="px-3 py-2"><InlineCode>POLICY_VIOLATION</InlineCode></td><td className="px-3 py-2 font-mono text-xs">sandarb.policy-violations</td></tr>
+                <tr><td className="px-3 py-2">A2A</td><td className="px-3 py-2"><InlineCode>A2A_CALL</InlineCode></td><td className="px-3 py-2 font-mono text-xs">sandarb.audit</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="clickhouse-schema" className="scroll-mt-24 pt-6 border-t border-border/40">
+          <H2WithAnchor id="clickhouse-schema">ClickHouse Schema</H2WithAnchor>
+          <P>
+            All AGP<InfoBubble term="AGP" /> events land in the <InlineCode>sandarb.events</InlineCode> table &mdash; a wide denormalized table optimized for OLAP.
+            SKCC<InfoBubble term="SKCC" /> batch-inserts events from Kafka into this table.
+            The ClickHouse cluster runs 4 local nodes (2 shards &times; 2 replicas) or 2 GKE nodes (MergeTree, non-replicated).
+          </P>
+          <DocsCodeBlock label="sandarb.events — key columns">{`event_id          UUID            -- Auto-generated
+event_type        LowCardinality  -- INJECT_SUCCESS, INJECT_DENIED, etc.
+event_category    LowCardinality  -- inject, audit, agent-lifecycle, etc.
+
+agent_id          String          -- The agent that triggered the event
+agent_name        LowCardinality
+org_id            String          -- Organization (partition key)
+context_name      LowCardinality  -- Context involved (if any)
+prompt_name       LowCardinality  -- Prompt involved (if any)
+
+governance_hash   String          -- SHA-256 content hash (proof of delivery)
+data_classification LowCardinality -- e.g. confidential, internal
+
+denial_reason     String          -- Why access was denied
+violation_type    LowCardinality  -- Policy violation category
+severity          LowCardinality  -- critical, high, medium, low
+
+trace_id          String          -- Distributed trace correlation
+event_time        DateTime64(3)   -- When the event occurred
+ingested_at       DateTime64(3)   -- When ClickHouse received it
+metadata          String          -- Flexible JSON blob`}</DocsCodeBlock>
+          <P>
+            Engine: <InlineCode>MergeTree()</InlineCode> partitioned by <InlineCode>toYYYYMM(event_time)</InlineCode>,
+            ordered by <InlineCode>(org_id, event_type, event_time, event_id)</InlineCode>,
+            with a 2-year TTL.
+          </P>
+          <Admonition title="ClickHouse SQL differences">
+            ClickHouse SQL differs from PostgreSQL in important ways:
+            use <InlineCode>countIf(condition)</InlineCode> instead of <InlineCode>COUNT(*) FILTER (WHERE ...)</InlineCode>,
+            <InlineCode>toDate(col)</InlineCode> instead of <InlineCode>date_trunc()</InlineCode>,
+            and <InlineCode>INTERVAL 30 DAY</InlineCode> (no quotes, singular) for date arithmetic.
+          </Admonition>
+        </section>
+
+        <section id="materialized-views" className="scroll-mt-24 pt-6 border-t border-border/40">
+          <H2WithAnchor id="materialized-views">Materialized Views</H2WithAnchor>
+          <P>
+            Five materialized views pre-aggregate AGP<InfoBubble term="AGP" /> data at insert time for sub-10ms dashboard queries.
+            No scheduled jobs or manual refreshes needed.
+          </P>
+          <div className="overflow-x-auto mb-6">
+            <table className="w-full text-sm border border-border/40 rounded-lg overflow-hidden">
+              <thead>
+                <tr className="bg-muted/50">
+                  <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">View</th>
+                  <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Engine</th>
+                  <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Purpose</th>
+                </tr>
+              </thead>
+              <tbody className="text-muted-foreground">
+                <tr className="border-b border-border/20"><td className="px-3 py-2"><InlineCode>daily_kpis</InlineCode></td><td className="px-3 py-2">AggregatingMergeTree</td><td className="px-3 py-2">Daily event counts, unique agents/contexts per org &amp; event type</td></tr>
+                <tr className="border-b border-border/20"><td className="px-3 py-2"><InlineCode>agent_activity</InlineCode></td><td className="px-3 py-2">SummingMergeTree</td><td className="px-3 py-2">Hourly event counts per agent &mdash; heatmap data</td></tr>
+                <tr className="border-b border-border/20"><td className="px-3 py-2"><InlineCode>top_contexts</InlineCode></td><td className="px-3 py-2">SummingMergeTree</td><td className="px-3 py-2">Most consumed contexts by injection count per day</td></tr>
+                <tr className="border-b border-border/20"><td className="px-3 py-2"><InlineCode>governance_proofs</InlineCode></td><td className="px-3 py-2">SummingMergeTree</td><td className="px-3 py-2">Proof-of-delivery ledger &mdash; hash + agent + day</td></tr>
+                <tr><td className="px-3 py-2"><InlineCode>denial_reasons</InlineCode></td><td className="px-3 py-2">SummingMergeTree</td><td className="px-3 py-2">Access denial breakdown by reason and event type</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <DocsCodeBlock label="Example: query daily KPIs">{`SELECT
+    day,
+    event_type,
+    event_count,
+    rendered_count,
+    uniqExactMerge(unique_agents) AS agents,
+    uniqExactMerge(unique_contexts) AS contexts
+FROM sandarb.daily_kpis
+WHERE org_id = 'finco'
+  AND day >= today() - INTERVAL 7 DAY
+GROUP BY day, event_type, event_count, rendered_count
+ORDER BY day DESC;`}</DocsCodeBlock>
+        </section>
+
+        <section id="pipeline-setup" className="scroll-mt-24 pt-6 border-t border-border/40">
+          <H2WithAnchor id="pipeline-setup">Pipeline Setup</H2WithAnchor>
+          <H3WithAnchor id="infra-kafka">Kafka Cluster</H3WithAnchor>
+          <DocsCodeBlock label="Start the Kafka cluster">{`cd kafka-cluster
+docker compose up -d
+
+# Verify — 5 brokers should be running
+docker compose ps`}</DocsCodeBlock>
+
+          <H3WithAnchor id="infra-clickhouse">ClickHouse Cluster</H3WithAnchor>
+          <DocsCodeBlock label="Start ClickHouse + apply schema">{`cd clickhouse-cluster
+docker compose up -d
+
+# Apply the schema (creates database, table, materialized views)
+docker exec clickhouse01 clickhouse-client \\
+  --multiquery < schema/001_sandarb_events.sql`}</DocsCodeBlock>
+
+          <H3WithAnchor id="infra-event-driver">Event Driver (load testing)</H3WithAnchor>
+          <P>
+            The event driver generates realistic governance events for testing the full AGP<InfoBubble term="AGP" /> pipeline.
+            Run it from the <strong>project root</strong> directory:
+          </P>
+          <DocsCodeBlock label="Event driver usage">{`# Install dependencies
+pip install confluent-kafka requests
+
+# Generate 10,000 events as fast as possible
+python scripts/sandarb_event_driver.py --mode batch --count 10000
+
+# Continuous stream at 5,000 events/sec
+python scripts/sandarb_event_driver.py --mode continuous --eps 5000
+
+# Quick burst of 1,000 events
+python scripts/sandarb_event_driver.py --mode burst --count 1000`}</DocsCodeBlock>
+
+          <H3WithAnchor id="infra-consumer">SKCC<InfoBubble term="SKCC" /> (Sandarb Kafka to ClickHouse Consumer)</H3WithAnchor>
+          <P>
+            SKCC<InfoBubble term="SKCC" /> reads AGP<InfoBubble term="AGP" /> events from Kafka and batch-inserts them into ClickHouse.
+            Run from the <strong>project root</strong>:
+          </P>
+          <DocsCodeBlock label="SKCC (Sandarb Kafka to ClickHouse Consumer)">{`python scripts/kafka_to_clickhouse.py
+
+# Custom settings
+python scripts/kafka_to_clickhouse.py \\
+  --batch-size 5000 \\
+  --clickhouse-url http://sandarb:sandarb@localhost:8123
+
+# Replay from beginning
+python scripts/kafka_to_clickhouse.py --from-beginning`}</DocsCodeBlock>
+
+          <H3WithAnchor id="infra-verify">Full Pipeline Test</H3WithAnchor>
+          <DocsCodeBlock label="End-to-end verification">{`# 1. Generate events into Kafka
+python scripts/sandarb_event_driver.py --mode batch --count 10000
+
+# 2. Consume into ClickHouse (runs until Ctrl+C)
+python scripts/kafka_to_clickhouse.py --from-beginning
+
+# 3. Query ClickHouse to verify
+docker exec clickhouse01 clickhouse-client \\
+  --user sandarb --password sandarb \\
+  --query "SELECT count() FROM sandarb.events"
+
+# 4. Check materialized views
+docker exec clickhouse01 clickhouse-client \\
+  --user sandarb --password sandarb \\
+  --query "SELECT event_type, sum(event_count) FROM sandarb.daily_kpis GROUP BY event_type ORDER BY sum(event_count) DESC"`}</DocsCodeBlock>
+
+          <Admonition title="Environment variables">
+            Set <InlineCode>KAFKA_BOOTSTRAP_SERVERS</InlineCode> (default: <InlineCode>localhost:9092,...,localhost:9096</InlineCode>)
+            and <InlineCode>KAFKA_ENABLED=true</InlineCode> to activate AGP<InfoBubble term="AGP" /> event publishing.
+            SKCC<InfoBubble term="SKCC" /> uses <InlineCode>--clickhouse-url</InlineCode> (default: <InlineCode>http://sandarb:sandarb@localhost:8123</InlineCode>).
+          </Admonition>
+        </section>
+
         <section id="data-model-lineage" className="scroll-mt-24 pt-6 border-t border-border/40">
           <H2WithAnchor id="data-model-lineage">Data model &amp; lineage</H2WithAnchor>
           <P><strong className="text-foreground">Lineage</strong> in Sandarb is the record of who requested which context (or prompt) and when. It is key for compliance and incident response.</P>
@@ -1712,265 +1987,6 @@ RATE_LIMIT_AUTH=20/minute
 DB_POOL_MIN=2
 DB_POOL_MAX=10
 DB_CONNECT_TIMEOUT=10`}</DocsCodeBlock>
-        </section>
-
-        {/* ═══════════════════════════════════════════════════════════════ */}
-        {/* Data Platform                                                   */}
-        {/* ═══════════════════════════════════════════════════════════════ */}
-
-        <section id="data-platform" className="scroll-mt-24 pt-6 border-t border-border/40">
-          <H2WithAnchor id="data-platform">Data Platform Architecture</H2WithAnchor>
-          <P>
-            Sandarb uses a <strong className="text-violet-600 dark:text-violet-400">dual-write architecture</strong> for governance analytics.
-            PostgreSQL remains the OLTP source of truth. Every governance event is also published to Kafka (fire-and-forget)
-            and consumed into ClickHouse for sub-10ms OLAP queries. If Kafka is unavailable the API continues operating
-            with PostgreSQL only &mdash; no exceptions are raised.
-          </P>
-          <DocsCodeBlock label="Architecture flow">{`Sandarb API (FastAPI)
-    │
-    ├──► PostgreSQL (OLTP — source of truth)
-    │
-    └──► Kafka Producer (fire-and-forget)
-              │
-              ▼
-         Kafka Cluster (5 brokers, KRaft)
-              │
-              ▼
-         Consumer Bridge (kafka_to_clickhouse.py)
-              │
-              ▼
-         ClickHouse Cluster (2 shards × 2 replicas)
-              │
-              ├── sandarb.events (raw events)
-              ├── sandarb.daily_kpis (materialized)
-              ├── sandarb.agent_activity (materialized)
-              ├── sandarb.top_contexts (materialized)
-              ├── sandarb.governance_proofs (materialized)
-              └── sandarb.denial_reasons (materialized)`}</DocsCodeBlock>
-          <Admonition title="Dual-write design">
-            The Kafka producer is <strong>optional</strong>. If <InlineCode>confluent-kafka</InlineCode> is not installed
-            or Kafka is unreachable, the backend logs a warning and continues with PostgreSQL only.
-            No exceptions propagate to the API layer.
-          </Admonition>
-        </section>
-
-        <section id="kafka-topics" className="scroll-mt-24 pt-6 border-t border-border/40">
-          <H2WithAnchor id="kafka-topics">Kafka Topics</H2WithAnchor>
-          <P>
-            The Kafka cluster runs 5 KRaft brokers (3 controller+broker, 2 broker-only) on ports 9092&ndash;9096.
-            Eight governance topics are provisioned:
-          </P>
-          <div className="overflow-x-auto mb-6">
-            <table className="w-full text-sm border border-border/40 rounded-lg overflow-hidden">
-              <thead>
-                <tr className="bg-muted/50">
-                  <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Topic</th>
-                  <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Partitions</th>
-                  <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Purpose</th>
-                </tr>
-              </thead>
-              <tbody className="text-muted-foreground">
-                <tr className="border-b border-border/20"><td className="px-3 py-2 font-mono text-xs"><InlineCode>sandarb_events</InlineCode></td><td className="px-3 py-2">12</td><td className="px-3 py-2">Firehose &mdash; all events land here</td></tr>
-                <tr className="border-b border-border/20"><td className="px-3 py-2 font-mono text-xs"><InlineCode>sandarb.inject</InlineCode></td><td className="px-3 py-2">6</td><td className="px-3 py-2">Context injection events (success + denied)</td></tr>
-                <tr className="border-b border-border/20"><td className="px-3 py-2 font-mono text-xs"><InlineCode>sandarb.audit</InlineCode></td><td className="px-3 py-2">6</td><td className="px-3 py-2">Full audit trail (infinite retention)</td></tr>
-                <tr className="border-b border-border/20"><td className="px-3 py-2 font-mono text-xs"><InlineCode>sandarb.agent-lifecycle</InlineCode></td><td className="px-3 py-2">3</td><td className="px-3 py-2">Agent registered/approved/deactivated</td></tr>
-                <tr className="border-b border-border/20"><td className="px-3 py-2 font-mono text-xs"><InlineCode>sandarb.governance-proof</InlineCode></td><td className="px-3 py-2">6</td><td className="px-3 py-2">Compacted proof of delivery ledger</td></tr>
-                <tr className="border-b border-border/20"><td className="px-3 py-2 font-mono text-xs"><InlineCode>sandarb.context-lifecycle</InlineCode></td><td className="px-3 py-2">3</td><td className="px-3 py-2">Context create/approve/archive events</td></tr>
-                <tr className="border-b border-border/20"><td className="px-3 py-2 font-mono text-xs"><InlineCode>sandarb.prompt-lifecycle</InlineCode></td><td className="px-3 py-2">3</td><td className="px-3 py-2">Prompt version create/approve events</td></tr>
-                <tr><td className="px-3 py-2 font-mono text-xs"><InlineCode>sandarb.policy-violations</InlineCode></td><td className="px-3 py-2">3</td><td className="px-3 py-2">Policy violations (infinite retention)</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <P>
-            All topics use LZ4 compression and replication factor 3. The firehose topic
-            (<InlineCode>sandarb_events</InlineCode>) is partitioned by <InlineCode>org_id</InlineCode> for data locality.
-          </P>
-        </section>
-
-        <section id="event-types" className="scroll-mt-24 pt-6 border-t border-border/40">
-          <H2WithAnchor id="event-types">Governance Event Types</H2WithAnchor>
-          <P>
-            Sixteen event types are emitted across seven categories, covering the full governance lifecycle:
-          </P>
-          <div className="overflow-x-auto mb-6">
-            <table className="w-full text-sm border border-border/40 rounded-lg overflow-hidden">
-              <thead>
-                <tr className="bg-muted/50">
-                  <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Category</th>
-                  <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Event Type</th>
-                  <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Kafka Topic</th>
-                </tr>
-              </thead>
-              <tbody className="text-muted-foreground">
-                <tr className="border-b border-border/20"><td className="px-3 py-2" rowSpan={2}>Context Injection</td><td className="px-3 py-2"><InlineCode>INJECT_SUCCESS</InlineCode></td><td className="px-3 py-2 font-mono text-xs">sandarb.inject</td></tr>
-                <tr className="border-b border-border/20"><td className="px-3 py-2"><InlineCode>INJECT_DENIED</InlineCode></td><td className="px-3 py-2 font-mono text-xs">sandarb.inject</td></tr>
-                <tr className="border-b border-border/20"><td className="px-3 py-2" rowSpan={2}>Prompt Usage</td><td className="px-3 py-2"><InlineCode>PROMPT_USED</InlineCode></td><td className="px-3 py-2 font-mono text-xs">sandarb.audit</td></tr>
-                <tr className="border-b border-border/20"><td className="px-3 py-2"><InlineCode>PROMPT_DENIED</InlineCode></td><td className="px-3 py-2 font-mono text-xs">sandarb.audit</td></tr>
-                <tr className="border-b border-border/20"><td className="px-3 py-2" rowSpan={3}>Agent Lifecycle</td><td className="px-3 py-2"><InlineCode>AGENT_REGISTERED</InlineCode></td><td className="px-3 py-2 font-mono text-xs">sandarb.agent-lifecycle</td></tr>
-                <tr className="border-b border-border/20"><td className="px-3 py-2"><InlineCode>AGENT_APPROVED</InlineCode></td><td className="px-3 py-2 font-mono text-xs">sandarb.agent-lifecycle</td></tr>
-                <tr className="border-b border-border/20"><td className="px-3 py-2"><InlineCode>AGENT_DEACTIVATED</InlineCode></td><td className="px-3 py-2 font-mono text-xs">sandarb.agent-lifecycle</td></tr>
-                <tr className="border-b border-border/20"><td className="px-3 py-2" rowSpan={3}>Context Lifecycle</td><td className="px-3 py-2"><InlineCode>CONTEXT_CREATED</InlineCode></td><td className="px-3 py-2 font-mono text-xs">sandarb.context-lifecycle</td></tr>
-                <tr className="border-b border-border/20"><td className="px-3 py-2"><InlineCode>CONTEXT_VERSION_APPROVED</InlineCode></td><td className="px-3 py-2 font-mono text-xs">sandarb.context-lifecycle</td></tr>
-                <tr className="border-b border-border/20"><td className="px-3 py-2"><InlineCode>CONTEXT_ARCHIVED</InlineCode></td><td className="px-3 py-2 font-mono text-xs">sandarb.context-lifecycle</td></tr>
-                <tr className="border-b border-border/20"><td className="px-3 py-2" rowSpan={2}>Prompt Lifecycle</td><td className="px-3 py-2"><InlineCode>PROMPT_VERSION_CREATED</InlineCode></td><td className="px-3 py-2 font-mono text-xs">sandarb.prompt-lifecycle</td></tr>
-                <tr className="border-b border-border/20"><td className="px-3 py-2"><InlineCode>PROMPT_VERSION_APPROVED</InlineCode></td><td className="px-3 py-2 font-mono text-xs">sandarb.prompt-lifecycle</td></tr>
-                <tr className="border-b border-border/20"><td className="px-3 py-2">Governance Proof</td><td className="px-3 py-2"><InlineCode>GOVERNANCE_PROOF</InlineCode></td><td className="px-3 py-2 font-mono text-xs">sandarb.governance-proof</td></tr>
-                <tr className="border-b border-border/20"><td className="px-3 py-2">Policy</td><td className="px-3 py-2"><InlineCode>POLICY_VIOLATION</InlineCode></td><td className="px-3 py-2 font-mono text-xs">sandarb.policy-violations</td></tr>
-                <tr><td className="px-3 py-2">A2A</td><td className="px-3 py-2"><InlineCode>A2A_CALL</InlineCode></td><td className="px-3 py-2 font-mono text-xs">sandarb.audit</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section id="clickhouse-schema" className="scroll-mt-24 pt-6 border-t border-border/40">
-          <H2WithAnchor id="clickhouse-schema">ClickHouse Schema</H2WithAnchor>
-          <P>
-            All governance events land in the <InlineCode>sandarb.events</InlineCode> table &mdash; a wide denormalized table optimized for OLAP.
-            The ClickHouse cluster runs 4 nodes (2 shards &times; 2 replicas) with ZooKeeper coordination.
-          </P>
-          <DocsCodeBlock label="sandarb.events — key columns">{`event_id          UUID            -- Auto-generated
-event_type        LowCardinality  -- INJECT_SUCCESS, INJECT_DENIED, etc.
-event_category    LowCardinality  -- inject, audit, agent-lifecycle, etc.
-
-agent_id          String          -- The agent that triggered the event
-agent_name        LowCardinality
-org_id            String          -- Organization (partition key)
-context_name      LowCardinality  -- Context involved (if any)
-prompt_name       LowCardinality  -- Prompt involved (if any)
-
-governance_hash   String          -- SHA-256 content hash (proof of delivery)
-data_classification LowCardinality -- e.g. confidential, internal
-
-denial_reason     String          -- Why access was denied
-violation_type    LowCardinality  -- Policy violation category
-severity          LowCardinality  -- critical, high, medium, low
-
-trace_id          String          -- Distributed trace correlation
-event_time        DateTime64(3)   -- When the event occurred
-ingested_at       DateTime64(3)   -- When ClickHouse received it
-metadata          String          -- Flexible JSON blob`}</DocsCodeBlock>
-          <P>
-            Engine: <InlineCode>MergeTree()</InlineCode> partitioned by <InlineCode>toYYYYMM(event_time)</InlineCode>,
-            ordered by <InlineCode>(org_id, event_type, event_time, event_id)</InlineCode>,
-            with a 2-year TTL.
-          </P>
-          <Admonition title="ClickHouse SQL differences">
-            ClickHouse SQL differs from PostgreSQL in important ways:
-            use <InlineCode>countIf(condition)</InlineCode> instead of <InlineCode>COUNT(*) FILTER (WHERE ...)</InlineCode>,
-            <InlineCode>toDate(col)</InlineCode> instead of <InlineCode>date_trunc()</InlineCode>,
-            and <InlineCode>INTERVAL 30 DAY</InlineCode> (no quotes, singular) for date arithmetic.
-          </Admonition>
-        </section>
-
-        <section id="materialized-views" className="scroll-mt-24 pt-6 border-t border-border/40">
-          <H2WithAnchor id="materialized-views">Materialized Views</H2WithAnchor>
-          <P>
-            Five materialized views pre-aggregate data at insert time for sub-10ms dashboard queries.
-            No scheduled jobs or manual refreshes needed.
-          </P>
-          <div className="overflow-x-auto mb-6">
-            <table className="w-full text-sm border border-border/40 rounded-lg overflow-hidden">
-              <thead>
-                <tr className="bg-muted/50">
-                  <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">View</th>
-                  <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Engine</th>
-                  <th className="text-left px-3 py-2 font-semibold text-foreground border-b border-border/40">Purpose</th>
-                </tr>
-              </thead>
-              <tbody className="text-muted-foreground">
-                <tr className="border-b border-border/20"><td className="px-3 py-2"><InlineCode>daily_kpis</InlineCode></td><td className="px-3 py-2">AggregatingMergeTree</td><td className="px-3 py-2">Daily event counts, unique agents/contexts per org &amp; event type</td></tr>
-                <tr className="border-b border-border/20"><td className="px-3 py-2"><InlineCode>agent_activity</InlineCode></td><td className="px-3 py-2">SummingMergeTree</td><td className="px-3 py-2">Hourly event counts per agent &mdash; heatmap data</td></tr>
-                <tr className="border-b border-border/20"><td className="px-3 py-2"><InlineCode>top_contexts</InlineCode></td><td className="px-3 py-2">SummingMergeTree</td><td className="px-3 py-2">Most consumed contexts by injection count per day</td></tr>
-                <tr className="border-b border-border/20"><td className="px-3 py-2"><InlineCode>governance_proofs</InlineCode></td><td className="px-3 py-2">SummingMergeTree</td><td className="px-3 py-2">Proof-of-delivery ledger &mdash; hash + agent + day</td></tr>
-                <tr><td className="px-3 py-2"><InlineCode>denial_reasons</InlineCode></td><td className="px-3 py-2">SummingMergeTree</td><td className="px-3 py-2">Access denial breakdown by reason and event type</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <DocsCodeBlock label="Example: query daily KPIs">{`SELECT
-    day,
-    event_type,
-    event_count,
-    rendered_count,
-    uniqExactMerge(unique_agents) AS agents,
-    uniqExactMerge(unique_contexts) AS contexts
-FROM sandarb.daily_kpis
-WHERE org_id = 'finco'
-  AND day >= today() - INTERVAL 7 DAY
-GROUP BY day, event_type, event_count, rendered_count
-ORDER BY day DESC;`}</DocsCodeBlock>
-        </section>
-
-        <section id="pipeline-setup" className="scroll-mt-24 pt-6 border-t border-border/40">
-          <H2WithAnchor id="pipeline-setup">Pipeline Setup</H2WithAnchor>
-          <H3WithAnchor id="infra-kafka">Kafka Cluster</H3WithAnchor>
-          <DocsCodeBlock label="Start the Kafka cluster">{`cd kafka-cluster
-docker compose up -d
-
-# Verify — 5 brokers should be running
-docker compose ps`}</DocsCodeBlock>
-
-          <H3WithAnchor id="infra-clickhouse">ClickHouse Cluster</H3WithAnchor>
-          <DocsCodeBlock label="Start ClickHouse + apply schema">{`cd clickhouse-cluster
-docker compose up -d
-
-# Apply the schema (creates database, table, materialized views)
-docker exec clickhouse01 clickhouse-client \\
-  --multiquery < schema/001_sandarb_events.sql`}</DocsCodeBlock>
-
-          <H3WithAnchor id="infra-event-driver">Event Driver (load testing)</H3WithAnchor>
-          <P>
-            The event driver generates realistic governance events for testing the full pipeline.
-            Run it from the <strong>project root</strong> directory:
-          </P>
-          <DocsCodeBlock label="Event driver usage">{`# Install dependencies
-pip install confluent-kafka requests
-
-# Generate 10,000 events as fast as possible
-python scripts/sandarb_event_driver.py --mode batch --count 10000
-
-# Continuous stream at 5,000 events/sec
-python scripts/sandarb_event_driver.py --mode continuous --eps 5000
-
-# Quick burst of 1,000 events
-python scripts/sandarb_event_driver.py --mode burst --count 1000`}</DocsCodeBlock>
-
-          <H3WithAnchor id="infra-consumer">Kafka to ClickHouse Consumer</H3WithAnchor>
-          <P>
-            The consumer bridge reads from Kafka and batch-inserts into ClickHouse.
-            Run from the <strong>project root</strong>:
-          </P>
-          <DocsCodeBlock label="Consumer bridge">{`python scripts/kafka_to_clickhouse.py
-
-# Custom settings
-python scripts/kafka_to_clickhouse.py \\
-  --batch-size 5000 \\
-  --clickhouse-url http://sandarb:sandarb@localhost:8123
-
-# Replay from beginning
-python scripts/kafka_to_clickhouse.py --from-beginning`}</DocsCodeBlock>
-
-          <H3WithAnchor id="infra-verify">Full Pipeline Test</H3WithAnchor>
-          <DocsCodeBlock label="End-to-end verification">{`# 1. Generate events into Kafka
-python scripts/sandarb_event_driver.py --mode batch --count 10000
-
-# 2. Consume into ClickHouse (runs until Ctrl+C)
-python scripts/kafka_to_clickhouse.py --from-beginning
-
-# 3. Query ClickHouse to verify
-docker exec clickhouse01 clickhouse-client \\
-  --user sandarb --password sandarb \\
-  --query "SELECT count() FROM sandarb.events"
-
-# 4. Check materialized views
-docker exec clickhouse01 clickhouse-client \\
-  --user sandarb --password sandarb \\
-  --query "SELECT event_type, sum(event_count) FROM sandarb.daily_kpis GROUP BY event_type ORDER BY sum(event_count) DESC"`}</DocsCodeBlock>
-
-          <Admonition title="Environment variables">
-            Set <InlineCode>KAFKA_BOOTSTRAP_SERVERS</InlineCode> (default: <InlineCode>localhost:9092,...,localhost:9096</InlineCode>)
-            and <InlineCode>KAFKA_ENABLED=true</InlineCode> to activate Kafka publishing in the backend.
-            The ClickHouse consumer uses <InlineCode>--clickhouse-url</InlineCode> (default: <InlineCode>http://sandarb:sandarb@localhost:8123</InlineCode>).
-          </Admonition>
         </section>
 
         <section id="environment" className="scroll-mt-24 pt-6 border-t border-border/40">

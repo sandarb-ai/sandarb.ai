@@ -1045,9 +1045,11 @@ See [.env.example](../.env.example) for a complete list of configuration options
 
 ---
 
-## Sandarb AI Governance Data Platform
+## Sandarb Data Platform — AI Governance Proof (AGP)
 
-Sandarb's transactional PostgreSQL database serves OLTP workloads (entity CRUD, approval workflows, access control) but cannot scale for analytics at 100M+ events/day. The **Sandarb Data Platform** extends the architecture with a three-tier design: PostgreSQL (OLTP) + Kafka (streaming) + ClickHouse (OLAP).
+Sandarb's Data Platform publishes **AI Governance Proof (AGP)** events — the most important data for AI Governance, Risk & Controls around AI Agents, Compliance & Regulatory Requirements. Every governance action (context injection, prompt delivery, agent lifecycle, policy violation) generates an AGP event that flows through a scalable, real-time analytics pipeline.
+
+The platform extends the OLTP architecture with a three-tier design: PostgreSQL (SOR for entity CRUD) + Kafka (streaming AGP events) + ClickHouse (OLAP for 100M+ events/day analytics, compliance reporting, and Superset dashboards).
 
 ### Architecture Overview
 
@@ -1055,14 +1057,14 @@ Sandarb's transactional PostgreSQL database serves OLTP workloads (entity CRUD, 
 ┌──────────────────────────────────────────────────────────────┐
 │  SANDARB PLATFORM (UI, API, A2A, MCP)                        │
 │                                                               │
-│  POST /api/inject  ──► audit.py (dual-write)                 │
-│  POST /a2a         ──►   ├── PostgreSQL  (OLTP, source of truth)
-│  MCP tools         ──►   └── Kafka       (fire-and-forget)   │
+│  POST /api/inject  ──► audit.py (AGP publisher)              │
+│  POST /a2a         ──►   ├── PostgreSQL  (OLTP, SOR)         │
+│  MCP tools         ──►   └── Kafka       (AGP pipeline)      │
 └──────────────────┬───────────────────────────────────────────┘
                    │
                    ▼
 ┌──────────────────────────────────────────────────────────────┐
-│  KAFKA CLUSTER (5 brokers, KRaft, ports 9092–9096)           │
+│  KAFKA CLUSTER (KRaft — 3 brokers GKE / 5 brokers local)     │
 │                                                               │
 │  8 Topics:                                                    │
 │    sandarb_events ────────── Primary firehose (all events)    │
@@ -1074,10 +1076,10 @@ Sandarb's transactional PostgreSQL database serves OLTP workloads (entity CRUD, 
 │    sandarb.prompt-lifecycle  Prompt version lifecycle          │
 │    sandarb.policy-violations Policy & compliance violations   │
 └──────────────────┬───────────────────────────────────────────┘
-                   │  kafka_to_clickhouse.py (consumer bridge)
+                   │  SKCC (Sandarb Kafka to ClickHouse Consumer)
                    ▼
 ┌──────────────────────────────────────────────────────────────┐
-│  CLICKHOUSE CLUSTER (4 nodes, 2 shards x 2 replicas)         │
+│  CLICKHOUSE CLUSTER (2 nodes GKE / 4 nodes local)            │
 │                                                               │
 │  Database: sandarb                                            │
 │    events ─────────── All governance events (denormalized)    │
@@ -1089,14 +1091,16 @@ Sandarb's transactional PostgreSQL database serves OLTP workloads (entity CRUD, 
 └──────────────────────────────────────────────────────────────┘
 ```
 
-### Dual-Write Architecture
+### AGP (AI Governance Proof) Architecture
+
+Every governance action generates an **AGP (AI Governance Proof)** — a detailed event record with cryptographic hash proofs, trace IDs, and full audit metadata. AGP is the core metric for AI governance compliance: context injections, prompt deliveries, agent lifecycle changes, policy violations, and A2A calls all produce AGP events.
 
 Every governance event writes to **two** destinations:
 
-1. **PostgreSQL** (source of truth) — the `sandarb_access_logs` table stores the transactional record with ACID guarantees. This is the authoritative audit trail.
-2. **Kafka** (analytics pipeline) — the `kafka_producer.py` service publishes events to the `sandarb_events` firehose topic and to category-specific topics for filtered consumers. This is fire-and-forget.
+1. **PostgreSQL** (source of truth) — the `sandarb_access_logs` table stores the transactional record with ACID guarantees. This is the authoritative SOR for entity CRUD and approval workflows.
+2. **Kafka → ClickHouse** (AGP pipeline) — the `kafka_producer.py` service publishes AGP events to 8 Kafka topics, consumed by SKCC (Sandarb Kafka to ClickHouse Consumer) into ClickHouse for real-time analytics, compliance reporting, and Superset dashboards.
 
-If Kafka is unavailable, PostgreSQL remains the authoritative record — the backend continues to operate normally (graceful degradation). The Kafka producer is a singleton, created lazily on first event, and managed by the FastAPI lifecycle (initialized on startup, flushed on shutdown).
+The AGP pipeline is central to Sandarb's value proposition: scalable, real-time AI governance analytics that meet regulatory and compliance requirements for AI agent oversight. PostgreSQL handles transactional workloads; the Kafka→ClickHouse pipeline handles 100M+ events/day for analytics, risk assessment, and compliance reporting.
 
 ### Kafka Topics
 
@@ -1285,9 +1289,9 @@ python scripts/sandarb_event_driver.py --count 50000 --fan-out
 python scripts/sandarb_event_driver.py --topic sandarb.inject --count 50000
 ```
 
-### Kafka to ClickHouse Consumer
+### SKCC (Sandarb Kafka to ClickHouse Consumer)
 
-The **kafka_to_clickhouse.py** consumer bridge reads events from Kafka and batch-inserts them into ClickHouse:
+The **SKCC** reads AGP events from Kafka and batch-inserts them into ClickHouse:
 
 ```bash
 # Consume all events from the beginning
@@ -1335,13 +1339,14 @@ docker exec clickhouse01 clickhouse-client \
 
 ### Kafka Producer Service
 
-The backend Kafka producer (`backend/services/kafka_producer.py`) is designed for zero-impact integration:
+The backend Kafka producer (`backend/services/kafka_producer.py`) publishes AGP events to the Sandarb Data Platform:
 
 - **Singleton pattern:** One producer per process, created lazily on first event
-- **Graceful degradation:** If Kafka is unavailable, events are logged only to PostgreSQL — no exceptions, no failures
-- **Dual-topic publishing:** Each event goes to both the firehose (`sandarb_events`) and the category-specific topic (e.g. `sandarb.inject`)
+- **AGP event publishing:** Every governance action (inject, prompt, audit, agent lifecycle) generates AGP events published to Kafka
+- **Dual-topic publishing:** Each AGP event goes to both the firehose (`sandarb_events`) and the category-specific topic (e.g. `sandarb.inject`)
 - **High throughput:** LZ4 compression, 20ms linger, 64KB batches, leader-only acks
 - **Lifecycle managed:** Producer is initialized in the FastAPI `lifespan` context and flushed on shutdown
+- **Resilient:** If Kafka is temporarily unreachable, PostgreSQL remains the authoritative record; events resume publishing once connectivity is restored
 
 **Convenience methods for each event type:**
 

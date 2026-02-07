@@ -1,0 +1,19 @@
+# Internal LoadBalancer for Superset — allows Cloud Run (via Direct VPC Egress)
+# to reach Superset for health checks and dashboard embedding.
+apiVersion: v1
+kind: Service
+metadata:
+  name: sandarb-superset-internal
+  namespace: sandarb-data
+  labels:
+    app: sandarb-superset
+  annotations:
+    networking.gke.io/load-balancer-type: "Internal"
+spec:
+  type: LoadBalancer
+  selector:
+    app: sandarb-superset
+  ports:
+    - name: http
+      port: 8088
+      targetPort: 8088

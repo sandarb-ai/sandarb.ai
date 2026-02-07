@@ -111,7 +111,12 @@ def check_kafka() -> dict[str, Any]:
         servers = pcfg.get_raw_value("kafka", "bootstrap_servers")
         enabled = pcfg.get_raw_value("kafka", "enabled")
     except Exception:
+        servers = ""
+        enabled = ""
+    # Fall back to env vars when DB config is empty
+    if not servers:
         servers = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "")
+    if not enabled:
         enabled = os.environ.get("KAFKA_ENABLED", "true")
 
     if not servers or (enabled and enabled.lower() in ("false", "0", "no")):
@@ -171,6 +176,9 @@ def check_clickhouse() -> dict[str, Any]:
         url = pcfg.get_raw_value("clickhouse", "url")
     except Exception:
         url = ""
+    # Fall back to env var when DB config is empty
+    if not url:
+        url = os.environ.get("CLICKHOUSE_URL", "")
     if not url:
         return {
             "id": "clickhouse",
@@ -200,6 +208,9 @@ def check_superset() -> dict[str, Any]:
         url = pcfg.get_raw_value("superset", "url")
     except Exception:
         url = ""
+    # Fall back to env var when DB config is empty
+    if not url:
+        url = os.environ.get("SUPERSET_URL", "")
     if not url:
         return {
             "id": "superset",
@@ -291,17 +302,26 @@ def check_kafka_publishing() -> dict[str, Any]:
 
 
 def check_kafka_consumer() -> dict[str, Any]:
-    """Check if the Kafka→ClickHouse consumer bridge is running (heuristic: recent events in ClickHouse)."""
+    """Check if the SKCC (Sandarb Kafka to ClickHouse Consumer) is running."""
     try:
         ch_url = pcfg.get_raw_value("clickhouse", "url")
-        db = pcfg.get_raw_value("clickhouse", "database_name") or "sandarb"
-        ch_user = pcfg.get_raw_value("clickhouse", "username") or "default"
-        ch_pass = pcfg.get_raw_value("clickhouse", "password") or ""
+        db = pcfg.get_raw_value("clickhouse", "database_name")
+        ch_user = pcfg.get_raw_value("clickhouse", "username")
+        ch_pass = pcfg.get_raw_value("clickhouse", "password")
     except Exception:
         ch_url = ""
-        db = "sandarb"
-        ch_user = "default"
+        db = ""
+        ch_user = ""
         ch_pass = ""
+    # Fall back to env vars when DB config is empty
+    if not ch_url:
+        ch_url = os.environ.get("CLICKHOUSE_URL", "")
+    if not db:
+        db = os.environ.get("CLICKHOUSE_DATABASE", "sandarb")
+    if not ch_user:
+        ch_user = os.environ.get("CLICKHOUSE_USER", "default")
+    if not ch_pass:
+        ch_pass = os.environ.get("CLICKHOUSE_PASSWORD", "")
     if not ch_url:
         return {
             "id": "kafka_consumer",

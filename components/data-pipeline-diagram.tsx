@@ -1,10 +1,10 @@
 'use client';
 
 /**
- * Animated Sandarb Data Platform pipeline diagram.
+ * Animated AGP (AI Governance Proof) Pipeline diagram.
  *
  * Layout (left → right):
- *   [5 AI Agents] ⇄ [Sandarb logo+name rect] → [Kafka cylinder] → [Consumer stream] → [ClickHouse DB] → [Superset]
+ *   [5 AI Agents] ⇄ [Sandarb logo+name rect] → [Kafka cylinder] → [SKCC stream] → [ClickHouse DB] → [Superset]
  *
  * Uses native SVG <animateMotion> for traveling dots — same lightweight
  * pattern as multi-agent-a2a-diagram.tsx. No JS animation library needed.
@@ -306,7 +306,7 @@ export function DataPipelineDiagram() {
           </text>
         </g>
         <text x={KAFKA_CX + 2} y={PIPE_Y + 38} textAnchor="middle" fill="#9ca3af" style={{ fontSize: '8px' }}>
-          Event Stream
+          AGP Events
         </text>
 
         {/* ═══════════════ CONSUMER (streaming process — wave icon) ═══════════════ */}
@@ -329,7 +329,7 @@ export function DataPipelineDiagram() {
           </g>
         </g>
         <text x={CONSUMER_CX} y={PIPE_Y + 38} textAnchor="middle" fill="#9ca3af" style={{ fontSize: '8px' }}>
-          Stream Consumer
+          SKCC
         </text>
 
         {/* ═══════════════ CLICKHOUSE (OLAP DB — database cylinder) ═══════════════ */}

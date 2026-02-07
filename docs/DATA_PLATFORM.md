@@ -1,6 +1,8 @@
 # Sandarb AI Governance - Data Platform
 
-The Sandarb Data Platform provides real-time analytics, audit trail storage, and dashboarding for the AI governance control plane. It processes governance events (context injections, prompt usage, A2A calls, audit entries) from the Sandarb API and stores them in ClickHouse for sub-second analytics and Superset dashboards.
+The Sandarb Data Platform provides real-time analytics, audit trail storage, and dashboarding for the AI governance control plane. It processes **AI Governance Proof (AGP)** events — context injections, prompt deliveries, A2A calls, audit entries, policy violations — from the Sandarb API and stores them in ClickHouse for sub-second analytics and Superset dashboards.
+
+**AGP (AI Governance Proof)** is the core metric that tracks every governance event end-to-end: from context/prompt serving through Kafka streaming to ClickHouse analytics. Every governance action generates an AGP event with cryptographic hash proofs, trace IDs, and full audit metadata.
 
 ## Technology Stack
 
@@ -16,26 +18,26 @@ The Sandarb Data Platform provides real-time analytics, audit trail storage, and
 | Service | Technology | Role |
 |---------|-----------|------|
 | Dashboards | Apache Superset | BI dashboards, visual analytics |
-| Consumer Bridge | Python (kafka-python, urllib3) | Kafka to ClickHouse batch pipeline |
+| SKCC (Sandarb Kafka to ClickHouse Consumer) | Python (kafka-python, urllib3) | Kafka to ClickHouse batch pipeline |
 | Coordination | ClickHouse Keeper (Raft) | Replicated table coordination (replaces ZooKeeper) |
 | PostgreSQL HA | CloudNativePG (GKE) / Streaming Replication (local) | Automated failover, read replicas |
 
 ## Architecture
 
-### Interactive Pipeline Diagram
+### AGP Pipeline Animation
 
-The Sandarb UI includes an animated SVG pipeline diagram on the **AI Governance Reports** page (`/reports`). It visualizes the real-time data flow with traveling dots:
+The Sandarb UI includes an animated SVG pipeline diagram on the **AI Governance Reports** page (`/reports`). It visualizes the real-time AGP (AI Governance Proof) data flow with traveling dots showing governance events flowing through the pipeline:
 
 ```
-[5 AI Agents] ⇄ [Sandarb] → [Kafka] → [Consumer] → [ClickHouse] → [Superset]
+[5 AI Agents] ⇄ [Sandarb] → [Kafka] → [SKCC] → [ClickHouse] → [Superset]
 ```
 
 The component is at `components/data-pipeline-diagram.tsx` and uses native SVG `<animateMotion>` — no JavaScript animation library needed. It shows:
 
 - **5 AI Agents** (left) sending bidirectional requests to Sandarb (context injection, prompt fetch, audit)
-- **Sandarb** (center, purple) as the governance control plane
+- **Sandarb** (center, purple) as the governance control plane — generates AGP events
 - **Kafka** (cylinder) as the event stream buffer
-- **Consumer Bridge** (wave icon) batching events
+- **SKCC** (wave icon) — Sandarb Kafka to ClickHouse Consumer, batching events
 - **ClickHouse** (database cylinder) for OLAP analytics
 - **Superset** (bar chart icon) for BI dashboards
 
@@ -77,14 +79,14 @@ The data platform captures every governance event — context injections, prompt
               │                   │   │                                                          │
               │  ┌─────────────┐  │   │  ┌───────────────────┐                                  │
               │  │   Primary    │  │   │  │  Apache Kafka      │                                  │
-              │  │   (OLTP)     │  │   │  │  5 KRaft Brokers   │  Topic: sandarb_events           │
+              │  │   (OLTP)     │  │   │  │  3 KRaft Brokers   │  Topic: sandarb_events           │
               │  │  port 5432   │  │   │  │  (No ZooKeeper)    │  12 partitions                   │
               │  ├─────────────┤  │   │  └─────────┬─────────┘                                  │
               │  │  Replica 1   │  │   │            │ consume (consumer group)                    │
               │  │  port 5433   │  │   │            ▼                                             │
               │  ├─────────────┤  │   │  ┌───────────────────┐                                  │
-              │  │  Replica 2   │  │   │  │ Consumer Bridge    │  2 instances (local)             │
-              │  │  port 5434   │  │   │  │ (Python)           │  3 instances (GKE)               │
+              │  │  Replica 2   │  │   │  │ SKCC              │  2 instances (local)             │
+              │  │  port 5434   │  │   │  │ (Python)           │  1 instance  (GKE)               │
               │  └─────────────┘  │   │  │ Batch: 2000 / 5s   │  Same KAFKA_GROUP_ID             │
               │                   │   │  └─────────┬─────────┘  = auto partition rebalance       │
               │  Databases:       │   │            │ batch insert (HTTP)                          │
@@ -185,7 +187,7 @@ docker compose -f clickhouse-cluster/docker-compose.yml up -d
 docker exec sandarb-clickhouse01 clickhouse-client --password sandarb \
   --multiquery -q "$(cat clickhouse-cluster/schema/001_sandarb_events.sql)"
 
-# 5. Consumer Bridge (2 instances, auto-scales via Kafka consumer groups)
+# 5. SKCC (2 instances, auto-scales via Kafka consumer groups)
 docker compose -f kafka-clickhouse-consumer/docker-compose.yml up -d
 
 # 6. Superset HA (2 nodes, shared PostgreSQL metadata)
@@ -231,12 +233,12 @@ GKE (data platform):    PostgreSQL (CNPG) + Kafka + ClickHouse + Consumer + Supe
 
 | Component | Resource Type | Replicas | Configuration |
 |-----------|--------------|----------|---------------|
-| PostgreSQL | CNPG Cluster CRD | 3 (1 primary + 2 standbys) | Synchronous replication, 20Gi premium-rwo |
-| Kafka | StatefulSet | 5 (3 controller+broker, 2 broker-only) | KRaft consensus (no ZooKeeper) |
-| ClickHouse | StatefulSet | 5 (2 shards: 3+2 replicas) | 100Gi premium-rwo per node |
-| ClickHouse Keeper | StatefulSet | 3 | Raft consensus (replaces ZooKeeper), 10Gi |
-| Consumer Bridge | Deployment | 3 | Kafka consumer group, auto partition rebalance |
-| Superset | Deployment | 2 | HA with CNPG PostgreSQL metadata store |
+| PostgreSQL | Cloud SQL | Managed | Cloud SQL for PostgreSQL (SOR) |
+| Kafka | StatefulSet | 3 (all controller+broker) | KRaft consensus, EXTERNAL listener on :9094 |
+| ClickHouse | StatefulSet | 2 (1 shard × 2 replicas) | 1Gi premium-rwo per node |
+| ClickHouse Keeper | StatefulSet | 3 | Raft consensus (replaces ZooKeeper) |
+| SKCC | Deployment | 1 | Sandarb Kafka to ClickHouse Consumer |
+| Superset | Deployment | 1 | Apache Superset BI dashboard |
 
 ### Kubernetes Manifests
 
@@ -246,12 +248,14 @@ All manifests are in `k8s/`:
 |------|----------|-------------|
 | `namespace.yaml` | Namespace | `sandarb-data` namespace |
 | `secrets.yaml.example` | Secret | Template for passwords and secret keys |
-| `postgres-cnpg.yaml` | CNPG Cluster + Services | 3-instance PostgreSQL (CNPG operator), RW + RO services |
-| `kafka-statefulset.yaml` | StatefulSet + Service | 5-broker KRaft cluster |
-| `clickhouse-configmap.yaml` | ConfigMap | Cluster config (2 shards) + per-node macros + 3 Keepers |
-| `clickhouse-statefulset.yaml` | StatefulSet + Services | 5 ClickHouse nodes + 3 Keeper nodes |
-| `consumer-deployment.yaml` | Deployment + Service | Kafka to ClickHouse consumer bridge |
+| `kafka-statefulset.yaml` | StatefulSet + Services | 3-broker KRaft cluster + headless Service + topic init Job |
+| `kafka-internal-lb.yaml` | Internal LoadBalancer | Cloud Run → Kafka bootstrap on port 9094 |
+| `clickhouse-configmap.yaml` | ConfigMap | Cluster config + per-node macros |
+| `clickhouse-statefulset.yaml` | StatefulSet + Services | 2 ClickHouse nodes + 3 Keeper nodes |
+| `clickhouse-internal-lb.yaml` | Internal LoadBalancer | Cloud Run → ClickHouse on port 8123 |
+| `consumer-deployment.yaml` | Deployment + Service | SKCC (Sandarb Kafka to ClickHouse Consumer) |
 | `superset-deployment.yaml` | Deployment + Service | Apache Superset BI dashboard |
+| `superset-internal-lb.yaml` | Internal LoadBalancer | Cloud Run → Superset on port 8088 |
 
 ### One-Command Deploy
 
@@ -261,12 +265,13 @@ All manifests are in `k8s/`:
 
 This will:
 1. Enable GKE + Cloud Build + Artifact Registry APIs
-2. Build Superset and Consumer Bridge images via Cloud Build
+2. Build Superset and SKCC images via Cloud Build
 3. Create a GKE Autopilot cluster (`sandarb-data`)
-4. Install the CloudNativePG operator (for PostgreSQL HA)
-5. Apply namespace, secrets, and PostgreSQL CNPG cluster
-6. Deploy Kafka and ClickHouse StatefulSets (with Keeper)
-7. Deploy Consumer Bridge and Superset
+4. Apply namespace and secrets
+5. Deploy Kafka StatefulSet (3 KRaft brokers) + Internal LoadBalancer
+6. Deploy ClickHouse StatefulSet (2 nodes + 3 Keepers) + Internal LoadBalancer
+7. Deploy SKCC (Sandarb Kafka to ClickHouse Consumer)
+8. Deploy Superset + Internal LoadBalancer
 
 Flags:
 - `--build-only`: Build and push images only (no GKE deploy)
@@ -291,6 +296,22 @@ kubectl exec -it clickhouse-0 -n sandarb-data -- \
 kubectl cnpg status sandarb-postgres -n sandarb-data
 ```
 
+### Cloud Run → GKE Connectivity
+
+Cloud Run services (sandarb-api, sandarb-agent) connect to GKE data platform services via **Direct VPC Egress** and **Internal LoadBalancers**:
+
+| Cloud Run Service | GKE Target | Internal LB IP | Port | Purpose |
+|-------------------|-----------|----------------|------|---------|
+| sandarb-api | Kafka | `sandarb-kafka-internal` | 9094 | Publish AGP events (EXTERNAL listener) |
+| sandarb-api | ClickHouse | `sandarb-clickhouse-internal` | 8123 | Health checks, analytics queries |
+| sandarb-api | Superset | `sandarb-superset-internal` | 8088 | Health checks |
+
+**How it works:**
+1. Cloud Run uses **Direct VPC Egress** to get a NIC on the VPC
+2. **Internal LoadBalancers** provide stable VPC IPs for each GKE service
+3. For Kafka: Cloud Run bootstraps via the Internal LB, then connects directly to pod VPC IPs on port 9094 (EXTERNAL listener advertises `${POD_IP}:9094`)
+4. Cloud Run env vars: `KAFKA_BOOTSTRAP_SERVERS`, `CLICKHOUSE_URL`, `SUPERSET_URL`
+
 ## Component Details
 
 ### PostgreSQL HA
@@ -308,13 +329,17 @@ Databases: `sandarb` (governance data) and `superset` (dashboard metadata).
 
 ### Kafka (KRaft)
 
-5-broker cluster using KRaft consensus (no ZooKeeper dependency). Brokers 0-2 run as combined controller+broker nodes; brokers 3-4 are broker-only for additional throughput. Default topic `sandarb_events` with 12 partitions for parallel consumption.
+**Local:** 5-broker cluster using KRaft consensus (no ZooKeeper dependency). Brokers 0-4 run as combined controller+broker nodes. 8 topics with 6 partitions each.
+
+**GKE:** 3-broker cluster (all controller+broker). Two listeners: PLAINTEXT (:9092) for intra-cluster and EXTERNAL (:9094) advertising pod VPC IPs for Cloud Run connectivity. An Internal LoadBalancer (`sandarb-kafka-internal`) provides a stable VPC IP for Cloud Run bootstrap. 8 Sandarb topics with 6 partitions each, replication factor 3.
 
 ### ClickHouse + Keeper
 
-**Cluster topology:** 2 shards with internal replication (4 nodes total).
+**Local:** 2 shards with internal replication (4 nodes total).
 - Shard 01: `clickhouse01`, `clickhouse02` (2 replicas)
 - Shard 02: `clickhouse03`, `clickhouse04` (2 replicas)
+
+**GKE:** 1 shard × 2 replicas (2 nodes). MergeTree engine (non-replicated — schema must be applied to ALL nodes independently). An Internal LoadBalancer (`sandarb-clickhouse-internal`) provides a stable VPC IP for Cloud Run health checks and analytics queries.
 
 **ClickHouse Keeper** (3-node Raft ensemble) replaces ZooKeeper for replicated table coordination. Keeper is wire-compatible with ZooKeeper protocol but runs natively within the ClickHouse ecosystem — no external Java dependency.
 
@@ -326,9 +351,9 @@ Databases: `sandarb` (governance data) and `superset` (dashboard metadata).
 | HA | Requires 3+ ZK nodes | 3-node Raft quorum |
 | Port | 2181 | 9181 |
 
-### Consumer Bridge
+### SKCC (Sandarb Kafka to ClickHouse Consumer)
 
-Standalone Python service that consumes events from Kafka and batch-inserts into ClickHouse. Runs 2 instances locally (3 on GKE) sharing the same Kafka consumer group (`sandarb-clickhouse-consumer`) for automatic partition distribution across instances.
+Standalone Python service that consumes events from Kafka and batch-inserts into ClickHouse. Runs 2 instances locally (1 on GKE) sharing the same Kafka consumer group (`sandarb-clickhouse-consumer`) for automatic partition distribution across instances.
 
 Features:
 - Batch processing: 2000 events or 5s timeout per flush
@@ -354,7 +379,7 @@ ClickHouse schema includes pre-aggregated materialized views for sub-10ms dashbo
         │
 2. Sandarb API publishes event to Kafka topic "sandarb_events"
         │
-3. Consumer Bridge (2-3 instances) consumes from Kafka
+3. SKCC consumes from Kafka
    - Batch accumulation (2000 events or 5s timeout)
    - Parse, validate, and enrich events
         │
@@ -381,13 +406,13 @@ python -m pytest kafka-clickhouse-consumer/tests/test_k8s_manifests.py -v     # 
 
 | Suite | Tests | Coverage |
 |-------|-------|----------|
-| Consumer Bridge (unit) | 39 | Timestamp parsing, event parsing, metrics, ClickHouse client, health endpoint |
+| SKCC (unit) | 39 | Timestamp parsing, event parsing, metrics, ClickHouse client, health endpoint |
 | Integration | 11 | Live consumer health, ClickHouse connectivity, schema validation, container naming |
 | K8s Manifests | 72 | CNPG cluster, Kafka StatefulSet, ClickHouse ConfigMap/StatefulSet, Consumer Deployment, Superset |
 
 ## Configuration
 
-### Environment Variables (Consumer Bridge)
+### Environment Variables (SKCC — Sandarb Kafka to ClickHouse Consumer)
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -413,3 +438,45 @@ In the Sandarb UI Settings page, enterprise teams can configure their own data p
 - **Superset:** URL for external link in sidebar
 
 This allows enterprises to point Sandarb at their existing data infrastructure without changing any code.
+
+## AGP Storage Tiers
+
+AGP (AI Governance Proof) data has multiple use-cases that require different storage characteristics. Sandarb's Data Platform implements a tiered storage strategy:
+
+| Tier | Technology | Retention | Use Case |
+|------|-----------|-----------|----------|
+| **Hot** | ClickHouse (OLAP) | 90 days | Real-time dashboards, operational analytics, Superset |
+| **Warm** | Apache Iceberg on S3 | Years | Compliance audits, regulatory reporting, historical analysis |
+| **Archive** | S3 Glacier | Indefinite | Long-term retention for legal/regulatory requirements |
+
+### Phase 1 (Current): ClickHouse Hot Storage
+
+AGP events flow through the Kafka → SKCC → ClickHouse pipeline for sub-second analytics. ClickHouse provides:
+- Real-time materialized views for dashboard KPIs
+- Columnar storage for efficient analytical queries
+- TTL-based automatic data expiration (configurable)
+
+### Phase 2 (Roadmap): Apache Iceberg on S3
+
+For long-term AGP storage, Sandarb will publish governance events to an **Apache Iceberg** table format on S3/GCS. Iceberg provides:
+
+- **Open table format** — vendor-neutral, queryable by Spark, Trino, DuckDB, and other engines
+- **Time travel** — query AGP data as it existed at any point in time (critical for compliance audits)
+- **Schema evolution** — add new AGP event fields without rewriting historical data
+- **Partition evolution** — re-partition data without reprocessing
+- **ACID transactions** — concurrent readers and writers without corruption
+
+**Architecture (Phase 2):**
+```
+Kafka → SKCC → ClickHouse (hot, 90d)
+     → Iceberg Writer → S3/GCS Iceberg tables (warm, years)
+                                    ↓
+                         Spark / Trino / DuckDB (AI/ML, compliance reports)
+```
+
+**Use cases for Iceberg-backed AGP:**
+- Regulatory compliance reporting (SOC 2, ISO 27001, GDPR Article 30)
+- AI governance audit trails with time-travel queries
+- AI/ML training on governance patterns (anomaly detection, risk scoring)
+- Cross-organization governance benchmarking
+- Long-term trend analysis for AI agent behavior

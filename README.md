@@ -427,7 +427,7 @@ Sandarb includes a real-time analytics data platform for governance event proces
 ### Architecture
 
 ```
-Sandarb API  -->  Kafka (5 KRaft brokers)  -->  Consumer Bridge (2-3 instances)  -->  ClickHouse (4 nodes, 3 Keeper)  -->  Superset (HA)
+Sandarb API  -->  Kafka (3 KRaft brokers)  -->  SKCC  -->  ClickHouse (2 nodes, 3 Keeper)  -->  Superset
                                                                                        PostgreSQL (1 primary + 2 replicas, CNPG on GKE)
 ```
 
@@ -440,7 +440,7 @@ The local environment runs 6 Docker Compose projects mirroring the GKE productio
 | PostgreSQL HA | 1 primary + 2 streaming replicas | Native streaming replication |
 | Kafka | 5 KRaft brokers | No ZooKeeper |
 | ClickHouse | 4 nodes + 3 ClickHouse Keeper | Raft consensus, no ZooKeeper |
-| Consumer Bridge | 2 instances | Kafka consumer group, auto partition rebalance |
+| SKCC | 2 instances | Sandarb Kafka to ClickHouse Consumer |
 | Superset | 2 nodes (HA) | Shared PostgreSQL metadata |
 
 ### GKE Production

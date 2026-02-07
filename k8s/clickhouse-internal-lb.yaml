@@ -1,0 +1,19 @@
+# Internal LoadBalancer for ClickHouse — allows Cloud Run (via Direct VPC Egress)
+# to query ClickHouse from the VPC for health checks and analytics.
+apiVersion: v1
+kind: Service
+metadata:
+  name: sandarb-clickhouse-internal
+  namespace: sandarb-data
+  labels:
+    app: sandarb-clickhouse
+  annotations:
+    networking.gke.io/load-balancer-type: "Internal"
+spec:
+  type: LoadBalancer
+  selector:
+    app: sandarb-clickhouse
+  ports:
+    - name: http
+      port: 8123
+      targetPort: 8123

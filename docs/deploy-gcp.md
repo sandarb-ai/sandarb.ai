@@ -276,34 +276,26 @@ The app exposes `GET /api/health`. Use it for Cloud Run and GKE liveness/readine
 
 ## Data Platform (GKE)
 
-The Sandarb Data Platform (Kafka, ClickHouse, Superset, Consumer Bridge) runs on **GKE** as stateful workloads, separate from the stateless core services on Cloud Run.
+The Sandarb Data Platform (Kafka, ClickHouse, Superset, SKCC) runs on **GKE** as stateful workloads, separate from the stateless core services on Cloud Run. The platform processes **AGP (AI Governance Proof)** events — every governance action generates an AGP event that flows through the pipeline.
 
 ### Architecture
 
 ```
 Cloud Run (core):        sandarb-ui, sandarb-api, sandarb-agent
-GKE (data platform):     Kafka (StatefulSet) → Consumer Bridge (Deployment) → ClickHouse (StatefulSet) → Superset (Deployment)
+GKE (data platform):     Kafka (StatefulSet) → SKCC (Deployment) → ClickHouse (StatefulSet) → Superset (Deployment)
 ```
 
-### Technology Stack
-
-| Layer | Technology | Role | When |
-|-------|-----------|------|------|
-| OLTP | PostgreSQL (CNPG) | Entity CRUD, approvals, config | Now |
-| Streaming | Apache Kafka (KRaft) | Event bus, decouple ingest from analytics | Phase 1 |
-| OLAP | ClickHouse + Keeper | Real-time analytics, dashboards, reports | Phase 1 |
-| Data Lakehouse | Apache Iceberg on S3 | Long-term storage, AI/ML use-cases | Phase 2 |
+Cloud Run connects to GKE services via **Direct VPC Egress** + **Internal LoadBalancers**.
 
 ### Images
 
 | Service | Image |
 |---------|-------|
-| PostgreSQL | Managed by CNPG operator (CloudNativePG) |
 | Kafka | `apache/kafka:latest` |
 | ClickHouse | `clickhouse/clickhouse-server:latest` |
 | ClickHouse Keeper | `clickhouse/clickhouse-keeper:latest` |
-| Superset | `apache/superset:latest` (+ ClickHouse drivers) |
-| Consumer Bridge | `python:3.12-slim` (custom, built per deploy) |
+| Superset | Custom image (Apache Superset + ClickHouse drivers) |
+| SKCC | Custom image (`python:3.12-slim` + consumer code) |
 
 ### Prerequisites
 
@@ -319,13 +311,14 @@ GKE (data platform):     Kafka (StatefulSet) → Consumer Bridge (Deployment) �
 
 This will:
 1. Enable GKE + Cloud Build + Artifact Registry APIs
-2. Build Superset and Consumer Bridge images via Cloud Build
+2. Build Superset and SKCC images via Cloud Build
 3. Create a GKE Autopilot cluster (`sandarb-data`)
-4. Install CloudNativePG (CNPG) operator for PostgreSQL HA
-5. Apply PostgreSQL CNPG cluster (1 primary + 2 standbys)
-6. Deploy Kafka (5 KRaft brokers), ClickHouse (5 nodes + 3 Keepers)
-7. Deploy Consumer Bridge (3 replicas), Superset (2 replicas HA)
-8. Wait for all pods to be ready
+4. Apply namespace and secrets
+5. Deploy Kafka (3 KRaft brokers) + Internal LoadBalancer
+6. Deploy ClickHouse (2 nodes + 3 Keepers) + Internal LoadBalancer
+7. Deploy SKCC (Sandarb Kafka to ClickHouse Consumer)
+8. Deploy Superset + Internal LoadBalancer
+9. Wait for all pods to be ready
 
 ### Flags
 
@@ -340,28 +333,42 @@ All manifests are in `k8s/`:
 |------|----------|
 | `namespace.yaml` | `sandarb-data` namespace |
 | `secrets.yaml.example` | Template for passwords and secret keys |
-| `postgres-cnpg.yaml` | CNPG PostgreSQL cluster (1 primary + 2 standbys) + RW/RO Services |
-| `kafka-statefulset.yaml` | 5-broker KRaft cluster (3 controller+broker, 2 broker-only) + headless Service |
-| `clickhouse-configmap.yaml` | Cluster config (2 shards) + per-node macros (5 nodes) + 3 Keepers |
-| `clickhouse-statefulset.yaml` | 5-node cluster (2 shards × replicas) + 3 Keepers + Services |
-| `consumer-deployment.yaml` | Kafka→ClickHouse consumer bridge (3 replicas) |
-| `superset-deployment.yaml` | Apache Superset BI dashboard (2 replicas HA, CNPG PostgreSQL metadata) |
+| `kafka-statefulset.yaml` | 3-broker KRaft cluster + headless Service + topic init Job |
+| `kafka-internal-lb.yaml` | Internal LoadBalancer for Cloud Run → Kafka (port 9094) |
+| `clickhouse-configmap.yaml` | Cluster config + per-node macros |
+| `clickhouse-statefulset.yaml` | 2 ClickHouse nodes + 3 Keepers + Services |
+| `clickhouse-internal-lb.yaml` | Internal LoadBalancer for Cloud Run → ClickHouse (port 8123) |
+| `consumer-deployment.yaml` | SKCC — Sandarb Kafka to ClickHouse Consumer |
+| `superset-deployment.yaml` | Apache Superset BI dashboard |
+| `superset-internal-lb.yaml` | Internal LoadBalancer for Cloud Run → Superset (port 8088) |
+
+### Cloud Run → GKE connectivity
+
+Cloud Run services connect to GKE via **Direct VPC Egress** and **Internal LoadBalancers**:
+
+| Service | Internal LB | Port | Cloud Run Env Var |
+|---------|------------|------|-------------------|
+| Kafka | `sandarb-kafka-internal` | 9094 | `KAFKA_BOOTSTRAP_SERVERS` |
+| ClickHouse | `sandarb-clickhouse-internal` | 8123 | `CLICKHOUSE_URL` |
+| Superset | `sandarb-superset-internal` | 8088 | `SUPERSET_URL` |
+
+For Kafka, Cloud Run bootstraps via the Internal LB IP, then connects directly to pod VPC IPs on port 9094 (Kafka EXTERNAL listener advertises `${POD_IP}:9094`).
 
 ### Accessing services
 
 ```bash
 # Superset dashboard
-kubectl port-forward svc/superset -n sandarb-data 8088:8088
+kubectl port-forward svc/sandarb-superset -n sandarb-data 8088:8088
 
-# Consumer health
+# SKCC health
 kubectl port-forward svc/sandarb-consumer -n sandarb-data 8079:8079
 curl http://localhost:8079/health
 
 # ClickHouse query
-kubectl exec -it clickhouse-0 -n sandarb-data -- clickhouse-client -q "SELECT count() FROM sandarb.events"
+kubectl exec -it sandarb-clickhouse-0 -n sandarb-data -- clickhouse-client -q "SELECT count() FROM sandarb.events"
 
 # Kafka topics
-kubectl exec -it kafka-0 -n sandarb-data -- /opt/kafka/bin/kafka-topics.sh --list --bootstrap-server localhost:9092
+kubectl exec -it sandarb-kafka-0 -n sandarb-data -- /opt/kafka/bin/kafka-topics.sh --list --bootstrap-server localhost:9092
 ```
 
 ### Cloud Build configs
@@ -371,11 +378,11 @@ Custom images are built with Cloud Build (in `config/`):
 ```bash
 # Build Superset
 gcloud builds submit --config=config/cloudbuild-superset.yaml \
-  --substitutions="_IMAGE=REGION-docker.pkg.dev/PROJECT/cloud-run/sandarb-superset:TAG" superset/
+  --substitutions="_IMAGE=REGION-docker.pkg.dev/PROJECT/cloud-run/sandarb-superset:TAG"
 
-# Build Consumer Bridge
+# Build SKCC
 gcloud builds submit --config=config/cloudbuild-consumer.yaml \
-  --substitutions="_IMAGE=REGION-docker.pkg.dev/PROJECT/cloud-run/sandarb-kafka-clickhouse-consumer:TAG" kafka-clickhouse-consumer/
+  --substitutions="_IMAGE=REGION-docker.pkg.dev/PROJECT/cloud-run/sandarb-kafka-clickhouse-consumer:TAG"
 ```
 
 ### Enterprise configuration
