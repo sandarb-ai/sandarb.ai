@@ -1371,7 +1371,7 @@ from backend.services.kafka_producer import (
 | **OLTP** | PostgreSQL | localhost:5432 | Cloud SQL / RDS |
 | **Streaming** | Apache Kafka | 5-broker KRaft cluster | MSK / Confluent Cloud |
 | **OLAP** | ClickHouse | 4-node cluster (2x2) | ClickHouse Cloud / self-hosted |
-| **Lake** | Apache Iceberg on S3 | — | S3 + Spark (Phase 3) |
+| **Lakehouse** | Apache Iceberg on S3 | — | S3 + Spark (Phase 3) |
 | **ML** | Spark + Python | — | Databricks / EMR (Phase 4) |
 
 **Cost estimate at 500M events/day:**

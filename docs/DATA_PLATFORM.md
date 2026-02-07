@@ -127,7 +127,7 @@ The data platform captures every governance event — context injections, prompt
               │                                                     │
               │  ┌───────────────────────────────────────────────┐ │
               │  │   Apache Iceberg on S3                         │ │
-              │  │   Long-term governance data lake               │ │
+              │  │   Long-term governance data lakehouse               │ │
               │  │   AI/ML training on governance patterns        │ │
               │  └───────────────────────────────────────────────┘ │
               └───────────────────────────────────────────────────────┘
