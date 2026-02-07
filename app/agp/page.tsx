@@ -34,7 +34,7 @@ export default function AGPSpecPage() {
             framework, or organization can adopt.
           </p>
           <div className="flex flex-wrap gap-3 mt-5">
-            <a href="https://github.com/sandarb-ai/sandarb.ai" target="_blank" rel="noopener noreferrer">
+            <a href="https://github.com/sandarb-ai/agp" target="_blank" rel="noopener noreferrer">
               <Button size="sm" variant="outline" className="gap-1.5 h-9">
                 <Github className="h-4 w-4" />
                 View on GitHub
@@ -527,13 +527,13 @@ def create_agp_event(agent_id, event_type, category, content, trace_id):
                 This is a small step. We hope others will take the next ones with us.
               </p>
               <div className="mt-4 flex flex-wrap gap-3">
-                <a href="https://github.com/sandarb-ai/sandarb.ai/issues" target="_blank" rel="noopener noreferrer">
+                <a href="https://github.com/sandarb-ai/agp/issues" target="_blank" rel="noopener noreferrer">
                   <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs">
                     <Github className="h-3.5 w-3.5" />
                     Open an Issue
                   </Button>
                 </a>
-                <a href="https://github.com/sandarb-ai/sandarb.ai/discussions" target="_blank" rel="noopener noreferrer">
+                <a href="https://github.com/sandarb-ai/agp/discussions" target="_blank" rel="noopener noreferrer">
                   <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs">
                     Start a Discussion
                     <ArrowRight className="h-3.5 w-3.5" />
