@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { FileCheck, GitBranch, Code, Bot, GitMerge, BookOpen, Shield, ArrowRight, Github, LayoutDashboard, Network, Lock, Eye, ScrollText, Cpu, Workflow, ShieldCheck, FileKey, Fingerprint, Radio } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { InfoBubble } from '@/components/info-bubble';
+import { AgpIcon } from '@/components/agp-icon';
 
 export const metadata = {
   title: 'Sandarb - AI Governance for AI Agents',
@@ -99,10 +101,10 @@ export default function LandingPage() {
           </div>
           <div className="mt-5 max-w-2xl mx-auto rounded-lg border border-indigo-300/40 dark:border-indigo-700/40 bg-indigo-50/50 dark:bg-indigo-950/20 px-5 py-3">
             <div className="flex items-start gap-3">
-              <ShieldCheck className="h-5 w-5 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
+              <AgpIcon className="h-6 w-6 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-foreground/90">
-                  AI Governance Proof (AGP)
+                  AI Governance Proof (AGP)<InfoBubble term="AGP" />
                 </p>
                 <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
                   An open specification for cryptographic proof of every AI agent governance action &mdash; trace IDs, SHA-256 hashes, and full audit metadata in a flat, queryable format.
@@ -142,7 +144,7 @@ export default function LandingPage() {
               <li>AI Governance that doesn&apos;t slow shipping AI Agents to production</li>
               <li>Version mgmt &amp; traceability for Agent prompts and contexts</li>
               <li>Living AI Agents registry</li>
-              <li>A small step toward standardizing AI Governance &mdash; open protocols (A2A, MCP), open data formats (AGP), and open infrastructure</li>
+              <li>A small step toward standardizing AI Governance &mdash; open protocols (A2A, MCP), open data formats (AGP<InfoBubble term="AGP" />), and open infrastructure</li>
             </ol>
           </div>
           <div className="rounded-lg border border-border/80 bg-background/50 p-4">
@@ -154,8 +156,8 @@ export default function LandingPage() {
               <li>Single place for approved prompts and context; agents pull via API, A2A, or MCP</li>
               <li>Audit trail: who requested what, when</li>
               <li>Manifest-based registration; git-like versioning</li>
-              <li>AI Governance Proof (AGP) &mdash; cryptographic proof for every governance action, with trace IDs and full audit metadata</li>
-              <li>Scalable Data Platform (Kafka + ClickHouse) &mdash; AGP events queryable in under 10 seconds for compliance and regulatory needs</li>
+              <li>AI Governance Proof (AGP)<InfoBubble term="AGP" /> &mdash; cryptographic proof for every governance action, with trace IDs and full audit metadata</li>
+              <li>Scalable Data Platform (Kafka + ClickHouse) &mdash; AGP<InfoBubble term="AGP" /> events queryable in under 10 seconds for compliance and regulatory needs</li>
               <li>Sandarb AI Governance Agent: participates in A2A and MCP (industry standard protocols for agent-to-agent and tool-to-model communication)</li>
             </ol>
           </div>

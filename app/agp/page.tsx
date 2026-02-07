@@ -1,6 +1,7 @@
 import Link from 'next/link';
-import { ArrowRight, BookOpen, Github, Shield } from 'lucide-react';
+import { ArrowRight, BookOpen, Github } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { AgpIcon } from '@/components/agp-icon';
 
 export const metadata = {
   title: 'AI Governance Proof (AGP) — An Open Specification',
@@ -22,7 +23,7 @@ export default function AGPSpecPage() {
       <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-6 py-8">
         <div className="max-w-3xl mx-auto">
           <div className="flex items-center gap-2 text-xs font-semibold text-violet-600 dark:text-violet-400 uppercase tracking-widest mb-3">
-            <Shield className="h-4 w-4" />
+            <AgpIcon className="h-4 w-4" />
             Open Specification
           </div>
           <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground leading-tight">
