@@ -11,6 +11,7 @@ the API returns column defaults from the schema.
 """
 
 import logging
+import os
 from typing import Any
 
 from backend.db import query_one, execute
@@ -65,8 +66,20 @@ def _pg_table(section: str) -> str:
 
 # ── Public API ─────────────────────────────────────────────────────
 
+_ENV_FALLBACKS: dict[str, dict[str, str]] = {
+    "kafka": {"bootstrap_servers": "KAFKA_BOOTSTRAP_SERVERS"},
+    "clickhouse": {"url": "CLICKHOUSE_URL", "password": "CLICKHOUSE_PASSWORD"},
+    "superset": {"url": "SUPERSET_URL"},
+}
+
+
 def get_config(section: str) -> dict[str, Any]:
-    """Get config for a section. Returns column defaults if no row saved yet."""
+    """Get config for a section. Returns column defaults if no row saved yet.
+
+    When no DB row exists, falls back to well-known environment variables
+    (e.g. SUPERSET_URL, KAFKA_BOOTSTRAP_SERVERS) so Cloud Run deployments
+    work without requiring a manual DB seed.
+    """
     if section not in TABLES:
         raise ValueError(f"Unknown config section: {section}")
 
@@ -78,6 +91,7 @@ def get_config(section: str) -> dict[str, Any]:
 
     result: dict[str, Any] = {}
     meta = TABLES[section]
+    env_map = _ENV_FALLBACKS.get(section, {})
 
     for col in cols:
         is_secret = meta[col].get("is_secret", False)
@@ -91,7 +105,9 @@ def get_config(section: str) -> dict[str, Any]:
             else:
                 val = str(val)
         else:
-            val = ""  # DB defaults are used when row is created
+            # No DB row — fall back to env var if available
+            env_key = env_map.get(col, "")
+            val = os.environ.get(env_key, "") if env_key else ""
 
         result[col] = {
             "value": _mask_value(val) if is_secret and val else val,
@@ -174,20 +190,22 @@ def update_config(section: str, updates: dict[str, Any], updated_by: str = "") -
 def get_raw_value(section: str, key: str) -> str:
     """Get unmasked raw value for internal use (Kafka producer, AI service).
 
-    Returns the DB value or empty string if no row exists (caller should
-    fall back to env var or hardcoded default).
+    Returns the DB value, falling back to env var, then empty string.
     """
     if section not in TABLES or key not in _columns(section):
         return ""
 
     table = _pg_table(section)
     row = query_one(f"SELECT {key} FROM {table} LIMIT 1")  # noqa: S608
-    if not row:
-        return ""
-    val = row[key]
-    if isinstance(val, bool):
-        return str(val).lower()
-    return str(val) if val else ""
+    if row:
+        val = row[key]
+        if isinstance(val, bool):
+            return str(val).lower()
+        if val:
+            return str(val)
+    # Fall back to env var
+    env_key = _ENV_FALLBACKS.get(section, {}).get(key, "")
+    return os.environ.get(env_key, "") if env_key else ""
 
 
 def ensure_tables():
