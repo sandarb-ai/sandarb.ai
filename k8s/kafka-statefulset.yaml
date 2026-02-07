@@ -50,7 +50,7 @@ spec:
       initContainers:
         - name: fix-permissions
           image: busybox:1.36
-          command: ["sh", "-c", "chown -R 1000:1000 /var/lib/kafka/data"]
+          command: ["sh", "-c", "rm -rf /var/lib/kafka/data/lost+found && chown -R 1000:1000 /var/lib/kafka/data"]
           volumeMounts:
             - name: data
               mountPath: /var/lib/kafka/data
@@ -66,15 +66,23 @@ spec:
               name: plaintext
             - containerPort: 9093
               name: controller
+            - containerPort: 9094
+              name: external
           env:
             - name: CLUSTER_ID
               value: "MkU3OEVBNTcwNTJENDM2Qk"
             - name: KAFKA_CONTROLLER_LISTENER_NAMES
               value: "CONTROLLER"
             - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
-              value: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+              value: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT"
             - name: KAFKA_LISTENERS
-              value: "PLAINTEXT://:9092,CONTROLLER://:9093"
+              value: "PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094"
+            - name: KAFKA_INTER_BROKER_LISTENER_NAME
+              value: "PLAINTEXT"
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
             - name: KAFKA_CONTROLLER_QUORUM_VOTERS
               value: "0@sandarb-kafka-0.sandarb-kafka-brokers.sandarb-data.svc.cluster.local:9093,1@sandarb-kafka-1.sandarb-kafka-brokers.sandarb-data.svc.cluster.local:9093,2@sandarb-kafka-2.sandarb-kafka-brokers.sandarb-data.svc.cluster.local:9093"
             - name: KAFKA_LOG_DIRS
@@ -102,7 +110,7 @@ spec:
             - |
               ORDINAL=${HOSTNAME##*-}
               export KAFKA_NODE_ID=$ORDINAL
-              export KAFKA_ADVERTISED_LISTENERS="PLAINTEXT://${HOSTNAME}.sandarb-kafka-brokers.sandarb-data.svc.cluster.local:9092"
+              export KAFKA_ADVERTISED_LISTENERS="PLAINTEXT://${HOSTNAME}.sandarb-kafka-brokers.sandarb-data.svc.cluster.local:9092,EXTERNAL://${POD_IP}:9094"
               export KAFKA_PROCESS_ROLES="controller,broker"
               exec /etc/kafka/docker/run
           resources:

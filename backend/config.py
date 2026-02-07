@@ -133,7 +133,14 @@ class Settings(BaseSettings):
                 ]
             return origins
 
-        # Development: include localhost origins
+        # Development: include localhost + default sandarb.ai origins
+        if not any("sandarb.ai" in o for o in origins):
+            origins.extend([
+                "https://ui.sandarb.ai",
+                "https://api.sandarb.ai",
+                "https://agent.sandarb.ai",
+                "https://sandarb.ai",
+            ])
         origins.extend(_DEFAULT_DEV_ORIGINS)
         return list(set(origins))  # deduplicate
 

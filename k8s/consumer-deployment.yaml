@@ -1,4 +1,4 @@
-# Kafka → ClickHouse Consumer Bridge
+# Sandarb Kafka to ClickHouse Consumer (SKCC)
 # 1 replica for dev/staging — single consumer for ordered processing.
 # Total CPU request: 250m
 apiVersion: apps/v1
@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: consumer
-          image: REGION-docker.pkg.dev/PROJECT_ID/cloud-run/sandarb-kafka-clickhouse-consumer:TAG
+          image: us-central1-docker.pkg.dev/sandarb-ai/cloud-run/sandarb-kafka-clickhouse-consumer:20260207-175832-de721d4
           ports:
             - containerPort: 8079
               name: health

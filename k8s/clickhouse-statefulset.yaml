@@ -54,7 +54,7 @@ spec:
       initContainers:
         - name: fix-permissions
           image: busybox:1.36
-          command: ["sh", "-c", "chown -R 101:101 /var/lib/clickhouse-keeper"]
+          command: ["sh", "-c", "rm -rf /var/lib/clickhouse-keeper/lost+found && chown -R 101:101 /var/lib/clickhouse-keeper"]
           volumeMounts:
             - name: keeper-data
               mountPath: /var/lib/clickhouse-keeper
@@ -73,6 +73,7 @@ spec:
               SERVER_ID=$((ORDINAL + 1))
               cat > /etc/clickhouse-keeper/keeper_config.xml <<EOF
               <clickhouse>
+                <listen_host>0.0.0.0</listen_host>
                 <keeper_server>
                   <tcp_port>9181</tcp_port>
                   <server_id>${SERVER_ID}</server_id>
@@ -225,7 +226,7 @@ spec:
         # Fix PVC ownership for ClickHouse (runs as uid 101)
         - name: fix-permissions
           image: busybox:1.36
-          command: ["sh", "-c", "chown -R 101:101 /var/lib/clickhouse"]
+          command: ["sh", "-c", "rm -rf /var/lib/clickhouse/lost+found && chown -R 101:101 /var/lib/clickhouse"]
           volumeMounts:
             - name: data
               mountPath: /var/lib/clickhouse
