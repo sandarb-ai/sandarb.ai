@@ -4,29 +4,31 @@
  * Animated AGP (AI Governance Proof) Pipeline diagram.
  *
  * Layout (left → right):
- *   [5 AI Agents] ⇄ [Sandarb logo+name rect] → [Kafka cylinder] → [SKCC stream] → [ClickHouse DB] → [Superset]
+ *   [Agent 1 .. Agent N] ⇄ [Sandarb] → [Kafka] → [SKCC] → [ClickHouse] → [Superset]
  *
- * Uses native SVG <animateMotion> for traveling dots — same lightweight
- * pattern as multi-agent-a2a-diagram.tsx. No JS animation library needed.
+ * Agents stacked vertically with "..." ellipsis between Agent 3 and Agent N
+ * to suggest any number of agents.
+ *
+ * Uses native SVG <animateMotion> for traveling dots — no JS animation library needed.
  */
 
 const DUR = '2.5'; // seconds per segment traversal
 const DOT_R = 3;
 
-/* ── Agent nodes (left side, stacked vertically) ── */
+/* ── Agent nodes (left side, stacked vertically with even spacing) ── */
 const AGENTS = [
-  { label: 'Agent 1', y: 50,  color: '#fce7f3', stroke: '#f9a8d4' },
-  { label: 'Agent 2', y: 95,  color: '#ede9fe', stroke: '#c4b5fd' },
-  { label: 'Agent 3', y: 140, color: '#e0f2fe', stroke: '#7dd3fc' },
-  { label: 'Agent 4', y: 185, color: '#fef9c3', stroke: '#fde047' },
-  { label: 'Agent 5', y: 230, color: '#d1fae5', stroke: '#6ee7b7' },
+  { label: 'Agent 1', y: 42,  color: '#fce7f3', stroke: '#f9a8d4' },
+  { label: 'Agent 2', y: 100, color: '#ede9fe', stroke: '#c4b5fd' },
+  { label: 'Agent 3', y: 158, color: '#e0f2fe', stroke: '#7dd3fc' },
+  // ... ellipsis gap ...
+  { label: 'Agent N', y: 248, color: '#d1fae5', stroke: '#6ee7b7' },
 ];
 const AGENT_X = 55;
 const AGENT_R = 20;
 
 /* ── Sandarb rect position ── */
 const SANDARB_X = 195;
-const SANDARB_Y = 105;
+const SANDARB_Y = 110;
 const SANDARB_W = 100;
 const SANDARB_H = 70;
 const SANDARB_CX = SANDARB_X + SANDARB_W / 2;
@@ -37,7 +39,7 @@ const KAFKA_CX = 390;
 const CONSUMER_CX = 520;
 const CLICKHOUSE_CX = 650;
 const SUPERSET_CX = 775;
-const PIPE_Y = 140; // vertical center line for pipeline nodes
+const PIPE_Y = 145; // vertical center line for pipeline nodes
 
 const LINE_COLOR = '#e5e7eb';
 
@@ -45,7 +47,7 @@ export function DataPipelineDiagram() {
   return (
     <div className="relative w-full max-w-4xl mx-auto text-foreground">
       <svg
-        viewBox="0 0 850 290"
+        viewBox="0 0 850 300"
         className="w-full h-auto min-h-[200px]"
         preserveAspectRatio="xMidYMid meet"
         aria-hidden
@@ -136,7 +138,7 @@ export function DataPipelineDiagram() {
               <animateMotion
                 dur={`${DUR}s`}
                 repeatCount="indefinite"
-                begin={`${i * 0.5}s`}
+                begin={`${i * 0.6}s`}
                 path={`M ${AGENT_X + AGENT_R} ${agent.y} L ${SANDARB_X} ${SANDARB_CY}`}
               />
             </circle>
@@ -145,7 +147,7 @@ export function DataPipelineDiagram() {
               <animateMotion
                 dur={`${DUR}s`}
                 repeatCount="indefinite"
-                begin={`${i * 0.5 + 1.2}s`}
+                begin={`${i * 0.6 + 1.2}s`}
                 path={`M ${SANDARB_X} ${SANDARB_CY} L ${AGENT_X + AGENT_R} ${agent.y}`}
               />
             </circle>
@@ -214,6 +216,13 @@ export function DataPipelineDiagram() {
             {agent.label}
           </text>
         ))}
+
+        {/* ── Ellipsis dots between Agent 3 and Agent N ── */}
+        <g fill="#d1d5db">
+          <circle cx={AGENT_X} cy={193} r="2" />
+          <circle cx={AGENT_X} cy={205} r="2" />
+          <circle cx={AGENT_X} cy={217} r="2" />
+        </g>
 
         {/* ═══════════════ SANDARB (rectangle with logo) ═══════════════ */}
         <g filter="url(#dp-shadow)">

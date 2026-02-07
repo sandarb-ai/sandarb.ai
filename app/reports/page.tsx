@@ -17,6 +17,7 @@ import { Header } from '@/components/header';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { Card, CardContent } from '@/components/ui/card';
 import { DataPipelineDiagram } from '@/components/data-pipeline-diagram';
+import { InfoBubble } from '@/components/info-bubble';
 
 /** Derive a sensible Superset default from the current hostname. */
 function defaultSupersetUrl(): string {
@@ -100,10 +101,10 @@ export default function ReportsPage() {
           {/* Title */}
           <div className="text-center mb-8">
             <h2 className="text-lg font-semibold text-foreground mb-1">
-              AGP Pipeline — Sandarb Data Platform
+              AGP<InfoBubble term="AGP" /> Pipeline — Sandarb Data Platform
             </h2>
             <p className="text-sm text-muted-foreground">
-              AI Governance Proof (AGP) events flow from AI Agents through Sandarb to Kafka, consumed by SKCC into ClickHouse, and visualized in Superset.
+              AI Governance Proof (AGP)<InfoBubble term="AGP" /> events flow from AI Agents through Sandarb to Kafka, consumed by SKCC<InfoBubble term="SKCC" /> into ClickHouse, and visualized in Superset.
             </p>
           </div>
 
@@ -114,13 +115,40 @@ export default function ReportsPage() {
 
           {/* Superset link card */}
           <div className="flex justify-center mb-12">
-            <a
-              href={supersetUrl || '#'}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block"
-            >
-              <Card className="border-border/80 hover:border-cyan-400 dark:hover:border-cyan-600 hover:shadow-lg transition-all w-[400px] cursor-pointer">
+            {supersetUrl ? (
+              <a
+                href={supersetUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block"
+              >
+                <Card className="border-border/80 hover:border-cyan-400 dark:hover:border-cyan-600 hover:shadow-lg transition-all w-[400px] cursor-pointer">
+                  <CardContent className="p-6 flex items-center gap-4">
+                    <div className="rounded-xl bg-cyan-50 dark:bg-cyan-900/30 p-3 shrink-0">
+                      <Image
+                        src="/icons/superset.svg"
+                        alt=""
+                        width={36}
+                        height={36}
+                        aria-hidden
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-foreground">
+                          Open Superset
+                        </span>
+                        <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-0.5">
+                        Interactive dashboards and SQL Lab
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </a>
+            ) : (
+              <Card className="border-border/80 opacity-60 w-[400px]">
                 <CardContent className="p-6 flex items-center gap-4">
                   <div className="rounded-xl bg-cyan-50 dark:bg-cyan-900/30 p-3 shrink-0">
                     <Image
@@ -132,19 +160,16 @@ export default function ReportsPage() {
                     />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-foreground">
-                        Open Superset
-                      </span>
-                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
-                    </div>
+                    <span className="font-semibold text-foreground">
+                      Superset
+                    </span>
                     <p className="text-sm text-muted-foreground mt-0.5">
-                      Interactive dashboards and SQL Lab
+                      Configure Superset URL in Settings &rarr; Data Platform
                     </p>
                   </div>
                 </CardContent>
               </Card>
-            </a>
+            )}
           </div>
 
           {/* Governance report cards */}
