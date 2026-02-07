@@ -24,6 +24,7 @@ export function PublicHeader({
   const pathname = usePathname();
   const isHome = pathname === '/';
   const isDocs = pathname?.startsWith('/docs');
+  const isAGP = pathname === '/agp';
   const isSettings = pathname === '/settings';
 
   // Notification bell: only show when signed in and not on public pages
@@ -61,6 +62,12 @@ export function PublicHeader({
             className={`${navLink} ${isDocs ? navLinkActive : navLinkInactive}`}
           >
             Docs
+          </Link>
+          <Link
+            href="/agp"
+            className={`${navLink} ${isAGP ? navLinkActive : navLinkInactive}`}
+          >
+            AGP
           </Link>
         </nav>
       </div>
