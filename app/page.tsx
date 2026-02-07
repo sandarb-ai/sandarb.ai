@@ -100,10 +100,9 @@ export default function LandingPage() {
             </p>
           </div>
           <div className="mt-5 max-w-2xl mx-auto rounded-lg border border-indigo-300/40 dark:border-indigo-700/40 bg-indigo-50/50 dark:bg-indigo-950/20 px-5 py-3">
-            <div className="flex items-start gap-3">
-              <AgpIcon className="h-6 w-6 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-foreground/90">
+            <div>
+                <p className="text-sm font-semibold text-foreground/90 flex items-center gap-1.5">
+                  <AgpIcon className="h-4.5 w-4.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
                   AI Governance Proof (AGP)<InfoBubble term="AGP" />
                 </p>
                 <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
@@ -113,7 +112,6 @@ export default function LandingPage() {
                   Read the AGP spec
                   <ArrowRight className="h-3 w-3" />
                 </Link>
-              </div>
             </div>
           </div>
           <div className="mt-5 flex flex-wrap justify-center items-center gap-3">

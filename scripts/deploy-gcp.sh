@@ -226,7 +226,12 @@ UI_ENV="NEXT_PUBLIC_API_URL=https://api.sandarb.ai,NEXT_PUBLIC_AGENT_URL=https:/
 echo ""
 echo "[3/5] Deploying sandarb-api (api.sandarb.ai)..."
 
-API_ENV="AGENT_PUBLIC_URL=https://agent.sandarb.ai,SERVICE_MODE=api,DATABASE_URL=${DEPLOY_DATABASE_URL}"
+# Data platform env vars (GKE Internal LoadBalancer IPs; used as fallback when config_* tables are empty)
+DP_SUPERSET_URL="${SUPERSET_URL:-http://10.128.15.201:8088}"
+DP_KAFKA_BOOTSTRAP="${KAFKA_BOOTSTRAP_SERVERS:-10.128.15.198:9094}"
+DP_CLICKHOUSE_URL="${CLICKHOUSE_URL:-http://10.128.15.200:8123}"
+
+API_ENV="AGENT_PUBLIC_URL=https://agent.sandarb.ai,SERVICE_MODE=api,DATABASE_URL=${DEPLOY_DATABASE_URL},SUPERSET_URL=${DP_SUPERSET_URL},KAFKA_BOOTSTRAP_SERVERS=${DP_KAFKA_BOOTSTRAP},CLICKHOUSE_URL=${DP_CLICKHOUSE_URL}"
 DEPLOY_API_ARGS=(
   --image "${AR_IMAGE_PREFIX}/sandarb-backend:${BUILD_TAG}"
   --platform managed
