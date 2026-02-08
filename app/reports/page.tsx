@@ -19,13 +19,28 @@ import { Card, CardContent } from '@/components/ui/card';
 import { DataPipelineDiagram } from '@/components/data-pipeline-diagram';
 import { InfoBubble } from '@/components/info-bubble';
 
-/** Derive a sensible Superset default from the current hostname. */
+/** Derive a sensible Superset URL from the current hostname.
+ *  On localhost → direct to localhost:8088.
+ *  On production → proxy through the API backend (/superset/) because
+ *  the real Superset runs on a GKE internal IP the browser can't reach. */
 function defaultSupersetUrl(): string {
   if (typeof window === 'undefined') return 'http://localhost:8088';
   const host = window.location.hostname;
   if (host === 'localhost' || host === '127.0.0.1') return 'http://localhost:8088';
-  // Cloud Run / sandarb.ai — superset lives on GKE; platform config should have the URL
   return '';
+}
+
+/** Returns the browser-accessible Superset URL.
+ *  If we're on production and the configured URL is an internal IP,
+ *  route through the API backend's reverse proxy instead. */
+function browserSupersetUrl(configuredUrl: string): string {
+  if (!configuredUrl) return '';
+  if (typeof window === 'undefined') return configuredUrl;
+  const host = window.location.hostname;
+  // On localhost, use the configured URL directly (user can reach it)
+  if (host === 'localhost' || host === '127.0.0.1') return configuredUrl;
+  // On production, proxy through the API backend
+  return apiUrl('/superset/');
 }
 
 const reportLinks = [
@@ -79,7 +94,7 @@ export default function ReportsPage() {
       .then((r) => r.json())
       .then((d) => {
         if (d.success && d.data?.url?.value && !d.data.url.value.startsWith('****')) {
-          setSupersetUrl(d.data.url.value);
+          setSupersetUrl(browserSupersetUrl(d.data.url.value));
         } else {
           setSupersetUrl(defaultSupersetUrl());
         }

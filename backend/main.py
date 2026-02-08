@@ -25,7 +25,7 @@ from starlette.routing import Mount, Route
 
 from backend.config import settings as config
 from backend.middleware.security import setup_security_middleware
-from backend.routers import health, agents, organizations, dashboard, governance, agent_pulse, lineage, contexts, prompts, templates, settings, inject, reports, audit, samples, seed, agent_protocol, platform_config, notifications
+from backend.routers import health, agents, organizations, dashboard, governance, agent_pulse, lineage, contexts, prompts, templates, settings, inject, reports, audit, samples, seed, agent_protocol, platform_config, notifications, superset_proxy
 from backend.mcp_server import mcp as sandarb_mcp
 
 # Configure logging
@@ -116,6 +116,10 @@ app.include_router(samples.router, prefix="/api")
 app.include_router(seed.router, prefix="/api")
 app.include_router(platform_config.router, prefix="/api")
 app.include_router(notifications.router, prefix="/api")
+
+# Superset reverse proxy: browser can't reach GKE internal IP directly,
+# so we proxy through the API backend which has VPC access.
+app.include_router(superset_proxy.router)
 
 # Mount MCP server at /mcp (Streamable HTTP transport — works with Claude Desktop, Cursor, mcp-remote)
 # Starlette's Mount("/mcp", ...) only matches /mcp/{path} and the Router redirect_slashes

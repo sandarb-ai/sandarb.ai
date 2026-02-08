@@ -212,7 +212,7 @@ export default async function DocsPage() {
       ],
     },
     {
-      label: 'AGP Data Platform',
+      label: 'Data Platform',
       icon: 'Database',
       items: [
         { id: 'data-platform', label: 'AGP Pipeline', icon: 'Network' },
@@ -1507,7 +1507,7 @@ sandarb.audit("inference", details={"response_length": 120})`}</DocsCodeBlock>
         </section>
 
         {/* ═══════════════════════════════════════════════════════════════ */}
-        {/* AGP Data Platform — placed after A2A since every A2A call,    */}
+        {/* Data Platform — placed after A2A since every A2A call,         */}
         {/* audit log, and governance event produces AGP data.            */}
         {/* ═══════════════════════════════════════════════════════════════ */}
 
